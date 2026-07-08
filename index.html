@@ -379,7 +379,7 @@ function renderSection(section){
   const map = {
     riepilogo:   ()=>secRiepilogo(d),
     alloggi:     ()=>secTable('Alloggi', d.Alloggi, tid),
-    voli:        ()=>secTable('Voli', d.Voli, tid),
+    voli:        ()=>secVoli(d.Voli, tid),
     spese:       ()=>secSpese(d, tid),
     cosedafare:  ()=>secTable('CoseDaFare', d.CoseDaFare, tid),
     cosaportare: ()=>secTable('CosaPortare', d.CosaPortare, tid),
@@ -438,15 +438,16 @@ function secRiepilogo(d){
 /* ---------- TABELLE GENERICHE (Alloggi, Voli, CoseDaFare...) ---------- */
 // Colonne mostrate per ciascun tab (le altre restano nel foglio ma non ingombrano)
 const COLS = {
-  Alloggi:     ['struttura','checkin','checkout','notti','totale','valutazione','scelto'],
-  Voli:        ['direzione','tratta','compagnia','n_volo','da','a','ora_part','totale','scelto'],
+  Alloggi:     ['struttura','checkin','checkout','notti','totale','prezzo_testa','prezzo_testa_notte','valutazione','scelto'],
   CoseDaFare:  ['tipo','attivita','posizione','durata','prenotazione_req','confermata'],
   CosaPortare: ['categoria','cosa','qta','chi','priorita','spuntato'],
   Contatti:    ['categoria','nome','telefono','indirizzo'],
 };
 const LABELS = {
   checkin:'check-in', checkout:'check-out', n_volo:'n° volo', ora_part:'orario',
-  prenotazione_req:'prenot.', valutazione:'voto', qta:'q.tà', da:'da', a:'a'
+  prenotazione_req:'prenot.', valutazione:'voto', qta:'q.tà', da:'da', a:'a',
+  prezzo_testa:'a testa', prezzo_testa_notte:'a testa/notte', prezzo_notte:'a notte',
+  data_part:'data part.', data_arr:'data arr.', ora_arr:'ora arr.'
 };
 const lbl = k => LABELS[k] || k.replace(/_/g,' ');
 
@@ -484,7 +485,7 @@ function cell(sheet, col, val){
     if(s.includes('consig')) return `<span class="chip pri-cons">${esc(val)}</span>`;
     return esc(val);
   }
-  if(col==='totale'||col==='prezzo_notte'||col==='costo') return `<span class="mono">${eur(val)}</span>`;
+  if(['totale','prezzo_notte','prezzo_testa','prezzo_testa_notte','costo','extra'].includes(col)) return `<span class="mono">${eur(val)}</span>`;
   if(DATE_FIELDS.includes(col)) return `<span class="mono">${toITDate(val)}</span>`;
   if(TIME_FIELDS.includes(col)) return `<span class="mono">${esc(toHM(val))}</span>`;
   if(col==='valutazione'){ const n=num(val); return n?('★'.repeat(Math.min(5,Math.round(n)))):esc(val); }
@@ -524,6 +525,75 @@ function secSpese(d, tid){
     </div>`;
 }
 
+/* ---------- VOLI (raggruppati per volo, con tratte/scali) ---------- */
+function secVoli(rows, tid){
+  rows = rows || [];
+  const groups = voliGroups(rows);
+  const keys = Object.keys(groups);
+  // ordina: prima andata, poi ritorno; poi per opzione
+  keys.sort((a,b)=>{
+    const A=groups[a][0], B=groups[b][0];
+    const dir = String(A.direzione||'').localeCompare(String(B.direzione||''));
+    return dir!==0 ? dir : num(A.opzione)-num(B.opzione);
+  });
+
+  const cards = keys.map(k=>{
+    const legs = groups[k];
+    const head = legs[0];
+    const pick = truthy(head.scelto);
+    const totale = num(head.totale);
+    const pt = num(head.prezzo_testa);
+    const legsHtml = legs.map((l,i)=>`
+      <div class="d-flex align-items-center gap-2 py-1" style="border-top:${i?'1px dashed var(--line)':'none'}">
+        <span class="chip" style="flex:none">${i+1}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600">${esc(l.da||'?')} → ${esc(l.a||'?')}
+            <span style="font-weight:400;color:var(--muted);font-size:.8rem">· ${esc(l.compagnia||'')} ${esc(l.n_volo||'')}</span></div>
+          <div class="mono" style="font-size:.75rem;color:var(--ink-soft)">
+            ${toITDate(l.data_part)} ${esc(toHM(l.ora_part))} → ${toITDate(l.data_arr)} ${esc(toHM(l.ora_arr))}
+            ${l.scalo?` · <span style="color:var(--stamp)">scalo ${esc(l.scalo)}</span>`:''}
+            ${truthy(l.bagaglio)?' · 🧳':''}
+          </div>
+        </div>
+      </div>`).join('');
+    return `
+      <div class="col-12 col-lg-6">
+        <div class="sheet p-3 h-100" style="${pick?'border-color:var(--ok);border-width:2px':''}">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <span class="chip ${pick?'pick':''}">${esc(head.direzione||'?')}${head.opzione?` · opz. ${esc(head.opzione)}`:''}</span>
+              ${pick?'<span class="chip pick ms-1">✓ scelto</span>':''}
+            </div>
+            <div class="text-nowrap">
+              <button class="icon-btn" title="Modifica" onclick='editVolo(${JSON.stringify(legs)}, "${esc(tid)}")'>✎</button>
+              <button class="icon-btn" title="Elimina" onclick="delVolo('${esc(head.gruppo_id||head.id)}')">🗑</button>
+            </div>
+          </div>
+          ${legsHtml}
+          ${(totale||pt)?`<div class="d-flex justify-content-between mt-2 pt-2" style="border-top:1px solid var(--line)">
+            <span class="mono" style="font-size:.85rem">${totale?eur(totale):''}</span>
+            <span class="per-person" style="font-size:.85rem">${pt?eur(pt)+' a testa':''}</span>
+          </div>`:''}
+        </div>
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <p class="eyebrow mb-0">${keys.length} voli · ${rows.length} tratte</p>
+      <button class="btn btn-stamp btn-sm" onclick="editVolo(null, '${esc(tid)}')">+ Aggiungi volo</button>
+    </div>
+    ${keys.length ? `<div class="row g-3">${cards}</div>`
+      : `<div class="sheet empty"><div class="big">Nessun volo ancora</div>
+         <div>Aggiungi un volo, anche con scali.</div></div>`}`;
+}
+
+async function delVolo(gruppoId){
+  if(!confirm('Eliminare questo volo (tutte le sue tratte)?')) return;
+  try{ await api('delete_group',{sheet:'Voli',gruppo_id:gruppoId}); toast('Volo eliminato'); reloadCurrent(); }
+  catch(e){ toast('Errore: '+e.message); }
+}
+
 /* ---------- INFO DESTINAZIONE (chiave/valore) ---------- */
 function secInfo(d, tid){
   const rows = d.InfoDest||[];
@@ -555,9 +625,8 @@ function secInfo(d, tid){
    ============================================================ */
 const FIELD_ORDER = {
   Viaggi:['nome','destinazione','paese','data_inizio','data_fine','n_persone','stato','note'],
-  Alloggi:['struttura','checkin','checkout','notti','prezzo_notte','extra','totale','link','indirizzo','posizione','valutazione','scelto','note'],
-  Voli:['opzione','direzione','tratta','persone','compagnia','n_volo','da','a','data_part','ora_part','data_arr','ora_arr','scalo','totale','bagaglio','scelto','note'],
-  Spese:['data','descrizione','categoria','totale','note'],
+  Alloggi:['struttura','checkin','checkout','notti','persone','totale','prezzo_notte','prezzo_testa','prezzo_testa_notte','extra','link','indirizzo','posizione','valutazione','scelto','note'],
+  Spese:['data','descrizione','categoria','persone','totale','prezzo_testa','note'],
   CoseDaFare:['tipo','attivita','posizione','durata','costo','prenotazione_req','quando','link','note','confermata'],
   CosaPortare:['categoria','cosa','qta','chi','priorita','spuntato','note'],
   Contatti:['categoria','nome','telefono','link','indirizzo','note'],
@@ -566,10 +635,22 @@ const FIELD_ORDER = {
 const BOOL_FIELDS = ['scelto','confermata','spuntato','prenotazione_req','bagaglio'];
 const AREA_FIELDS = ['note'];
 // Campi che devono essere salvati come NUMERO puro (mai come testo/ora)
-const NUM_FIELDS = ['totale','prezzo_notte','extra','costo','notti','persone','qta','valutazione','n_persone'];
+const NUM_FIELDS = ['totale','prezzo_notte','prezzo_testa','prezzo_testa_notte','extra','costo','notti','persone','qta','valutazione','n_persone','tratta','opzione'];
 // Campi data (datepicker) e ora (timepicker)
 const DATE_FIELDS = ['data_inizio','data_fine','checkin','checkout','data_part','data_arr'];
 const TIME_FIELDS = ['ora_part','ora_arr'];
+
+// Compagnie aeree note per la datalist (aperta: puoi comunque digitarne altre)
+const AIRLINES = [
+  'ITA Airways','Ryanair','easyJet','Wizz Air','Lufthansa','Air Dolomiti','Discover Airlines',
+  'Vueling','Air France','KLM','British Airways','Iberia','Swiss','Austrian Airlines','Brussels Airlines',
+  'Eurowings','Aegean Airlines','Turkish Airlines','Emirates','Qatar Airways','Etihad Airways',
+  'TAP Air Portugal','SAS','Finnair','Norwegian','Volotea','Transavia','Pegasus Airlines',
+  'American Airlines','Delta Air Lines','United Airlines','Air Canada','Qantas','Singapore Airlines',
+  'Cathay Pacific','ANA','Japan Airlines','Emirates','Royal Air Maroc','EgyptAir','El Al'
+];
+// Campi che usano la datalist compagnie
+const AIRLINE_FIELDS = ['compagnia'];
 
 // Porta qualsiasi data in ISO "YYYY-MM-DD" per l'input type=date.
 // Accetta: ISO, "04/08/26", "04/08/2026", "2026-08-03T22:00:00Z".
@@ -612,6 +693,53 @@ function parseNum(raw){
   return isNaN(n) ? '' : n;
 }
 
+// Formatta un numero per un input testuale (usa virgola IT, niente € ).
+function fmtNumIT(n){
+  if(n === '' || n == null || isNaN(n)) return '';
+  return Number(n).toLocaleString('it-IT', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function round2(n){ return Math.round((Number(n)+Number.EPSILON)*100)/100; }
+
+/* -------- AUTO-CALCOLO totale <-> a testa --------
+   Regola: l'ultimo campo che l'utente tocca è la "sorgente"; gli altri
+   si ricalcolano. Persone (e notti, per alloggi) sono i divisori.
+   - Alloggi: totale <-> prezzo_testa (÷persone) e prezzo_testa_notte (÷persone÷notti)
+              inoltre prezzo_notte = totale ÷ notti
+   - Voli/Spese: totale <-> prezzo_testa (÷persone)
+*/
+function recalc(sheet, changed){
+  const g = id => { const el = $('#f_'+id); return el ? parseNum(el.value) : ''; };
+  const set = (id,val) => { const el = $('#f_'+id); if(el && document.activeElement!==el) el.value = fmtNumIT(val); };
+
+  const persone = g('persone') || g('n_persone') || 0;
+  const notti   = g('notti') || 0;
+
+  if(sheet==='Alloggi'){
+    const tot=g('totale'), pt=g('prezzo_testa'), ptn=g('prezzo_testa_notte'), pn=g('prezzo_notte');
+    let total = tot;
+    // deduci il totale dal campo che l'utente ha appena cambiato
+    if(changed==='prezzo_testa' && pt!=='' && persone)          total = round2(pt*persone);
+    else if(changed==='prezzo_testa_notte' && ptn!=='' && persone && notti) total = round2(ptn*persone*notti);
+    else if(changed==='prezzo_notte' && pn!=='' && notti)        total = round2(pn*notti);
+    if(total!=='' && total!=null && !isNaN(total)){
+      if(changed!=='totale') set('totale', total);
+      if(changed!=='prezzo_testa'        && persone)         set('prezzo_testa', round2(total/persone));
+      if(changed!=='prezzo_testa_notte'  && persone && notti) set('prezzo_testa_notte', round2(total/persone/notti));
+      if(changed!=='prezzo_notte'        && notti)           set('prezzo_notte', round2(total/notti));
+    }
+  } else { // Voli, Spese: solo totale <-> prezzo_testa
+    const tot=g('totale'), pt=g('prezzo_testa');
+    let total = tot;
+    if(changed==='prezzo_testa' && pt!=='' && persone) total = round2(pt*persone);
+    if(total!=='' && total!=null && !isNaN(total)){
+      if(changed!=='totale')       set('totale', total);
+      if(changed!=='prezzo_testa' && persone) set('prezzo_testa', round2(total/persone));
+    }
+  }
+}
+// Campi che, se cambiati, innescano un ricalcolo
+const CALC_TRIGGERS = ['totale','prezzo_testa','prezzo_testa_notte','prezzo_notte','persone','notti','n_persone'];
+
 let MODAL = null;
 function ensureModal(){
   if(MODAL) return MODAL;
@@ -635,6 +763,8 @@ function ensureModal(){
 }
 
 function editRow(sheet, record, tid){
+  // I voli hanno un form dedicato (gestione scali)
+  if(sheet==='Voli') return editVolo(record, tid);
   ensureModal();
   const isNew = !record;
   const rec = record || { viaggio_id: tid };
@@ -659,13 +789,27 @@ function editRow(sheet, record, tid){
       return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
         <input class="form-control" id="f_${f}" type="time" value="${esc(toHM(v))}"></div>`;
     }
-    if(NUM_FIELDS.includes(f)){
+    if(AIRLINE_FIELDS.includes(f)){
       return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
-        <input class="form-control" id="f_${f}" type="text" inputmode="decimal" value="${esc(v)}" placeholder="es. 2027,70"></div>`;
+        <input class="form-control" id="f_${f}" list="airlines" value="${esc(v)}" placeholder="scegli o scrivi…"></div>`;
+    }
+    if(NUM_FIELDS.includes(f)){
+      const hint = f==='prezzo_testa' ? 'auto se metti il totale'
+                 : f==='prezzo_testa_notte' ? 'auto (÷ persone ÷ notti)'
+                 : f==='prezzo_notte' ? 'auto (÷ notti)'
+                 : f==='totale' ? 'oppure compila "a testa"' : '';
+      return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}${hint?` <span style="font-weight:400;color:var(--muted);font-size:.7rem">— ${hint}</span>`:''}</label>
+        <input class="form-control" id="f_${f}" type="text" inputmode="decimal" value="${v!==''?esc(fmtNumIT(parseNum(v))):''}"></div>`;
     }
     return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
       <input class="form-control" id="f_${f}" type="text" value="${esc(v)}"></div>`;
-  }).join('');
+  }).join('') + airlineDatalist();
+
+  // aggancia il ricalcolo automatico totale <-> a testa
+  CALC_TRIGGERS.forEach(t=>{
+    const el = $('#f_'+t);
+    if(el) el.addEventListener('input', ()=>recalc(sheet, t));
+  });
 
   $('#mSave').onclick = async ()=>{
     const out = { id: rec.id, viaggio_id: rec.viaggio_id };
@@ -718,6 +862,190 @@ function reloadCurrent(){
   const m = h.match(/^#\/viaggio\/([^/]+)(?:\/([^/]+))?$/);
   if(m) viewTrip(m[1], m[2]||'riepilogo'); else viewHome();
 }
+
+/* ============================================================
+   FORM VOLI (dedicato — gestisce voli con uno o più scali)
+   ============================================================ */
+function airlineDatalist(){
+  return `<datalist id="airlines">${AIRLINES.map(a=>`<option value="${esc(a)}">`).join('')}</datalist>`;
+}
+
+// Raggruppa le tratte già salvate per gruppo_id (per la modifica)
+function voliGroups(rows){
+  const g = {};
+  (rows||[]).forEach(r=>{
+    const k = r.gruppo_id || r.id;   // fallback per righe vecchie senza gruppo
+    (g[k] ??= []).push(r);
+  });
+  Object.values(g).forEach(arr=>arr.sort((a,b)=>num(a.tratta)-num(b.tratta)));
+  return g;
+}
+
+// Apre il form volo. `group` = array di tratte esistenti (modifica) o null (nuovo).
+function editVolo(group, tid){
+  ensureModal();
+  const isNew = !group;
+  const base = (group && group[0]) || { viaggio_id: tid };
+  const gruppo_id = base.gruppo_id || genGroupId();
+  const viaggio_id = base.viaggio_id || tid;
+
+  $('#mTitle').textContent = (isNew?'Nuovo volo':'Modifica volo');
+  $('#mBody').innerHTML = `
+    <div class="row g-2 mb-3">
+      <div class="col-6"><label class="form-label">direzione</label>
+        <select class="form-select" id="v_direzione">
+          <option value="Andata"${truthyEq(base.direzione,'Andata')?' selected':''}>Andata</option>
+          <option value="Ritorno"${truthyEq(base.direzione,'Ritorno')?' selected':''}>Ritorno</option>
+        </select></div>
+      <div class="col-6"><label class="form-label">opzione n°</label>
+        <input class="form-control" id="v_opzione" type="text" inputmode="numeric" value="${esc(base.opzione||'1')}"></div>
+      <div class="col-8"><label class="form-label">totale volo <span style="font-weight:400;color:var(--muted);font-size:.7rem">— o compila "a testa"</span></label>
+        <input class="form-control" id="v_totale" type="text" inputmode="decimal" value="${base.totale!==''&&base.totale!=null?esc(fmtNumIT(parseNum(base.totale))):''}"></div>
+      <div class="col-4"><label class="form-label">persone</label>
+        <input class="form-control" id="v_persone" type="text" inputmode="numeric" value="${esc(base.persone||num(CURRENT_TRIP?.n_persone)||'')}"></div>
+      <div class="col-8"><label class="form-label">a testa <span style="font-weight:400;color:var(--muted);font-size:.7rem">— auto dal totale</span></label>
+        <input class="form-control" id="v_prezzo_testa" type="text" inputmode="decimal" value="${base.prezzo_testa!==''&&base.prezzo_testa!=null?esc(fmtNumIT(parseNum(base.prezzo_testa))):''}"></div>
+      <div class="col-4 d-flex align-items-end">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="v_scelto" ${truthy(base.scelto)?'checked':''}>
+          <label class="form-check-label" for="v_scelto">scelto</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <p class="eyebrow mb-0">Tratte</p>
+      <button class="btn btn-ghost btn-sm" id="v_addLeg" type="button">+ scalo</button>
+    </div>
+    <div id="v_legs"></div>
+    ${airlineDatalist()}
+  `;
+
+  // stato tratte in memoria
+  let legs = (group && group.length) ? group.map(legFromRow) : [ emptyLeg() ];
+  renderLegs();
+
+  function renderLegs(){
+    const box = $('#v_legs');
+    box.innerHTML = legs.map((L,i)=>legCard(L,i,legs.length)).join('');
+    // listeners per rimozione
+    legs.forEach((L,i)=>{
+      const del = $('#leg_del_'+i);
+      if(del) del.onclick = ()=>{ legs.splice(i,1); renderLegs(); };
+    });
+  }
+  $('#v_addLeg').onclick = ()=>{ legs.push(emptyLeg()); renderLegs(); };
+
+  // auto-calcolo totale <-> a testa nel form volo
+  const recalcVolo = (src)=>{
+    const persone = parseNum($('#v_persone').value)||0;
+    const tot = parseNum($('#v_totale').value);
+    const pt  = parseNum($('#v_prezzo_testa').value);
+    if(src==='prezzo_testa' && pt!=='' && persone){
+      const t = round2(pt*persone);
+      if(document.activeElement!==$('#v_totale')) $('#v_totale').value = fmtNumIT(t);
+    } else if(tot!=='' && persone){
+      if(src!=='prezzo_testa' && document.activeElement!==$('#v_prezzo_testa'))
+        $('#v_prezzo_testa').value = fmtNumIT(round2(tot/persone));
+    }
+  };
+  $('#v_totale').addEventListener('input', ()=>recalcVolo('totale'));
+  $('#v_prezzo_testa').addEventListener('input', ()=>recalcVolo('prezzo_testa'));
+  $('#v_persone').addEventListener('input', ()=>recalcVolo('persone'));
+
+  $('#mSave').onclick = async ()=>{
+    if(!legs.length){ toast('Aggiungi almeno una tratta'); return; }
+    // leggi le tratte dal DOM
+    const readLegs = legs.map((_,i)=>({
+      compagnia: $('#leg_comp_'+i).value.trim(),
+      n_volo:    $('#leg_nvolo_'+i).value.trim(),
+      da:        $('#leg_da_'+i).value.trim(),
+      a:         $('#leg_a_'+i).value.trim(),
+      data_part: $('#leg_dpart_'+i).value,
+      ora_part:  $('#leg_opart_'+i).value,
+      data_arr:  $('#leg_darr_'+i).value,
+      ora_arr:   $('#leg_oarr_'+i).value,
+      scalo:     $('#leg_scalo_'+i).value.trim(),
+      bagaglio:  $('#leg_bag_'+i).checked ? 'Sì' : '',
+    }));
+    const direzione = $('#v_direzione').value;
+    const opzione   = parseNum($('#v_opzione').value)||1;
+    const persone   = parseNum($('#v_persone').value)||'';
+    const totale    = parseNum($('#v_totale').value);
+    const prezzo_testa = parseNum($('#v_prezzo_testa').value);
+    const scelto    = $('#v_scelto').checked ? 'Sì' : '';
+
+    // costruisci le righe: il TOTALE va solo sulla prima tratta (no doppio conteggio)
+    const records = readLegs.map((leg,i)=>({
+      viaggio_id, gruppo_id,
+      opzione, direzione, tratta: i+1, persone,
+      compagnia: leg.compagnia, n_volo: leg.n_volo,
+      da: leg.da, a: leg.a,
+      data_part: leg.data_part, ora_part: leg.ora_part,
+      data_arr: leg.data_arr, ora_arr: leg.ora_arr,
+      scalo: leg.scalo,
+      totale:       i===0 ? totale : '',
+      prezzo_testa: i===0 ? prezzo_testa : '',
+      bagaglio: leg.bagaglio, scelto,
+      note: ''
+    }));
+
+    try{
+      $('#mSave').disabled = true;
+      if(isNew) await api('create_many', { sheet:'Voli', records });
+      else      await api('replace_group', { sheet:'Voli', gruppo_id, records });
+      MODAL.hide(); toast('Volo salvato ✓');
+      reloadCurrent();
+    }catch(e){ toast('Errore: '+e.message); }
+    finally{ $('#mSave').disabled=false; }
+  };
+  MODAL.show();
+}
+
+function emptyLeg(){ return {compagnia:'',n_volo:'',da:'',a:'',data_part:'',ora_part:'',data_arr:'',ora_arr:'',scalo:'',bagaglio:''}; }
+function legFromRow(r){
+  return {
+    compagnia:r.compagnia||'', n_volo:r.n_volo||'', da:r.da||'', a:r.a||'',
+    data_part:toISODate(r.data_part), ora_part:toHM(r.ora_part),
+    data_arr:toISODate(r.data_arr), ora_arr:toHM(r.ora_arr),
+    scalo:r.scalo||'', bagaglio:r.bagaglio||''
+  };
+}
+function legCard(L,i,total){
+  return `<div class="sheet p-3 mb-2" style="background:#fdfbf5">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span class="chip">tratta ${i+1}</span>
+      ${total>1?`<button class="icon-btn" id="leg_del_${i}" type="button" title="Rimuovi tratta">🗑</button>`:''}
+    </div>
+    <div class="row g-2">
+      <div class="col-8"><label class="form-label">compagnia</label>
+        <input class="form-control" id="leg_comp_${i}" list="airlines" value="${esc(L.compagnia)}" placeholder="scegli o scrivi…"></div>
+      <div class="col-4"><label class="form-label">n° volo</label>
+        <input class="form-control" id="leg_nvolo_${i}" value="${esc(L.n_volo)}" placeholder="LH 4326"></div>
+      <div class="col-6"><label class="form-label">da</label>
+        <input class="form-control" id="leg_da_${i}" value="${esc(L.da)}" placeholder="MXP"></div>
+      <div class="col-6"><label class="form-label">a</label>
+        <input class="form-control" id="leg_a_${i}" value="${esc(L.a)}" placeholder="MUC"></div>
+      <div class="col-6"><label class="form-label">data partenza</label>
+        <input class="form-control" id="leg_dpart_${i}" type="date" value="${esc(L.data_part)}"></div>
+      <div class="col-6"><label class="form-label">ora partenza</label>
+        <input class="form-control" id="leg_opart_${i}" type="time" value="${esc(L.ora_part)}"></div>
+      <div class="col-6"><label class="form-label">data arrivo</label>
+        <input class="form-control" id="leg_darr_${i}" type="date" value="${esc(L.data_arr)}"></div>
+      <div class="col-6"><label class="form-label">ora arrivo</label>
+        <input class="form-control" id="leg_oarr_${i}" type="time" value="${esc(L.ora_arr)}"></div>
+      <div class="col-8"><label class="form-label">scalo ${i<total-1?'<span style="font-weight:400;color:var(--muted);font-size:.7rem">— attesa prima della prossima tratta</span>':''}</label>
+        <input class="form-control" id="leg_scalo_${i}" value="${esc(L.scalo)}" placeholder="es. 1h 30m"></div>
+      <div class="col-4 d-flex align-items-end">
+        <div class="form-check"><input class="form-check-input" type="checkbox" id="leg_bag_${i}" ${truthy(L.bagaglio)?'checked':''}>
+          <label class="form-check-label" for="leg_bag_${i}">bagaglio</label></div>
+      </div>
+    </div>
+  </div>`;
+}
+function genGroupId(){ return 'g' + Math.random().toString(36).slice(2,10); }
+function truthyEq(a,b){ return String(a||'').toLowerCase()===String(b).toLowerCase(); }
+
 
 /* ============================================================
    BOOT
