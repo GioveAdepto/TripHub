@@ -439,6 +439,7 @@ async function viewHome(){
    ============================================================ */
 const SECTIONS = [
   ['riepilogo','Riepilogo'],
+  ['partecipanti','Partecipanti'],
   ['alloggi','Alloggi'],
   ['voli','Voli'],
   ['spese','Budget & Spese'],
@@ -491,6 +492,7 @@ function renderSection(section){
   const d = CURRENT_DATA, tid = CURRENT_TRIP.id;
   const map = {
     riepilogo:   ()=>secRiepilogo(d),
+    partecipanti:()=>secPartecipanti(d.Partecipanti, tid),
     alloggi:     ()=>secTable('Alloggi', d.Alloggi, tid),
     voli:        ()=>secVoli(d.Voli, tid),
     spese:       ()=>secSpese(d, tid),
@@ -502,27 +504,121 @@ function renderSection(section){
   box.innerHTML = (map[section]||map.riepilogo)();
 }
 
+/* ---------- PARTECIPANTI: helper condivisi ---------- */
+// Nome visualizzato di un partecipante
+function pName(p){ return [p.nome, p.cognome].filter(Boolean).join(' ').trim() || '(senza nome)'; }
+// Lista partecipanti del viaggio corrente
+function partList(d){ return (d.Partecipanti||[]).slice().sort((a,b)=>pName(a).localeCompare(pName(b),'it')); }
+// Numero persone derivato: dai partecipanti se presenti, altrimenti dal campo manuale
+function tripPeople(d){
+  const n = (d.Partecipanti||[]).length;
+  return n>0 ? n : (num(d.Viaggi?.[0]?.n_persone) || 1);
+}
+// Interpreta il campo "paganti": "Tutti"/vuoto = tutti; altrimenti nomi separati da virgola
+function payerNames(paganti, allNames){
+  const s = String(paganti||'').trim();
+  if(!s || s.toLowerCase()==='tutti') return allNames.slice();
+  return s.split(',').map(x=>x.trim()).filter(Boolean);
+}
+function payerCount(paganti, totalPeople, allNames){
+  if(!String(paganti||'').trim() || String(paganti).toLowerCase()==='tutti') return totalPeople;
+  const n = payerNames(paganti, allNames).length;
+  return n>0 ? n : totalPeople;
+}
+
 /* ---------- RIEPILOGO + BUDGET (calcolato) ---------- */
 function computeBudget(d){
   const alloggio = (d.Alloggi||[]).filter(a=>truthy(a.scelto)).reduce((s,a)=>s+num(a.totale),0);
   const voli     = (d.Voli||[]).filter(v=>truthy(v.scelto)).reduce((s,v)=>s+num(v.totale),0);
   const spese    = (d.Spese||[]).reduce((s,x)=>s+num(x.totale),0);
   const tot = alloggio + voli + spese;
-  const pers = num(d.Viaggi?.[0]?.n_persone) || 1;
+  const pers = tripPeople(d);
   return { alloggio, voli, spese, tot, pers, perPersona: tot/pers };
+}
+
+// Calcola quanto deve ciascun partecipante sommando le sue quote.
+// Alloggio: diviso tra TUTTI. Voli e Spese: divisi solo tra i paganti selezionati.
+function computeBalances(d){
+  const people = partList(d);
+  const allNames = people.map(pName);
+  if(!allNames.length) return null;                   // niente partecipanti censiti
+  const bal = {}; allNames.forEach(n=>bal[n]=0);
+  const nAll = allNames.length;
+
+  // alloggio scelto: alla pari tra tutti
+  (d.Alloggi||[]).filter(a=>truthy(a.scelto)).forEach(a=>{
+    const q = num(a.totale)/nAll;
+    allNames.forEach(n=>bal[n]+=q);
+  });
+  // voli scelti: tra i paganti
+  (d.Voli||[]).filter(v=>truthy(v.scelto)).forEach(v=>{
+    const names = payerNames(v.paganti, allNames);
+    const q = num(v.totale)/(names.length||nAll);
+    (names.length?names:allNames).forEach(n=>{ if(n in bal) bal[n]+=q; });
+  });
+  // spese: tra i paganti
+  (d.Spese||[]).forEach(x=>{
+    const names = payerNames(x.paganti, allNames);
+    const q = num(x.totale)/(names.length||nAll);
+    (names.length?names:allNames).forEach(n=>{ if(n in bal) bal[n]+=q; });
+  });
+  return allNames.map(n=>({ nome:n, quota: round2(bal[n]) }));
 }
 function truthy(v){ const s = String(v).toLowerCase().trim(); return ['sì','si','true','1','x','yes','✓'].includes(s); }
 
 function secRiepilogo(d){
   const b = computeBudget(d);
   const t = d.Viaggi[0];
-  const counts = {
-    Alloggi:(d.Alloggi||[]).length, Voli:(d.Voli||[]).length,
-    'Cose da fare':(d.CoseDaFare||[]).length, 'Da portare':(d.CosaPortare||[]).length
-  };
-  const chips = Object.entries(counts).map(([k,v])=>`<span class="chip me-1 mb-1">${k}: ${v}</span>`).join('');
+  const balances = computeBalances(d);
+  const allogSel = (d.Alloggi||[]).filter(a=>truthy(a.scelto));
+  const voliSel  = (d.Voli||[]).filter(v=>truthy(v.scelto));
+  const voliGroupsSel = voliGroups(voliSel);
+
+  // riquadro alloggio scelto
+  const alloggioBox = allogSel.length ? allogSel.map(a=>`
+    <div class="mb-2">
+      <div style="font-weight:600">${esc(a.struttura||'Alloggio')}</div>
+      <div class="mono" style="font-size:.78rem;color:var(--ink-soft)">
+        ${toITDate(a.checkin)}${a.ora_checkin?' '+esc(toHM(a.ora_checkin)):''} → ${toITDate(a.checkout)}${a.ora_checkout?' '+esc(toHM(a.ora_checkout)):''}
+        ${a.notti?` · ${esc(a.notti)} notti`:''}
+      </div>
+      ${a.indirizzo?`<div style="font-size:.8rem;color:var(--muted)">${esc(a.indirizzo)}</div>`:''}
+      <div class="mono" style="font-size:.8rem">${eur(a.totale)}${num(a.prezzo_testa)?` · ${eur(a.prezzo_testa)} a testa`:''}</div>
+    </div>`).join('')
+    : `<div class="mono" style="font-size:.8rem;color:var(--muted)">Nessun alloggio scelto — segna "scelto" su un'opzione in Alloggi.</div>`;
+
+  // riquadro voli scelti (per direzione)
+  const voliBox = Object.keys(voliGroupsSel).length ? Object.keys(voliGroupsSel).map(k=>{
+    const legs = voliGroupsSel[k]; const h = legs[0];
+    const route = legs.map(l=>esc(l.da||'?')).concat(esc(legs[legs.length-1].a||'?')).join(' → ');
+    return `<div class="mb-2">
+      <div style="font-weight:600">${esc(h.direzione||'Volo')} <span style="font-weight:400;color:var(--muted);font-size:.8rem">${route}</span></div>
+      <div class="mono" style="font-size:.78rem;color:var(--ink-soft)">
+        ${toITDate(h.data_part)} ${esc(toHM(h.ora_part))}${legs.length>1?` · ${legs.length-1} scalo/i`:''}
+        ${num(h.totale)?` · ${eur(h.totale)}`:''}
+      </div>
+    </div>`;
+  }).join('')
+    : `<div class="mono" style="font-size:.8rem;color:var(--muted)">Nessun volo scelto.</div>`;
+
+  // saldi per persona
+  const balBox = balances && balances.length ? `
+    <div class="sheet p-4 mb-3">
+      <p class="eyebrow mb-2">Quota per persona · quanto mette ciascuno</p>
+      ${balances.map(x=>`<div class="budget-line"><span>${esc(x.nome)}</span><span class="mono per-person">${eur(x.quota)}</span></div>`).join('')}
+      <p class="mono mt-2 mb-0" style="font-size:.66rem;color:var(--muted)">
+        alloggio diviso tra tutti · voli e spese divisi tra i paganti indicati
+      </p>
+    </div>` : `
+    <div class="sheet p-4 mb-3">
+      <p class="eyebrow mb-1">Quota per persona</p>
+      <div class="mono" style="font-size:.8rem;color:var(--muted)">
+        Aggiungi i partecipanti nel tab <strong>Partecipanti</strong> per vedere quanto mette ciascuno.
+      </div>
+    </div>`;
+
   return `
-  <div class="row g-3">
+  <div class="row g-3 mb-1">
     <div class="col-12 col-lg-7">
       <div class="sheet p-4 h-100">
         <p class="eyebrow mb-1">Budget stimato · opzioni scelte</p>
@@ -531,9 +627,6 @@ function secRiepilogo(d){
         <div class="budget-line"><span>Alloggio</span><span class="mono">${eur(b.alloggio)}</span></div>
         <div class="budget-line"><span>Voli</span><span class="mono">${eur(b.voli)}</span></div>
         <div class="budget-line"><span>Spese extra</span><span class="mono">${eur(b.spese)}</span></div>
-        <p class="mono mt-3 mb-0" style="font-size:.68rem;color:var(--muted)">
-          calcolato dalle righe con flag "scelto". Cambia la scelta in Alloggi/Voli per aggiornarlo.
-        </p>
       </div>
     </div>
     <div class="col-12 col-lg-5">
@@ -541,14 +634,104 @@ function secRiepilogo(d){
         <p class="eyebrow mb-2">Dettagli viaggio</p>
         <div class="mb-2"><strong>${esc(t.destinazione||'')}</strong> — ${esc(t.paese||'')}</div>
         <div class="mono mb-2" style="font-size:.8rem">${t.data_inizio?toITDate(t.data_inizio):'?'} → ${t.data_fine?toITDate(t.data_fine):'?'}</div>
-        ${t.note?`<p class="mb-3" style="font-size:.9rem">${esc(t.note)}</p>`:''}
-        <div class="mt-2">${chips}</div>
+        ${t.note?`<p class="mb-0" style="font-size:.9rem">${esc(t.note)}</p>`:''}
       </div>
     </div>
-  </div>`;
+  </div>
+  <div class="row g-3 mb-1">
+    <div class="col-12 col-lg-6">
+      <div class="sheet p-4 h-100"><p class="eyebrow mb-2">🏠 Alloggio scelto</p>${alloggioBox}</div>
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="sheet p-4 h-100"><p class="eyebrow mb-2">✈️ Voli scelti</p>${voliBox}</div>
+    </div>
+  </div>
+  ${balBox}`;
 }
 
-/* ---------- TABELLE GENERICHE (Alloggi, Voli, CoseDaFare...) ---------- */
+/* ---------- PARTECIPANTI (anagrafica viaggiatori) ---------- */
+// true se il documento scade prima della fine del viaggio
+function docScade(scadenzaISO, fineViaggioISO){
+  const s = toISODate(scadenzaISO), f = toISODate(fineViaggioISO);
+  if(!s || !f) return false;
+  return s < f;
+}
+function maskDoc(v){
+  const s = String(v||'').trim();
+  if(!s) return '';
+  if(s.length<=4) return '••••';
+  return '••••'+s.slice(-4);
+}
+
+function secPartecipanti(rows, tid){
+  rows = (rows||[]).slice().sort((a,b)=>pName(a).localeCompare(pName(b),'it'));
+  const fine = CURRENT_TRIP?.data_fine;
+
+  const cards = rows.map(p=>{
+    const scade = docScade(p.scadenza_doc, fine);
+    return `
+    <div class="col-12 col-md-6">
+      <div class="sheet p-3 h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div style="font-family:'Fraunces',serif;font-weight:600;font-size:1.1rem">${esc(pName(p))}</div>
+            ${p.data_nascita?`<div class="mono" style="font-size:.75rem;color:var(--ink-soft)">${toITDate(p.data_nascita)}${p.luogo_nascita?' · '+esc(p.luogo_nascita):''}</div>`:''}
+          </div>
+          <div class="text-nowrap">
+            <button class="icon-btn" onclick='editRow("Partecipanti", ${JSON.stringify(p)})'>✎</button>
+            <button class="icon-btn" onclick="delRow('Partecipanti','${esc(p.id)}')">🗑</button>
+          </div>
+        </div>
+        <div class="mt-2" style="font-size:.82rem">
+          ${p.tipo_doc||p.num_doc?`<div class="d-flex align-items-center gap-2 mb-1">
+            <span class="chip">${esc(p.tipo_doc||'documento')}</span>
+            ${p.num_doc?`<span class="mono" data-doc="${esc(p.num_doc)}">${esc(maskDoc(p.num_doc))}</span>
+              <button class="link-btn" type="button" onclick="revealDoc(this)">mostra</button>`:''}
+          </div>`:''}
+          ${p.scadenza_doc?`<div class="mono" style="font-size:.78rem;${scade?'color:#a3341f;font-weight:600':'color:var(--ink-soft)'}">
+            scad. ${toITDate(p.scadenza_doc)} ${scade?'⚠️ scade prima/durante il viaggio':''}</div>`:''}
+          ${p.nazionalita?`<div style="font-size:.78rem;color:var(--muted)">${esc(p.nazionalita)}</div>`:''}
+          ${p.cod_fiscale?`<div class="d-flex align-items-center gap-2 mt-1">
+            <span class="mono" style="font-size:.72rem" data-doc="${esc(p.cod_fiscale)}">${esc(maskDoc(p.cod_fiscale))}</span>
+            <button class="link-btn" type="button" onclick="revealDoc(this)">mostra</button></div>`:''}
+          ${(p.telefono||p.email)?`<div style="font-size:.78rem;color:var(--ink-soft);margin-top:.3rem">
+            ${p.telefono?esc(p.telefono):''}${p.telefono&&p.email?' · ':''}${p.email?esc(p.email):''}</div>`:''}
+          ${p.note?`<div style="font-size:.76rem;color:var(--muted);margin-top:.3rem">${esc(p.note)}</div>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const anyScade = rows.some(p=>docScade(p.scadenza_doc, fine));
+  const alertScad = anyScade ? `
+    <div class="sheet p-3 mb-3" style="border-color:#e0a98f;background:#fdf1ea">
+      ⚠️ <strong>Attenzione:</strong> uno o più documenti scadono prima o durante il viaggio. Controlla i rinnovi.
+    </div>` : '';
+
+  return `
+    <div class="sheet p-3 mb-3" style="border-color:#d9cfa8;background:#fbf6e3">
+      🔒 <strong>Dati sensibili.</strong> Questa sezione contiene documenti personali. I numeri sono mascherati
+      di default; chiunque abbia il codice del gruppo può comunque vederli. Condividi il codice solo con i partecipanti.
+    </div>
+    ${alertScad}
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <p class="eyebrow mb-0">${rows.length} partecipant${rows.length===1?'e':'i'}</p>
+      <button class="btn btn-stamp btn-sm" onclick="editRow('Partecipanti', null, '${esc(tid)}')">+ Aggiungi persona</button>
+    </div>
+    ${rows.length ? `<div class="row g-3">${cards}</div>`
+      : `<div class="sheet empty"><div class="big">Nessun partecipante</div>
+         <div>Aggiungi le persone: il numero viaggiatori e i nomi verranno usati ovunque.</div></div>`}`;
+}
+
+function revealDoc(btn){
+  const span = btn.parentElement.querySelector('[data-doc]');
+  if(!span) return;
+  const full = span.getAttribute('data-doc');
+  if(btn.textContent==='mostra'){ span.textContent = full; btn.textContent='nascondi'; }
+  else { span.textContent = maskDoc(full); btn.textContent='mostra'; }
+}
+
+
 // Colonne mostrate per ciascun tab (le altre restano nel foglio ma non ingombrano)
 const COLS = {
   Alloggi:     ['struttura','checkin','checkout','notti','totale','prezzo_testa','prezzo_testa_notte','valutazione','link','scelto'],
@@ -557,10 +740,14 @@ const COLS = {
   Contatti:    ['categoria','nome','telefono','indirizzo','link'],
 };
 const LABELS = {
-  checkin:'check-in', checkout:'check-out', n_volo:'n° volo', ora_part:'orario',
+  checkin:'check-in', checkout:'check-out', ora_checkin:'ora check-in', ora_checkout:'ora check-out',
+  n_volo:'n° volo', ora_part:'orario', ora:'orario',
   prenotazione_req:'prenot.', valutazione:'voto', qta:'q.tà', da:'da', a:'a',
   prezzo_testa:'a testa', prezzo_testa_notte:'a testa/notte', prezzo_notte:'a notte',
-  data_part:'data part.', data_arr:'data arr.', ora_arr:'ora arr.'
+  data_part:'data part.', data_arr:'data arr.', ora_arr:'ora arr.',
+  data_nascita:'data di nascita', luogo_nascita:'luogo di nascita', tipo_doc:'tipo documento',
+  num_doc:'n° documento', scadenza_doc:'scadenza documento', cod_fiscale:'codice fiscale',
+  nazionalita:'nazionalità', paganti:'paganti', chi:'chi'
 };
 const lbl = k => LABELS[k] || k.replace(/_/g,' ');
 
@@ -627,17 +814,24 @@ function copyLink(btn, url){
 function secSpese(d, tid){
   const rows = d.Spese||[];
   const tot = rows.reduce((s,x)=>s+num(x.totale),0);
-  const pers = num(d.Viaggi[0].n_persone)||1;
-  const body = rows.map(r=>`<tr>
-      <td class="mono">${esc(r.data)}</td>
+  const pers = tripPeople(d);
+  const allNames = partList(d).map(pName);
+  const body = rows.map(r=>{
+    const nPay = payerCount(r.paganti, pers, allNames);
+    const aTesta = num(r.prezzo_testa) || (nPay ? round2(num(r.totale)/nPay) : 0);
+    const pag = (!String(r.paganti||'').trim()||String(r.paganti).toLowerCase()==='tutti') ? 'Tutti' : esc(r.paganti);
+    return `<tr>
+      <td class="mono">${toITDate(r.data)}</td>
       <td>${esc(r.descrizione)}</td>
       <td><span class="chip">${esc(r.categoria||'—')}</span></td>
+      <td><span class="chip">${pag}</span></td>
       <td class="mono">${eur(r.totale)}</td>
-      <td>${esc(r.note||'')}</td>
+      <td class="mono per-person">${eur(aTesta)}</td>
       <td class="text-nowrap">
         <button class="icon-btn" onclick='editRow("Spese", ${JSON.stringify(r)})'>✎</button>
         <button class="icon-btn" onclick="delRow('Spese','${esc(r.id)}')">🗑</button>
-      </td></tr>`).join('');
+      </td></tr>`;
+  }).join('');
   return `
     <div class="d-flex justify-content-between align-items-center mb-2">
       <p class="eyebrow mb-0">spese extra oltre a voli/alloggio</p>
@@ -645,12 +839,12 @@ function secSpese(d, tid){
     </div>
     <div class="sheet p-2 p-md-3 mb-3" style="overflow-x:auto">
       ${rows.length?`<table class="data">
-        <thead><tr><th>data</th><th>descrizione</th><th>categoria</th><th>totale</th><th>note</th><th></th></tr></thead>
+        <thead><tr><th>data</th><th>descrizione</th><th>categoria</th><th>paganti</th><th>totale</th><th>a testa</th><th></th></tr></thead>
         <tbody>${body}</tbody>
         <tfoot><tr>
-          <td colspan="3" class="text-end"><strong>Totale spese</strong></td>
+          <td colspan="4" class="text-end"><strong>Totale spese</strong></td>
           <td class="mono"><strong>${eur(tot)}</strong></td>
-          <td colspan="2" class="per-person">${eur(tot/pers)} a testa</td>
+          <td colspan="2"></td>
         </tr></tfoot>
       </table>`:`<div class="empty"><div class="big">Nessuna spesa extra</div></div>`}
     </div>`;
@@ -790,14 +984,15 @@ function cdfList(rows, tid){
 
 function cdfItem(r){
   const conf = truthy(r.confermata);
+  const ora = toHM(r.ora);
   return `<div class="d-flex align-items-start gap-2 py-2" style="border-bottom:1px solid var(--line)">
     <span style="font-size:1.1rem;flex:none">${tipoIcon(r.tipo)}</span>
     <div style="flex:1;min-width:0">
-      <div style="font-weight:600">${esc(r.attivita||'')}
+      <div style="font-weight:600">${ora?`<span class="mono" style="color:var(--stamp);font-size:.85rem">${esc(ora)}</span> `:''}${esc(r.attivita||'')}
         ${conf?'<span class="chip pick ms-1">✓</span>':''}
         ${truthy(r.prenotazione_req)?'<span class="chip pri-cons ms-1">prenota</span>':''}</div>
       <div style="font-size:.82rem;color:var(--ink-soft)">
-        ${r.posizione?esc(r.posizione):''}${r.durata?` · ${esc(r.durata)}`:''}${r.quando?` · ${esc(r.quando)}`:''}
+        ${r.posizione?esc(r.posizione):''}${r.durata?` · ${esc(r.durata)}`:''}${r.quando?` · ${esc(r.quando)}`:''}${num(r.costo)?` · ${eur(r.costo)}${num(r.prezzo_testa)?` (${eur(r.prezzo_testa)} a testa)`:''}`:''}
       </div>
       ${r.note?`<div style="font-size:.78rem;color:var(--muted);margin-top:.15rem">${esc(r.note)}</div>`:''}
     </div>
@@ -891,10 +1086,11 @@ function secInfo(d, tid){
    EDIT MODAL (generico, form da schema)
    ============================================================ */
 const FIELD_ORDER = {
-  Viaggi:['nome','destinazione','paese','data_inizio','data_fine','n_persone','stato','note'],
-  Alloggi:['struttura','checkin','checkout','notti','persone','totale','prezzo_notte','prezzo_testa','prezzo_testa_notte','extra','link','indirizzo','posizione','valutazione','scelto','note'],
-  Spese:['data','descrizione','categoria','persone','totale','prezzo_testa','note'],
-  CoseDaFare:['data','tipo','attivita','posizione','durata','costo','prenotazione_req','quando','link','note','confermata'],
+  Viaggi:['nome','destinazione','paese','data_inizio','data_fine','stato','note'],
+  Partecipanti:['nome','cognome','data_nascita','luogo_nascita','tipo_doc','num_doc','scadenza_doc','nazionalita','cod_fiscale','telefono','email','note'],
+  Alloggi:['struttura','checkin','ora_checkin','checkout','ora_checkout','notti','persone','totale','prezzo_notte','prezzo_testa','prezzo_testa_notte','extra','link','indirizzo','posizione','valutazione','scelto','note'],
+  Spese:['data','descrizione','categoria','paganti','totale','prezzo_testa','note'],
+  CoseDaFare:['data','ora','tipo','attivita','posizione','durata','persone','costo','prezzo_testa','prenotazione_req','quando','link','note','confermata'],
   CosaPortare:['categoria','cosa','qta','chi','priorita','spuntato','note'],
   Contatti:['categoria','nome','telefono','link','indirizzo','note'],
   InfoDest:['sezione','chiave','valore'],
@@ -910,20 +1106,46 @@ const CUR_FIELDS = ['totale','prezzo_notte','prezzo_testa','prezzo_testa_notte',
 // Link: campo url, in visualizzazione diventa icona
 const LINK_FIELDS = ['link'];
 // Campi data (datepicker) e ora (timepicker)
-const DATE_FIELDS = ['data_inizio','data_fine','checkin','checkout','data_part','data_arr','data'];
-const TIME_FIELDS = ['ora_part','ora_arr'];
+const DATE_FIELDS = ['data_inizio','data_fine','checkin','checkout','data_part','data_arr','data','data_nascita','scadenza_doc'];
+const TIME_FIELDS = ['ora_part','ora_arr','ora','ora_checkin','ora_checkout'];
+// Campi documento sensibili (mascherati in visualizzazione)
+const SENSITIVE_FIELDS = ['num_doc','cod_fiscale'];
 
 // Compagnie aeree note per la datalist (aperta: puoi comunque digitarne altre)
 const AIRLINES = [
-  'ITA Airways','Ryanair','easyJet','Wizz Air','Lufthansa','Air Dolomiti','Discover Airlines',
-  'Vueling','Air France','KLM','British Airways','Iberia','Swiss','Austrian Airlines','Brussels Airlines',
-  'Eurowings','Aegean Airlines','Turkish Airlines','Emirates','Qatar Airways','Etihad Airways',
-  'TAP Air Portugal','SAS','Finnair','Norwegian','Volotea','Transavia','Pegasus Airlines',
-  'American Airlines','Delta Air Lines','United Airlines','Air Canada','Qantas','Singapore Airlines',
-  'Cathay Pacific','ANA','Japan Airlines','Emirates','Royal Air Maroc','EgyptAir','El Al'
-];
+  'Aegean Airlines','Aer Lingus','Aeroflot','Air Canada','Air Dolomiti','Air France','Air Malta',
+  'Alitalia','American Airlines','ANA','Austrian Airlines','British Airways','Brussels Airlines',
+  'Cathay Pacific','Delta Air Lines','Discover Airlines','easyJet','EgyptAir','El Al','Emirates',
+  'Etihad Airways','Eurowings','Finnair','Iberia','ITA Airways','Japan Airlines','KLM','LOT Polish Airlines',
+  'Lufthansa','Norwegian','Pegasus Airlines','Qantas','Qatar Airways','Royal Air Maroc','Ryanair',
+  'SAS','Singapore Airlines','Swiss','TAP Air Portugal','Transavia','Turkish Airlines','United Airlines',
+  'Volotea','Vueling','Wizz Air'
+].sort((a,b)=>a.localeCompare(b,'it'));
 // Campi che usano la datalist compagnie
 const AIRLINE_FIELDS = ['compagnia'];
+
+// Tipi di attività (Cose da fare) — ordine alfabetico
+const TIPI_ATTIVITA = [
+  'Avventura','Benessere','Cibo','Cultura','Escursione','Evento','Gita','Locale','Mercato','Monumento',
+  'Museo','Natura','Parco','Passeggiata','Relax','Ristorante','Serata','Shopping','Spa','Spiaggia',
+  'Sport','Sport acquatico','Tour','Trekking','Viaggio','Visita'
+].sort((a,b)=>a.localeCompare(b,'it'));
+
+// Categorie (Cosa portare) — ordine alfabetico
+const CATEGORIE_PORTARE = [
+  'Abbigliamento','Accessori','Attrezzatura','Bagaglio','Bambini','Casa','Cucina','Documenti',
+  'Elettronica','Farmacia','Igiene','Intrattenimento','Mare','Montagna','Scarpe','Sport','Tecnologia','Viaggio'
+].sort((a,b)=>a.localeCompare(b,'it'));
+
+// Tipi documento
+const TIPI_DOC = ["Carta d'identità",'Passaporto','Patente'];
+
+// Campi che usano una dropdown (select) con lista fissa
+const SELECT_LISTS = {
+  tipo: TIPI_ATTIVITA,          // Cose da fare
+  categoria_portare: CATEGORIE_PORTARE,
+  tipo_doc: TIPI_DOC
+};
 
 // Porta qualsiasi data in ISO "YYYY-MM-DD" per l'input type=date.
 // Accetta: ISO, "04/08/26", "04/08/2026", "2026-08-03T22:00:00Z".
@@ -1007,6 +1229,15 @@ function recalc(sheet, changed){
       if(changed!=='prezzo_testa_notte'  && persone && notti) set('prezzo_testa_notte', round2(total/persone/notti));
       if(changed!=='prezzo_notte'        && notti)           set('prezzo_notte', round2(total/notti));
     }
+  } else if(sheet==='CoseDaFare'){
+    // qui il "totale" è il campo 'costo'
+    const cost=g('costo'), pt=g('prezzo_testa');
+    let total = cost;
+    if(changed==='prezzo_testa' && pt!=='' && persone) total = round2(pt*persone);
+    if(total!=='' && total!=null && !isNaN(total)){
+      if(changed!=='costo')        set('costo', total);
+      if(changed!=='prezzo_testa' && persone) set('prezzo_testa', round2(total/persone));
+    }
   } else { // Voli, Spese: solo totale <-> prezzo_testa
     const tot=g('totale'), pt=g('prezzo_testa');
     let total = tot;
@@ -1018,7 +1249,53 @@ function recalc(sheet, changed){
   }
 }
 // Campi che, se cambiati, innescano un ricalcolo
-const CALC_TRIGGERS = ['totale','prezzo_testa','prezzo_testa_notte','prezzo_notte','persone','notti','n_persone'];
+const CALC_TRIGGERS = ['totale','costo','prezzo_testa','prezzo_testa_notte','prezzo_notte','persone','notti','n_persone'];
+
+// --- gestione selezione paganti / chi ---
+function togglePayAll(chk, field){
+  const box = $('#f_'+field+'_box');
+  const ones = box.querySelectorAll('.pay-one');
+  ones.forEach(o=>{ o.disabled = chk.checked; if(chk.checked) o.checked=false; });
+  recalcPay(field);
+}
+function onPayOne(field){
+  // se selezioni singoli, "Tutti" si spegne
+  const box = $('#f_'+field+'_box');
+  const all = box.querySelector('.pay-all');
+  const anyOne = [...box.querySelectorAll('.pay-one')].some(o=>o.checked);
+  if(anyOne && all.checked){ all.checked=false; box.querySelectorAll('.pay-one').forEach(o=>o.disabled=false); }
+  recalcPay(field);
+}
+// Legge il valore del campo paganti: "Tutti" o "nome1, nome2"
+function readPayValue(field){
+  const box = $('#f_'+field+'_box');
+  if(!box){ const el=$('#f_'+field); return el?el.value.trim():''; }
+  const all = box.querySelector('.pay-all');
+  if(all && all.checked) return 'Tutti';
+  const names = [...box.querySelectorAll('.pay-one')].filter(o=>o.checked).map(o=>o.value);
+  return names.length ? names.join(', ') : 'Tutti';
+}
+// Quante persone paganti (per il ricalcolo a-testa nei form con paganti)
+function payCountInForm(field){
+  const box = $('#f_'+field+'_box');
+  if(!box) return tripPeople(CURRENT_DATA);
+  const all = box.querySelector('.pay-all');
+  if(all && all.checked) return tripPeople(CURRENT_DATA);
+  const n = [...box.querySelectorAll('.pay-one')].filter(o=>o.checked).length;
+  return n>0 ? n : tripPeople(CURRENT_DATA);
+}
+// Ricalcolo a-testa quando cambiano i paganti (Spese/CoseDaFare hanno 'paganti'/'persone')
+function recalcPay(field){
+  // rileggo il totale e divido per i paganti
+  const totEl = $('#f_totale'); const ptEl = $('#f_prezzo_testa');
+  if(!totEl || !ptEl) return;
+  const tot = parseNum(totEl.value);
+  const n = payCountInForm(field);
+  if(tot!=='' && n && document.activeElement!==ptEl){
+    ptEl.value = fmtNumIT(round2(tot/n));
+  }
+}
+
 
 let MODAL = null;
 function ensureModal(){
@@ -1069,6 +1346,41 @@ function editRow(sheet, record, tid){
       return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
         <input class="form-control" id="f_${f}" type="time" value="${esc(toHM(v))}"></div>`;
     }
+    // dropdown a lista fissa (tipo attività, tipo documento, categoria cosa portare)
+    const selKey = f==='categoria' && sheet==='CosaPortare' ? 'categoria_portare' : f;
+    if(SELECT_LISTS[selKey]){
+      const opts = SELECT_LISTS[selKey];
+      return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
+        <select class="form-select" id="f_${f}">
+          <option value="">— scegli —</option>
+          ${opts.map(o=>`<option value="${esc(o)}"${String(v)===o?' selected':''}>${esc(o)}</option>`).join('')}
+          ${v && !opts.includes(String(v))?`<option value="${esc(v)}" selected>${esc(v)} (attuale)</option>`:''}
+        </select></div>`;
+    }
+    // paganti (Spese/Voli) e chi (Cosa portare): selezione multipla dai partecipanti
+    if(f==='paganti' || f==='chi'){
+      const people = partList(CURRENT_DATA).map(pName);
+      const selected = payerNames(v, people);
+      const allSel = !String(v||'').trim() || String(v).toLowerCase()==='tutti';
+      if(!people.length){
+        return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
+          <input class="form-control" id="f_${f}" type="text" value="${esc(v)}" placeholder="aggiungi prima i partecipanti">
+          <div class="mono" style="font-size:.68rem;color:var(--muted);margin-top:.2rem">nessun partecipante: scrivi a mano o compila il tab Partecipanti</div></div>`;
+      }
+      return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
+        <div class="sheet p-2" id="f_${f}_box" data-field="${f}">
+          <div class="form-check">
+            <input class="form-check-input pay-all" type="checkbox" id="f_${f}_all" ${allSel?'checked':''} onchange="togglePayAll(this,'${f}')">
+            <label class="form-check-label" for="f_${f}_all"><strong>Tutti</strong></label>
+          </div>
+          <hr class="my-1" style="border-color:var(--line)">
+          ${people.map((n,i)=>`<div class="form-check">
+            <input class="form-check-input pay-one" type="checkbox" id="f_${f}_${i}" value="${esc(n)}" ${(!allSel && selected.includes(n))?'checked':''} ${allSel?'disabled':''} onchange="onPayOne('${f}')">
+            <label class="form-check-label" for="f_${f}_${i}">${esc(n)}</label></div>`).join('')}
+        </div>
+        <div class="mono" style="font-size:.68rem;color:var(--muted);margin-top:.2rem">seleziona chi partecipa a questa voce · "Tutti" = alla pari</div>
+      </div>`;
+    }
     if(AIRLINE_FIELDS.includes(f)){
       return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
         <input class="form-control" id="f_${f}" list="airlines" value="${esc(v)}" placeholder="scegli o scrivi…"></div>`;
@@ -1109,10 +1421,23 @@ function editRow(sheet, record, tid){
     const el = $('#f_'+t);
     if(el) el.addEventListener('input', ()=>recalc(sheet, t));
   });
+  // se il form ha paganti, ricalcola a-testa quando cambia il totale
+  const payField = fields.includes('paganti') ? 'paganti' : (fields.includes('chi') && fields.includes('totale') ? 'chi' : null);
+  if(payField){
+    const totEl = $('#f_totale');
+    if(totEl) totEl.addEventListener('input', ()=>recalcPay(payField));
+    const ptEl = $('#f_prezzo_testa');
+    if(ptEl) ptEl.addEventListener('input', ()=>{
+      // se scrivo a-testa, calcolo il totale = a-testa × paganti
+      const pt = parseNum(ptEl.value); const n = payCountInForm(payField);
+      if(pt!=='' && n && totEl && document.activeElement!==totEl) totEl.value = fmtNumIT(round2(pt*n));
+    });
+  }
 
   $('#mSave').onclick = ()=> withBtnLoading($('#mSave'), 'Salvo…', async ()=>{
     const out = { id: rec.id, viaggio_id: rec.viaggio_id };
     fields.forEach(f=>{
+      if(f==='paganti' || f==='chi'){ out[f] = readPayValue(f); return; }
       const el = $('#f_'+f); if(!el) return;
       if(BOOL_FIELDS.includes(f))        out[f] = el.checked ? 'Sì' : '';
       else if(INT_FIELDS.includes(f))    out[f] = el.value!=='' ? Math.round(parseNum(el.value)) : '';
@@ -1166,6 +1491,38 @@ function airlineDatalist(){
   return `<datalist id="airlines">${AIRLINES.map(a=>`<option value="${esc(a)}">`).join('')}</datalist>`;
 }
 
+// Box selezione "chi vola" per il form volo (id prefix v_pag)
+function voliPaganti(base){
+  const people = partList(CURRENT_DATA).map(pName);
+  const f = 'v_pag';
+  if(!people.length){
+    return `<div class="mb-3"><label class="form-label">chi vola</label>
+      <input class="form-control" id="f_${f}" type="text" value="${esc(base.paganti||'')}" placeholder="aggiungi prima i partecipanti">
+      <div class="mono" style="font-size:.68rem;color:var(--muted);margin-top:.2rem">nessun partecipante censito</div></div>`;
+  }
+  const selected = payerNames(base.paganti, people);
+  const allSel = !String(base.paganti||'').trim() || String(base.paganti).toLowerCase()==='tutti';
+  return `<div class="mb-3"><label class="form-label">chi vola <span style="font-weight:400;color:var(--muted);font-size:.7rem">— divide il costo</span></label>
+    <div class="sheet p-2" id="f_${f}_box" data-field="${f}">
+      <div class="form-check">
+        <input class="form-check-input pay-all" type="checkbox" id="f_${f}_all" ${allSel?'checked':''} onchange="togglePayAll(this,'${f}');volRecalc()">
+        <label class="form-check-label" for="f_${f}_all"><strong>Tutti</strong></label>
+      </div>
+      <hr class="my-1" style="border-color:var(--line)">
+      ${people.map((n,i)=>`<div class="form-check">
+        <input class="form-check-input pay-one" type="checkbox" id="f_${f}_${i}" value="${esc(n)}" ${(!allSel && selected.includes(n))?'checked':''} ${allSel?'disabled':''} onchange="onPayOne('${f}');volRecalc()">
+        <label class="form-check-label" for="f_${f}_${i}">${esc(n)}</label></div>`).join('')}
+    </div></div>`;
+}
+// ricalcolo a-testa del volo quando cambiano i paganti (chiamata inline)
+function volRecalc(){
+  const totEl=$('#v_totale'), ptEl=$('#v_prezzo_testa');
+  if(!totEl||!ptEl) return;
+  const tot=parseNum(totEl.value); const n=payCountInForm('v_pag');
+  if(tot!=='' && n && document.activeElement!==ptEl) ptEl.value=fmtNumIT(round2(tot/n));
+}
+
+
 // Raggruppa le tratte già salvate per gruppo_id (per la modifica)
 function voliGroups(rows){
   const g = {};
@@ -1196,18 +1553,22 @@ function editVolo(group, tid){
       <div class="col-6"><label class="form-label">opzione n°</label>
         <input class="form-control" id="v_opzione" type="text" inputmode="numeric" value="${esc(base.opzione||'1')}"></div>
       <div class="col-8"><label class="form-label">totale volo <span style="font-weight:400;color:var(--muted);font-size:.7rem">— o compila "a testa"</span></label>
-        <input class="form-control" id="v_totale" type="text" inputmode="decimal" value="${base.totale!==''&&base.totale!=null?esc(fmtNumIT(parseNum(base.totale))):''}"></div>
-      <div class="col-4"><label class="form-label">persone</label>
-        <input class="form-control" id="v_persone" type="text" inputmode="numeric" value="${esc(base.persone||num(CURRENT_TRIP?.n_persone)||'')}"></div>
-      <div class="col-8"><label class="form-label">a testa <span style="font-weight:400;color:var(--muted);font-size:.7rem">— auto dal totale</span></label>
-        <input class="form-control" id="v_prezzo_testa" type="text" inputmode="decimal" value="${base.prezzo_testa!==''&&base.prezzo_testa!=null?esc(fmtNumIT(parseNum(base.prezzo_testa))):''}"></div>
+        <div class="input-group">
+          <span class="input-group-text" style="background:var(--paper-2);border-color:var(--line)">€</span>
+          <input class="form-control" id="v_totale" type="text" inputmode="decimal" value="${base.totale!==''&&base.totale!=null?esc(fmtNumIT(parseNum(base.totale))):''}" placeholder="0,00"></div></div>
       <div class="col-4 d-flex align-items-end">
         <div class="form-check">
           <input class="form-check-input" type="checkbox" id="v_scelto" ${truthy(base.scelto)?'checked':''}>
           <label class="form-check-label" for="v_scelto">scelto</label>
         </div>
       </div>
+      <div class="col-8"><label class="form-label">a testa <span style="font-weight:400;color:var(--muted);font-size:.7rem">— auto dal totale ÷ chi vola</span></label>
+        <div class="input-group">
+          <span class="input-group-text" style="background:var(--paper-2);border-color:var(--line)">€</span>
+          <input class="form-control" id="v_prezzo_testa" type="text" inputmode="decimal" value="${base.prezzo_testa!==''&&base.prezzo_testa!=null?esc(fmtNumIT(parseNum(base.prezzo_testa))):''}" placeholder="0,00"></div></div>
     </div>
+
+    ${voliPaganti(base)}
 
     <div class="d-flex justify-content-between align-items-center mb-2">
       <p class="eyebrow mb-0">Tratte</p>
@@ -1232,9 +1593,10 @@ function editVolo(group, tid){
   }
   $('#v_addLeg').onclick = ()=>{ legs.push(emptyLeg()); renderLegs(); };
 
-  // auto-calcolo totale <-> a testa nel form volo
+  // auto-calcolo totale <-> a testa nel form volo (÷ chi vola)
+  const volPeople = ()=> payCountInForm('v_pag');
   const recalcVolo = (src)=>{
-    const persone = parseNum($('#v_persone').value)||0;
+    const persone = volPeople();
     const tot = parseNum($('#v_totale').value);
     const pt  = parseNum($('#v_prezzo_testa').value);
     if(src==='prezzo_testa' && pt!=='' && persone){
@@ -1247,7 +1609,6 @@ function editVolo(group, tid){
   };
   $('#v_totale').addEventListener('input', ()=>recalcVolo('totale'));
   $('#v_prezzo_testa').addEventListener('input', ()=>recalcVolo('prezzo_testa'));
-  $('#v_persone').addEventListener('input', ()=>recalcVolo('persone'));
 
   $('#mSave').onclick = ()=>{
     if(!legs.length){ toast('Aggiungi almeno una tratta','error'); return; }
@@ -1267,7 +1628,8 @@ function editVolo(group, tid){
     }));
     const direzione = $('#v_direzione').value;
     const opzione   = Math.round(parseNum($('#v_opzione').value))||1;
-    const persone   = $('#v_persone').value!=='' ? Math.round(parseNum($('#v_persone').value)) : '';
+    const paganti   = readPayValue('v_pag');
+    const persone   = payCountInForm('v_pag');
     const totale    = parseNum($('#v_totale').value);
     const prezzo_testa = parseNum($('#v_prezzo_testa').value);
     const scelto    = $('#v_scelto').checked ? 'Sì' : '';
@@ -1275,7 +1637,7 @@ function editVolo(group, tid){
     // costruisci le righe: il TOTALE va solo sulla prima tratta (no doppio conteggio)
     const records = readLegs.map((leg,i)=>({
       viaggio_id, gruppo_id,
-      opzione, direzione, tratta: i+1, persone,
+      opzione, direzione, tratta: i+1, persone, paganti,
       compagnia: leg.compagnia, n_volo: leg.n_volo,
       da: leg.da, a: leg.a,
       data_part: leg.data_part, ora_part: leg.ora_part,
