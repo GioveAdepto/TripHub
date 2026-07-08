@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TripHub — Viaggi di gruppo</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%2317324d'/%3E%3Ccircle cx='32' cy='32' r='24' fill='none' stroke='%23d1622a' stroke-width='2' stroke-dasharray='1.5 4' stroke-linecap='round'/%3E%3Cg transform='translate(32 32) rotate(-40) scale(0.62)' fill='%23f2ede1'%3E%3Cpath d='M 0 -30 C 3 -30 4.5 -24 4.5 -16 L 4.5 -8 L 30 6 L 30 12 L 4.5 4 L 4.5 16 L 12 22 L 12 26 L 0 22 L -12 26 L -12 22 L -4.5 16 L -4.5 4 L -30 12 L -30 6 L -4.5 -8 L -4.5 -16 C -4.5 -24 -3 -30 0 -30 Z'/%3E%3C/g%3E%3C/svg%3E">
 
 <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
@@ -143,7 +144,14 @@
 <!-- ============ TOPBAR ============ -->
 <div class="topbar py-2" id="topbar" style="display:none">
   <div class="container d-flex align-items-center justify-content-between">
-    <a href="#/" class="brand"><span class="dot"></span> TripHub</a>
+    <a href="#/" class="brand">
+      <svg width="26" height="26" viewBox="0 0 64 64" style="flex:none">
+        <circle cx="32" cy="32" r="30" fill="none" stroke="var(--stamp)" stroke-width="3"/>
+        <circle cx="32" cy="32" r="24" fill="none" stroke="var(--paper)" stroke-width="1.5" stroke-dasharray="1.5 4" stroke-linecap="round" opacity="0.6"/>
+        <g transform="translate(32 32) rotate(-40) scale(0.62)" fill="var(--paper)">
+          <path d="M 0 -30 C 3 -30 4.5 -24 4.5 -16 L 4.5 -8 L 30 6 L 30 12 L 4.5 4 L 4.5 16 L 12 22 L 12 26 L 0 22 L -12 26 L -12 22 L -4.5 16 L -4.5 4 L -30 12 L -30 6 L -4.5 -8 L -4.5 -16 C -4.5 -24 -3 -30 0 -30 Z"/>
+        </g>
+      </svg> TripHub</a>
     <div class="d-flex align-items-center gap-3">
       <span class="mono d-none d-sm-inline" id="syncState">pronto</span>
       <button class="btn btn-sm btn-ghost" onclick="logout()">Esci</button>
@@ -207,11 +215,23 @@ function renderGate(err){
   $('#topbar').style.display = 'none';
   $('#app').innerHTML = `
     <div class="gate">
-      <div class="text-center mb-3">
-        <div class="brand justify-content-center" style="color:var(--ink);font-size:2rem;font-family:'Fraunces',serif;font-weight:700;display:flex;align-items:center;gap:.6rem">
-          <span class="dot" style="background:var(--stamp);width:14px;height:14px;border-radius:50%"></span> TripHub
-        </div>
-        <div class="mono" style="color:var(--muted);font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;margin-top:.3rem">viaggi di gruppo</div>
+      <div class="text-center mb-4">
+        <svg width="150" height="150" viewBox="0 0 240 240" style="max-width:45vw">
+          <circle cx="120" cy="120" r="92" fill="none" stroke="var(--ink)" stroke-width="4"/>
+          <circle cx="120" cy="120" r="80" fill="none" stroke="var(--stamp)" stroke-width="2.5" stroke-dasharray="2 6" stroke-linecap="round"/>
+          <path id="logoTop" d="M 120 40 m -66 0 a 66 66 0 0 1 132 0" fill="none"/>
+          <path id="logoBot" d="M 120 200 m 66 0 a 66 66 0 0 1 -132 0" fill="none"/>
+          <text font-family="'JetBrains Mono',monospace" font-size="16" font-weight="700" letter-spacing="4" fill="var(--ink)">
+            <textPath href="#logoTop" startOffset="50%" text-anchor="middle">TRIP • HUB</textPath>
+          </text>
+          <text font-family="'JetBrains Mono',monospace" font-size="9.5" font-weight="500" letter-spacing="5" fill="var(--stamp)">
+            <textPath href="#logoBot" startOffset="50%" text-anchor="middle">VIAGGI DI GRUPPO</textPath>
+          </text>
+          <g transform="translate(120 120) rotate(-40) scale(1.15)" fill="var(--ink)">
+            <path d="M 0 -30 C 3 -30 4.5 -24 4.5 -16 L 4.5 -8 L 30 6 L 30 12 L 4.5 4 L 4.5 16 L 12 22 L 12 26 L 0 22 L -12 26 L -12 22 L -4.5 16 L -4.5 4 L -30 12 L -30 6 L -4.5 -8 L -4.5 -16 C -4.5 -24 -3 -30 0 -30 Z"/>
+          </g>
+          <g fill="var(--stamp)"><circle cx="120" cy="46" r="2.4"/><circle cx="120" cy="194" r="2.4"/></g>
+        </svg>
       </div>
       <div class="sheet">
         <p class="eyebrow mb-1">Accesso</p>
