@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rotte — Viaggi di gruppo</title>
+
+<link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --ink:      #17324d;   /* blu inchiostro */
+    --ink-soft: #2c4a68;
+    --paper:    #f2ede1;   /* carta da mappa */
+    --paper-2:  #e7dfcd;
+    --stamp:    #d1622a;   /* arancio timbro imbarco */
+    --stamp-dk: #b04d1c;
+    --line:     #d4c9b2;
+    --ok:       #3f7d5c;
+    --muted:    #7a6f5a;
+  }
+  *{box-sizing:border-box}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    margin:0;
+    /* trama sottile a griglia da mappa */
+    background-image:
+      linear-gradient(rgba(23,50,77,.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(23,50,77,.035) 1px, transparent 1px);
+    background-size:26px 26px;
+  }
+  h1,h2,h3,.display{font-family:'Fraunces',Georgia,serif}
+  .mono{font-family:'JetBrains Mono',monospace}
+
+  /* --- Topbar --- */
+  .topbar{
+    background:var(--ink);
+    color:var(--paper);
+    border-bottom:3px solid var(--stamp);
+  }
+  .topbar .brand{
+    font-family:'Fraunces',serif;font-weight:700;letter-spacing:.5px;
+    font-size:1.35rem;color:var(--paper);text-decoration:none;
+    display:flex;align-items:center;gap:.5rem;
+  }
+  .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--stamp);display:inline-block}
+  .topbar .mono{color:#b9c6d3;font-size:.72rem}
+
+  /* --- Card / passport look --- */
+  .sheet{
+    background:#fbf8f0;
+    border:1px solid var(--line);
+    border-radius:14px;
+    box-shadow:0 1px 0 #fff inset, 0 8px 24px -18px rgba(23,50,77,.4);
+  }
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace;
+    text-transform:uppercase;letter-spacing:.18em;
+    font-size:.68rem;color:var(--stamp);font-weight:500;
+  }
+
+  /* --- Trip cards --- */
+  .trip-card{
+    background:#fbf8f0;border:1px solid var(--line);border-radius:14px;
+    padding:1.1rem 1.2rem;cursor:pointer;height:100%;
+    transition:transform .12s ease, box-shadow .12s ease, border-color .12s;
+    position:relative;overflow:hidden;
+  }
+  .trip-card:hover{transform:translateY(-3px);box-shadow:0 14px 30px -20px rgba(23,50,77,.55);border-color:var(--stamp)}
+  .trip-card .dest{font-family:'Fraunces',serif;font-weight:600;font-size:1.25rem;line-height:1.15}
+  .trip-card .country{color:var(--muted);font-size:.85rem}
+  .stamp{
+    position:absolute;top:12px;right:-30px;transform:rotate(12deg);
+    background:var(--stamp);color:#fff;font-family:'JetBrains Mono',monospace;
+    font-size:.62rem;letter-spacing:.15em;padding:3px 34px;text-transform:uppercase;
+  }
+  .stamp.done{background:var(--ok)}
+  .stamp.idea{background:var(--ink-soft)}
+
+  /* --- Tabs --- */
+  .navtabs{display:flex;gap:.35rem;flex-wrap:wrap;border-bottom:2px solid var(--line);padding-bottom:0}
+  .navtabs a{
+    text-decoration:none;color:var(--ink-soft);font-weight:500;font-size:.9rem;
+    padding:.5rem .85rem;border-radius:8px 8px 0 0;position:relative;top:2px;
+    border:2px solid transparent;border-bottom:none;
+  }
+  .navtabs a.active{background:#fbf8f0;border-color:var(--line);color:var(--ink);border-bottom:2px solid #fbf8f0}
+
+  /* --- Table --- */
+  table.data{width:100%;border-collapse:collapse;font-size:.88rem}
+  table.data th{
+    font-family:'JetBrains Mono',monospace;font-weight:500;font-size:.66rem;
+    text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+    text-align:left;padding:.55rem .6rem;border-bottom:2px solid var(--line);white-space:nowrap;
+  }
+  table.data td{padding:.55rem .6rem;border-bottom:1px solid var(--line);vertical-align:top}
+  table.data tr:hover td{background:rgba(209,98,42,.05)}
+  .chip{display:inline-block;font-size:.7rem;padding:.12rem .5rem;border-radius:20px;background:var(--paper-2);color:var(--ink-soft);font-weight:500}
+  .chip.pick{background:var(--ok);color:#fff}
+  .chip.pri-ess{background:#c9432e;color:#fff}
+  .chip.pri-cons{background:#e0a422;color:#3a2c00}
+
+  /* --- Buttons --- */
+  .btn-stamp{background:var(--stamp);border:none;color:#fff;font-weight:600}
+  .btn-stamp:hover{background:var(--stamp-dk);color:#fff}
+  .btn-ink{background:var(--ink);border:none;color:var(--paper)}
+  .btn-ink:hover{background:var(--ink-soft);color:#fff}
+  .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--ink-soft)}
+  .btn-ghost:hover{border-color:var(--stamp);color:var(--stamp)}
+  .icon-btn{border:none;background:transparent;color:var(--muted);cursor:pointer;padding:.15rem .35rem;border-radius:6px}
+  .icon-btn:hover{background:var(--paper-2);color:var(--ink)}
+
+  /* --- Budget --- */
+  .budget-total{font-family:'Fraunces',serif;font-weight:700;font-size:2rem;color:var(--ink)}
+  .budget-line{display:flex;justify-content:space-between;padding:.5rem 0;border-bottom:1px dashed var(--line)}
+  .per-person{color:var(--stamp);font-weight:600}
+
+  /* --- Gate / login --- */
+  .gate{max-width:420px;margin:8vh auto;}
+  .gate .sheet{padding:2rem}
+
+  .form-control,.form-select{border-color:var(--line);background:#fdfbf5}
+  .form-control:focus,.form-select:focus{border-color:var(--stamp);box-shadow:0 0 0 .2rem rgba(209,98,42,.15)}
+  label.form-label{font-size:.78rem;font-weight:600;color:var(--ink-soft);margin-bottom:.2rem}
+
+  .empty{text-align:center;padding:3rem 1rem;color:var(--muted)}
+  .empty .big{font-family:'Fraunces',serif;font-size:1.3rem;color:var(--ink-soft);margin-bottom:.3rem}
+
+  .spinner-wrap{display:flex;justify-content:center;padding:3rem}
+  .toast-mini{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+    background:var(--ink);color:var(--paper);padding:.6rem 1.1rem;border-radius:10px;
+    font-size:.85rem;z-index:2000;box-shadow:0 8px 24px -12px rgba(0,0,0,.5);opacity:0;transition:opacity .25s;pointer-events:none}
+  .toast-mini.show{opacity:1}
+  a{color:var(--stamp)}
+</style>
+</head>
+<body>
+
+<!-- ============ TOPBAR ============ -->
+<div class="topbar py-2" id="topbar" style="display:none">
+  <div class="container d-flex align-items-center justify-content-between">
+    <a href="#/" class="brand"><span class="dot"></span> Rotte</a>
+    <div class="d-flex align-items-center gap-3">
+      <span class="mono d-none d-sm-inline" id="syncState">pronto</span>
+      <button class="btn btn-sm btn-ghost" onclick="logout()">Esci</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ APP ROOT ============ -->
+<div id="app" class="container py-4"></div>
+
+<div class="toast-mini" id="toast"></div>
+
+<script>
+/* ============================================================
+   CONFIG — l'unica cosa da modificare dopo il deploy dell'API
+   ============================================================ */
+const API_URL = "https://script.google.com/macros/s/AKfycbxN6Xe9meHwq4GsQtkaHPgtXsvE0Hay_1ocL54XvEiZUPY4GcZ8_I5sRuCdM7yx3u3E/exec"; // es: https://script.google.com/macros/s/AKfy.../exec
+
+/* ============================================================
+   STATE
+   ============================================================ */
+let TOKEN = sessionStorage.getItem('rotte_token') || '';
+
+/* ============================================================
+   API LAYER
+   ============================================================ */
+async function api(action, payload = {}) {
+  setSync('sincronizzo…');
+  const body = JSON.stringify({ action, token: TOKEN, ...payload });
+  // Apps Script gestisce meglio POST text/plain (evita preflight CORS)
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body
+  });
+  const data = await res.json();
+  setSync('pronto');
+  if (!data.ok) throw new Error(data.error || 'errore');
+  return data.data;
+}
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const eur = n => '€ ' + (Number(n) || 0).toLocaleString('it-IT', {minimumFractionDigits:2, maximumFractionDigits:2});
+const num = n => Number(String(n).replace(/[^\d.-]/g,'')) || 0;
+
+function setSync(t){ const e = $('#syncState'); if(e) e.textContent = t; }
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+function spinner(){ return `<div class="spinner-wrap"><div class="spinner-border" style="color:var(--stamp)"></div></div>`; }
+
+/* ============================================================
+   AUTH GATE
+   ============================================================ */
+function renderGate(err){
+  $('#topbar').style.display = 'none';
+  $('#app').innerHTML = `
+    <div class="gate">
+      <div class="text-center mb-3">
+        <div class="brand justify-content-center" style="color:var(--ink);font-size:2rem;font-family:'Fraunces',serif;font-weight:700;display:flex;align-items:center;gap:.6rem">
+          <span class="dot" style="background:var(--stamp);width:14px;height:14px;border-radius:50%"></span> Rotte
+        </div>
+        <div class="mono" style="color:var(--muted);font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;margin-top:.3rem">viaggi di gruppo</div>
+      </div>
+      <div class="sheet">
+        <p class="eyebrow mb-1">Accesso</p>
+        <h2 style="font-size:1.3rem;margin-bottom:1rem">Inserisci il codice del gruppo</h2>
+        ${err ? `<div class="alert alert-danger py-2 small">${esc(err)}</div>` : ''}
+        <label class="form-label">Codice</label>
+        <input id="tokenInput" type="password" class="form-control mb-3" placeholder="il codice condiviso" value="${esc(TOKEN)}">
+        <button class="btn btn-stamp w-100" onclick="doLogin()">Entra</button>
+        <p class="mono text-center mt-3 mb-0" style="font-size:.66rem;color:var(--muted)">il codice resta solo su questo dispositivo</p>
+      </div>
+    </div>`;
+  const inp = $('#tokenInput');
+  inp.addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+  inp.focus();
+}
+
+async function doLogin(){
+  TOKEN = $('#tokenInput').value.trim();
+  if(!TOKEN){ return renderGate('Serve il codice.'); }
+  try {
+    await api('list', { sheet: 'Viaggi' });          // ping autenticato
+    sessionStorage.setItem('rotte_token', TOKEN);
+    location.hash = '#/';
+    boot();
+  } catch(e){
+    TOKEN = '';
+    renderGate('Codice non valido.');
+  }
+}
+function logout(){
+  sessionStorage.removeItem('rotte_token'); TOKEN='';
+  location.hash = '#/'; renderGate();
+}
+
+/* ============================================================
+   ROUTER
+   ============================================================ */
+const ROUTES = [
+  { re:/^#\/$/,                      fn: viewHome },
+  { re:/^#\/viaggio\/([^/]+)$/,      fn: (m)=>viewTrip(m[1], 'riepilogo') },
+  { re:/^#\/viaggio\/([^/]+)\/([^/]+)$/, fn:(m)=>viewTrip(m[1], m[2]) },
+];
+async function route(){
+  if(!TOKEN){ return renderGate(); }
+  const h = location.hash || '#/';
+  for(const r of ROUTES){ const m = h.match(r.re); if(m){ return r.fn(m); } }
+  location.hash = '#/';
+}
+window.addEventListener('hashchange', route);
+
+/* ============================================================
+   VIEW: HOME (lista viaggi)
+   ============================================================ */
+async function viewHome(){
+  $('#topbar').style.display = 'block';
+  $('#app').innerHTML = spinner();
+  let trips = [];
+  try { trips = await api('list', { sheet:'Viaggi' }); }
+  catch(e){ return renderGate('Sessione scaduta, rientra.'); }
+
+  const cards = trips.map(t => {
+    const stato = (t.stato||'').toLowerCase();
+    const stampCls = stato.includes('conclus')||stato.includes('fatto') ? 'done'
+                   : stato.includes('idea')||stato.includes('propost') ? 'idea' : '';
+    const stampTxt = stato ? stato : 'in programma';
+    return `
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="trip-card" onclick="location.hash='#/viaggio/${esc(t.id)}'">
+        <div class="stamp ${stampCls}">${esc(stampTxt)}</div>
+        <p class="eyebrow mb-1">${esc(t.paese||'')}</p>
+        <div class="dest">${esc(t.destinazione||t.nome||'Senza nome')}</div>
+        <div class="country mb-2">${esc(t.nome||'')}</div>
+        <div class="mono" style="font-size:.72rem;color:var(--ink-soft)">
+          ${esc(t.data_inizio||'?')} → ${esc(t.data_fine||'?')} · ${esc(t.n_persone||'?')} pers.
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  $('#app').innerHTML = `
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+      <div>
+        <p class="eyebrow mb-1">Le tue rotte</p>
+        <h1 style="font-size:1.8rem;margin:0">Viaggi</h1>
+      </div>
+      <button class="btn btn-stamp" onclick="editTrip()">+ Nuovo viaggio</button>
+    </div>
+    ${trips.length ? `<div class="row g-3">${cards}</div>`
+      : `<div class="sheet empty"><div class="big">Nessun viaggio ancora</div>
+         <div>Crea la prima rotta e inizia a organizzare.</div>
+         <button class="btn btn-stamp mt-3" onclick="editTrip()">+ Nuovo viaggio</button></div>`}
+  `;
+}
+
+/* ============================================================
+   VIEW: TRIP (un viaggio, con tab-sezioni)
+   ============================================================ */
+const SECTIONS = [
+  ['riepilogo','Riepilogo'],
+  ['alloggi','Alloggi'],
+  ['voli','Voli'],
+  ['spese','Budget & Spese'],
+  ['cosedafare','Cose da fare'],
+  ['cosaportare','Cosa portare'],
+  ['contatti','Contatti'],
+  ['info','Info destinazione'],
+];
+
+let CURRENT_TRIP = null;
+let CURRENT_DATA = null;
+
+async function viewTrip(id, section){
+  $('#topbar').style.display = 'block';
+  $('#app').innerHTML = spinner();
+  let all;
+  try { all = await api('all', { viaggio_id: id }); }
+  catch(e){ return renderGate('Sessione scaduta, rientra.'); }
+
+  const trip = (all.Viaggi||[])[0];
+  if(!trip){ $('#app').innerHTML = `<div class="sheet empty"><div class="big">Viaggio non trovato</div><a href="#/">← torna ai viaggi</a></div>`; return; }
+  CURRENT_TRIP = trip; CURRENT_DATA = all;
+
+  const tabs = SECTIONS.map(([k,label]) =>
+    `<a href="#/viaggio/${esc(id)}/${k}" class="${k===section?'active':''}">${label}</a>`
+  ).join('');
+
+  $('#app').innerHTML = `
+    <a href="#/" class="mono" style="font-size:.75rem;text-decoration:none;color:var(--muted)">← tutti i viaggi</a>
+    <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mt-2 mb-3">
+      <div>
+        <p class="eyebrow mb-1">${esc(trip.paese||'')} · ${esc(trip.data_inizio||'')} → ${esc(trip.data_fine||'')}</p>
+        <h1 style="font-size:1.9rem;margin:0">${esc(trip.destinazione||trip.nome)}</h1>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="editTrip(CURRENT_TRIP)">Modifica viaggio</button>
+    </div>
+    <div class="navtabs mb-3">${tabs}</div>
+    <div id="section"></div>
+  `;
+  renderSection(section);
+}
+
+function renderSection(section){
+  const box = $('#section');
+  const d = CURRENT_DATA, tid = CURRENT_TRIP.id;
+  const map = {
+    riepilogo:   ()=>secRiepilogo(d),
+    alloggi:     ()=>secTable('Alloggi', d.Alloggi, tid),
+    voli:        ()=>secTable('Voli', d.Voli, tid),
+    spese:       ()=>secSpese(d, tid),
+    cosedafare:  ()=>secTable('CoseDaFare', d.CoseDaFare, tid),
+    cosaportare: ()=>secTable('CosaPortare', d.CosaPortare, tid),
+    contatti:    ()=>secTable('Contatti', d.Contatti, tid),
+    info:        ()=>secInfo(d, tid),
+  };
+  box.innerHTML = (map[section]||map.riepilogo)();
+}
+
+/* ---------- RIEPILOGO + BUDGET (calcolato) ---------- */
+function computeBudget(d){
+  const alloggio = (d.Alloggi||[]).filter(a=>truthy(a.scelto)).reduce((s,a)=>s+num(a.totale),0);
+  const voli     = (d.Voli||[]).filter(v=>truthy(v.scelto)).reduce((s,v)=>s+num(v.totale),0);
+  const spese    = (d.Spese||[]).reduce((s,x)=>s+num(x.totale),0);
+  const tot = alloggio + voli + spese;
+  const pers = num(d.Viaggi?.[0]?.n_persone) || 1;
+  return { alloggio, voli, spese, tot, pers, perPersona: tot/pers };
+}
+function truthy(v){ const s = String(v).toLowerCase().trim(); return ['sì','si','true','1','x','yes','✓'].includes(s); }
+
+function secRiepilogo(d){
+  const b = computeBudget(d);
+  const t = d.Viaggi[0];
+  const counts = {
+    Alloggi:(d.Alloggi||[]).length, Voli:(d.Voli||[]).length,
+    'Cose da fare':(d.CoseDaFare||[]).length, 'Da portare':(d.CosaPortare||[]).length
+  };
+  const chips = Object.entries(counts).map(([k,v])=>`<span class="chip me-1 mb-1">${k}: ${v}</span>`).join('');
+  return `
+  <div class="row g-3">
+    <div class="col-12 col-lg-7">
+      <div class="sheet p-4 h-100">
+        <p class="eyebrow mb-1">Budget stimato · opzioni scelte</p>
+        <div class="budget-total mb-1">${eur(b.tot)}</div>
+        <div class="per-person mb-3">${eur(b.perPersona)} a testa · ${b.pers} persone</div>
+        <div class="budget-line"><span>Alloggio</span><span class="mono">${eur(b.alloggio)}</span></div>
+        <div class="budget-line"><span>Voli</span><span class="mono">${eur(b.voli)}</span></div>
+        <div class="budget-line"><span>Spese extra</span><span class="mono">${eur(b.spese)}</span></div>
+        <p class="mono mt-3 mb-0" style="font-size:.68rem;color:var(--muted)">
+          calcolato dalle righe con flag "scelto". Cambia la scelta in Alloggi/Voli per aggiornarlo.
+        </p>
+      </div>
+    </div>
+    <div class="col-12 col-lg-5">
+      <div class="sheet p-4 h-100">
+        <p class="eyebrow mb-2">Dettagli viaggio</p>
+        <div class="mb-2"><strong>${esc(t.destinazione||'')}</strong> — ${esc(t.paese||'')}</div>
+        <div class="mono mb-2" style="font-size:.8rem">${esc(t.data_inizio||'?')} → ${esc(t.data_fine||'?')}</div>
+        ${t.note?`<p class="mb-3" style="font-size:.9rem">${esc(t.note)}</p>`:''}
+        <div class="mt-2">${chips}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ---------- TABELLE GENERICHE (Alloggi, Voli, CoseDaFare...) ---------- */
+// Colonne mostrate per ciascun tab (le altre restano nel foglio ma non ingombrano)
+const COLS = {
+  Alloggi:     ['struttura','checkin','checkout','notti','totale','valutazione','scelto'],
+  Voli:        ['direzione','tratta','compagnia','n_volo','da','a','ora_part','totale','scelto'],
+  CoseDaFare:  ['tipo','attivita','posizione','durata','prenotazione_req','confermata'],
+  CosaPortare: ['categoria','cosa','qta','chi','priorita','spuntato'],
+  Contatti:    ['categoria','nome','telefono','indirizzo'],
+};
+const LABELS = {
+  checkin:'check-in', checkout:'check-out', n_volo:'n° volo', ora_part:'orario',
+  prenotazione_req:'prenot.', valutazione:'voto', qta:'q.tà', da:'da', a:'a'
+};
+const lbl = k => LABELS[k] || k.replace(/_/g,' ');
+
+function secTable(sheet, rows, tid){
+  rows = rows || [];
+  const cols = COLS[sheet] || Object.keys((rows[0]||{})).filter(k=>k!=='id'&&k!=='viaggio_id');
+  const head = cols.map(c=>`<th>${esc(lbl(c))}</th>`).join('') + '<th></th>';
+  const body = rows.map(r=>{
+    const tds = cols.map(c=>`<td>${cell(sheet,c,r[c])}</td>`).join('');
+    return `<tr>${tds}<td class="text-nowrap">
+        <button class="icon-btn" title="Modifica" onclick='editRow(${JSON.stringify(sheet)}, ${JSON.stringify(r)})'>✎</button>
+        <button class="icon-btn" title="Elimina" onclick="delRow('${esc(sheet)}','${esc(r.id)}')">🗑</button>
+      </td></tr>`;
+  }).join('');
+
+  return `
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <p class="eyebrow mb-0">${rows.length} voci</p>
+      <button class="btn btn-stamp btn-sm" onclick="editRow('${esc(sheet)}', null, '${esc(tid)}')">+ Aggiungi</button>
+    </div>
+    <div class="sheet p-2 p-md-3" style="overflow-x:auto">
+      ${rows.length ? `<table class="data"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`
+        : `<div class="empty"><div class="big">Ancora niente qui</div><div>Aggiungi la prima voce.</div></div>`}
+    </div>`;
+}
+
+function cell(sheet, col, val){
+  if(col==='scelto'||col==='confermata'||col==='spuntato'||col==='prenotazione_req'){
+    if(col==='scelto' && truthy(val)) return `<span class="chip pick">✓ scelto</span>`;
+    return truthy(val) ? `<span class="chip pick">✓</span>` : `<span class="chip">–</span>`;
+  }
+  if(col==='priorita'){
+    const s=String(val).toLowerCase();
+    if(s.includes('essenz')) return `<span class="chip pri-ess">${esc(val)}</span>`;
+    if(s.includes('consig')) return `<span class="chip pri-cons">${esc(val)}</span>`;
+    return esc(val);
+  }
+  if(col==='totale'||col==='prezzo_notte'||col==='costo') return `<span class="mono">${eur(val)}</span>`;
+  if(col==='valutazione'){ const n=num(val); return n?('★'.repeat(Math.min(5,Math.round(n)))):esc(val); }
+  return esc(val);
+}
+
+/* ---------- SPESE (tabella + totale) ---------- */
+function secSpese(d, tid){
+  const rows = d.Spese||[];
+  const tot = rows.reduce((s,x)=>s+num(x.totale),0);
+  const pers = num(d.Viaggi[0].n_persone)||1;
+  const body = rows.map(r=>`<tr>
+      <td class="mono">${esc(r.data)}</td>
+      <td>${esc(r.descrizione)}</td>
+      <td><span class="chip">${esc(r.categoria||'—')}</span></td>
+      <td class="mono">${eur(r.totale)}</td>
+      <td>${esc(r.note||'')}</td>
+      <td class="text-nowrap">
+        <button class="icon-btn" onclick='editRow("Spese", ${JSON.stringify(r)})'>✎</button>
+        <button class="icon-btn" onclick="delRow('Spese','${esc(r.id)}')">🗑</button>
+      </td></tr>`).join('');
+  return `
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <p class="eyebrow mb-0">spese extra oltre a voli/alloggio</p>
+      <button class="btn btn-stamp btn-sm" onclick="editRow('Spese', null, '${esc(tid)}')">+ Aggiungi spesa</button>
+    </div>
+    <div class="sheet p-2 p-md-3 mb-3" style="overflow-x:auto">
+      ${rows.length?`<table class="data">
+        <thead><tr><th>data</th><th>descrizione</th><th>categoria</th><th>totale</th><th>note</th><th></th></tr></thead>
+        <tbody>${body}</tbody>
+        <tfoot><tr>
+          <td colspan="3" class="text-end"><strong>Totale spese</strong></td>
+          <td class="mono"><strong>${eur(tot)}</strong></td>
+          <td colspan="2" class="per-person">${eur(tot/pers)} a testa</td>
+        </tr></tfoot>
+      </table>`:`<div class="empty"><div class="big">Nessuna spesa extra</div></div>`}
+    </div>`;
+}
+
+/* ---------- INFO DESTINAZIONE (chiave/valore) ---------- */
+function secInfo(d, tid){
+  const rows = d.InfoDest||[];
+  const bySez = {};
+  rows.forEach(r=>{ (bySez[r.sezione||'Generale'] ??= []).push(r); });
+  const blocks = Object.entries(bySez).map(([sez,items])=>`
+    <div class="sheet p-3 mb-3">
+      <p class="eyebrow mb-2">${esc(sez)}</p>
+      <table class="data"><tbody>
+      ${items.map(r=>`<tr>
+        <td style="width:45%"><strong>${esc(r.chiave)}</strong></td>
+        <td>${esc(r.valore)}</td>
+        <td class="text-nowrap" style="width:1%">
+          <button class="icon-btn" onclick='editRow("InfoDest", ${JSON.stringify(r)})'>✎</button>
+          <button class="icon-btn" onclick="delRow('InfoDest','${esc(r.id)}')">🗑</button>
+        </td></tr>`).join('')}
+      </tbody></table>
+    </div>`).join('');
+  return `
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <p class="eyebrow mb-0">informazioni utili sul posto</p>
+      <button class="btn btn-stamp btn-sm" onclick="editRow('InfoDest', null, '${esc(tid)}')">+ Aggiungi info</button>
+    </div>
+    ${rows.length?blocks:`<div class="sheet empty"><div class="big">Nessuna info ancora</div></div>`}`;
+}
+
+/* ============================================================
+   EDIT MODAL (generico, form da schema)
+   ============================================================ */
+const FIELD_ORDER = {
+  Viaggi:['nome','destinazione','paese','data_inizio','data_fine','n_persone','stato','note'],
+  Alloggi:['struttura','checkin','checkout','notti','prezzo_notte','extra','totale','link','indirizzo','posizione','valutazione','scelto','note'],
+  Voli:['opzione','direzione','tratta','persone','compagnia','n_volo','da','a','data_part','ora_part','data_arr','ora_arr','scalo','totale','bagaglio','scelto','note'],
+  Spese:['data','descrizione','categoria','totale','note'],
+  CoseDaFare:['tipo','attivita','posizione','durata','costo','prenotazione_req','quando','link','note','confermata'],
+  CosaPortare:['categoria','cosa','qta','chi','priorita','spuntato','note'],
+  Contatti:['categoria','nome','telefono','link','indirizzo','note'],
+  InfoDest:['sezione','chiave','valore'],
+};
+const BOOL_FIELDS = ['scelto','confermata','spuntato','prenotazione_req','bagaglio'];
+const AREA_FIELDS = ['note'];
+
+let MODAL = null;
+function ensureModal(){
+  if(MODAL) return MODAL;
+  const el = document.createElement('div');
+  el.className='modal fade'; el.id='editModal'; el.tabIndex=-1;
+  el.innerHTML=`<div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="background:#fbf8f0;border:1px solid var(--line);border-radius:14px">
+      <div class="modal-header" style="border-bottom:1px solid var(--line)">
+        <h5 class="modal-title" id="mTitle" style="font-family:'Fraunces',serif"></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="mBody"></div>
+      <div class="modal-footer" style="border-top:1px solid var(--line)">
+        <button class="btn btn-ghost btn-sm" data-bs-dismiss="modal">Annulla</button>
+        <button class="btn btn-stamp btn-sm" id="mSave">Salva</button>
+      </div>
+    </div></div>`;
+  document.body.appendChild(el);
+  MODAL = new bootstrap.Modal(el);
+  return MODAL;
+}
+
+function editRow(sheet, record, tid){
+  ensureModal();
+  const isNew = !record;
+  const rec = record || { viaggio_id: tid };
+  const fields = FIELD_ORDER[sheet] || [];
+  $('#mTitle').textContent = (isNew?'Nuovo · ':'Modifica · ') + sheet;
+  $('#mBody').innerHTML = fields.map(f=>{
+    const v = rec[f] ?? '';
+    if(BOOL_FIELDS.includes(f)){
+      return `<div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" id="f_${f}" ${truthy(v)?'checked':''}>
+        <label class="form-check-label" for="f_${f}">${esc(lbl(f))}</label></div>`;
+    }
+    if(AREA_FIELDS.includes(f)){
+      return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
+        <textarea class="form-control" id="f_${f}" rows="2">${esc(v)}</textarea></div>`;
+    }
+    const type = /data/.test(f)?'text':/ora/.test(f)?'text':/totale|prezzo|costo|notti|persone|qta|valutazione|n_persone/.test(f)?'number':'text';
+    return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
+      <input class="form-control" id="f_${f}" type="${type}" value="${esc(v)}" step="any"></div>`;
+  }).join('');
+
+  $('#mSave').onclick = async ()=>{
+    const out = { id: rec.id, viaggio_id: rec.viaggio_id };
+    fields.forEach(f=>{
+      const el = $('#f_'+f); if(!el) return;
+      out[f] = BOOL_FIELDS.includes(f) ? (el.checked?'Sì':'') : el.value;
+    });
+    try{
+      $('#mSave').disabled = true;
+      if(rec.id) await api('update',{sheet, record:out});
+      else       await api('create',{sheet, record:out});
+      MODAL.hide(); toast('Salvato ✓');
+      reloadCurrent();
+    }catch(e){ toast('Errore: '+e.message); }
+    finally{ $('#mSave').disabled=false; }
+  };
+  MODAL.show();
+}
+
+/* Modifica/crea viaggio (usa lo stesso modal, poi ricarica home o trip) */
+function editTrip(trip){
+  editRow('Viaggi', trip, null);
+  const prev = $('#mSave').onclick;
+  $('#mSave').onclick = async ()=>{
+    const fields = FIELD_ORDER.Viaggi;
+    const out = { id: trip?.id };
+    fields.forEach(f=>{ const el=$('#f_'+f); if(el) out[f]=el.value; });
+    try{
+      $('#mSave').disabled=true;
+      if(trip?.id) await api('update',{sheet:'Viaggi',record:out});
+      else         await api('create',{sheet:'Viaggi',record:out});
+      MODAL.hide(); toast('Salvato ✓');
+      if(CURRENT_TRIP && trip?.id===CURRENT_TRIP.id) viewTrip(trip.id,'riepilogo');
+      else viewHome();
+    }catch(e){ toast('Errore: '+e.message); }
+    finally{ $('#mSave').disabled=false; }
+  };
+}
+
+async function delRow(sheet, id){
+  if(!confirm('Eliminare questa voce?')) return;
+  try{ await api('delete',{sheet,id}); toast('Eliminato'); reloadCurrent(); }
+  catch(e){ toast('Errore: '+e.message); }
+}
+
+function reloadCurrent(){
+  const h = location.hash;
+  const m = h.match(/^#\/viaggio\/([^/]+)(?:\/([^/]+))?$/);
+  if(m) viewTrip(m[1], m[2]||'riepilogo'); else viewHome();
+}
+
+/* ============================================================
+   BOOT
+   ============================================================ */
+function boot(){
+  if(API_URL.includes('INCOLLA_QUI')){
+    $('#app').innerHTML = `<div class="sheet p-4 m-4"><h2>⚙️ Configurazione mancante</h2>
+      <p>Apri <code>index.html</code> e incolla l'URL della Web App in <code>API_URL</code>.</p></div>`;
+    return;
+  }
+  if(!TOKEN) renderGate(); else route();
+}
+document.addEventListener('DOMContentLoaded', boot);
+</script>
+</body>
+</html>
