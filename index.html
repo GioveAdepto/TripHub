@@ -134,9 +134,38 @@
   .spinner-wrap{display:flex;justify-content:center;padding:3rem}
   .toast-mini{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
     background:var(--ink);color:var(--paper);padding:.6rem 1.1rem;border-radius:10px;
-    font-size:.85rem;z-index:2000;box-shadow:0 8px 24px -12px rgba(0,0,0,.5);opacity:0;transition:opacity .25s;pointer-events:none}
+    font-size:.85rem;z-index:2000;box-shadow:0 8px 24px -12px rgba(0,0,0,.5);opacity:0;transition:opacity .25s;pointer-events:none;max-width:90vw;text-align:center}
   .toast-mini.show{opacity:1}
+  .toast-mini.err{background:#a3341f}
+  .toast-mini.ok{background:var(--ok)}
+  /* overlay caricamento globale */
+  .load-overlay{position:fixed;inset:0;background:rgba(242,237,225,.7);backdrop-filter:blur(2px);
+    display:flex;align-items:center;justify-content:center;z-index:1900;flex-direction:column;gap:.8rem}
+  .load-overlay .mono{color:var(--ink-soft);font-size:.8rem;letter-spacing:.05em}
+  /* link icona */
+  .link-btn{display:inline-flex;align-items:center;gap:.3rem;border:1px solid var(--line);background:#fdfbf5;
+    border-radius:7px;padding:.15rem .5rem;font-size:.78rem;color:var(--ink-soft);text-decoration:none;cursor:pointer}
+  .link-btn:hover{border-color:var(--stamp);color:var(--stamp)}
   a{color:var(--stamp)}
+
+  /* calendario cose da fare */
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .cal-head{margin-bottom:4px}
+  .cal-dow{text-align:center;font-family:'JetBrains Mono',monospace;font-size:.66rem;text-transform:uppercase;
+    letter-spacing:.06em;color:var(--muted);padding:.2rem 0}
+  .cal-cell{min-height:76px;border:1px solid var(--line);border-radius:8px;padding:3px 4px;background:#fdfbf5;overflow:hidden}
+  .cal-cell.empty{background:transparent;border:none}
+  .cal-cell.in-trip{background:#fff5e9;border-color:#f0cba3}
+  .cal-num{font-size:.72rem;font-weight:600;color:var(--ink-soft);margin-bottom:2px}
+  .cal-ev{font-size:.64rem;background:var(--ink);color:var(--paper);border-radius:4px;padding:1px 4px;margin-bottom:2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+  .cal-ev:hover{background:var(--stamp)}
+  .cal-more{font-size:.62rem;color:var(--stamp);font-weight:600}
+  @media(max-width:640px){
+    .cal-cell{min-height:58px}
+    .cal-ev{font-size:.56rem}
+    .cal-dow{font-size:.58rem}
+  }
 </style>
 </head>
 <body>
@@ -152,9 +181,18 @@
           <path d="M 0 -30 C 3 -30 4.5 -24 4.5 -16 L 4.5 -8 L 30 6 L 30 12 L 4.5 4 L 4.5 16 L 12 22 L 12 26 L 0 22 L -12 26 L -12 22 L -4.5 16 L -4.5 4 L -30 12 L -30 6 L -4.5 -8 L -4.5 -16 C -4.5 -24 -3 -30 0 -30 Z"/>
         </g>
       </svg> TripHub</a>
-    <div class="d-flex align-items-center gap-3">
+    <div class="d-flex align-items-center gap-2">
       <span class="mono d-none d-sm-inline" id="syncState">pronto</span>
-      <button class="btn btn-sm btn-ghost" onclick="logout()">Esci</button>
+      <div class="dropdown">
+        <button class="btn btn-sm btn-ghost dropdown-toggle" data-bs-toggle="dropdown">⋯</button>
+        <ul class="dropdown-menu dropdown-menu-end" style="background:#fbf8f0;border-color:var(--line)">
+          <li><button class="dropdown-item" onclick="doExport()">⬇︎ Esporta backup (JSON)</button></li>
+          <li><button class="dropdown-item" onclick="document.getElementById('importFile').click()">⬆︎ Importa backup…</button></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><button class="dropdown-item text-danger" onclick="logout()">Esci</button></li>
+        </ul>
+      </div>
+      <input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="doImport(this)">
     </div>
   </div>
 </div>
@@ -178,19 +216,50 @@ let TOKEN = sessionStorage.getItem('triphub_token') || '';
 /* ============================================================
    API LAYER
    ============================================================ */
+class AuthError extends Error {}
+class NetworkError extends Error {}
+
 async function api(action, payload = {}) {
   setSync('sincronizzo…');
   const body = JSON.stringify({ action, token: TOKEN, ...payload });
-  // Apps Script gestisce meglio POST text/plain (evita preflight CORS)
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body
-  });
-  const data = await res.json();
+  const ctrl = new AbortController();
+  const timer = setTimeout(()=>ctrl.abort(), 30000); // 30s timeout
+  let res;
+  try {
+    res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body,
+      signal: ctrl.signal
+    });
+  } catch(e) {
+    setSync('offline');
+    throw new NetworkError(e.name==='AbortError' ? 'timeout: il server non ha risposto' : 'connessione assente');
+  } finally {
+    clearTimeout(timer);
+  }
+  let data;
+  try { data = await res.json(); }
+  catch(e){ setSync('errore'); throw new NetworkError('risposta non valida dal server'); }
   setSync('pronto');
-  if (!data.ok) throw new Error(data.error || 'errore');
+  if (!data.ok) {
+    if (data.error === 'unauthorized') throw new AuthError('unauthorized');
+    throw new Error(data.error || 'errore sconosciuto');
+  }
   return data.data;
+}
+
+// Wrapper per gestire in un solo punto la scadenza sessione
+async function guard(fn){
+  try { return await fn(); }
+  catch(e){
+    if(e instanceof AuthError){ sessionExpired(); throw e; }
+    throw e;
+  }
+}
+function sessionExpired(){
+  toast('Sessione scaduta — rientra con il codice');
+  renderGate('La sessione è scaduta. Reinserisci il codice del gruppo.');
 }
 
 /* ============================================================
@@ -202,11 +271,47 @@ const eur = n => '€ ' + (Number(n) || 0).toLocaleString('it-IT', {minimumFract
 const num = n => Number(String(n).replace(/[^\d.-]/g,'')) || 0;
 
 function setSync(t){ const e = $('#syncState'); if(e) e.textContent = t; }
-function toast(msg){
-  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'), 1800);
+function toast(msg, type){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.className = 'toast-mini show' + (type==='error'?' err':type==='ok'?' ok':'');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>t.classList.remove('show'), type==='error'?3200:1800);
 }
-function spinner(){ return `<div class="spinner-wrap"><div class="spinner-border" style="color:var(--stamp)"></div></div>`; }
+function spinner(msg){
+  return `<div class="spinner-wrap"><div class="text-center">
+    <div class="spinner-border" style="color:var(--stamp)"></div>
+    ${msg?`<div class="mono mt-2" style="font-size:.72rem;color:var(--muted)">${esc(msg)}</div>`:''}
+  </div></div>`;
+}
+
+// Schermata di errore con possibilità di riprovare
+function renderError(titolo, dettaglio, retryFn){
+  $('#app').innerHTML = `
+    <div class="sheet empty" style="max-width:480px;margin:8vh auto">
+      <div class="big">⚠️ ${esc(titolo)}</div>
+      <div class="mono mb-3" style="font-size:.78rem;color:var(--muted)">${esc(dettaglio||'')}</div>
+      <button class="btn btn-stamp" id="retryBtn">Riprova</button>
+    </div>`;
+  if(retryFn) $('#retryBtn').onclick = ()=>retryFn();
+}
+// Gestisce anche la sessione scaduta in modo pulito.
+async function withBtnLoading(btn, label, fn){
+  if(!btn) return fn();
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>${esc(label||'Attendere…')}`;
+  try {
+    return await fn();
+  } catch(e){
+    if(e instanceof AuthError){ sessionExpired(); }
+    else { toast('Errore: ' + e.message, 'error'); }
+    throw e;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = original;
+  }
+}
 
 /* ============================================================
    AUTH GATE
@@ -287,10 +392,13 @@ window.addEventListener('hashchange', route);
    ============================================================ */
 async function viewHome(){
   $('#topbar').style.display = 'block';
-  $('#app').innerHTML = spinner();
+  $('#app').innerHTML = spinner('carico i viaggi…');
   let trips = [];
   try { trips = await api('list', { sheet:'Viaggi' }); }
-  catch(e){ return renderGate('Sessione scaduta, rientra.'); }
+  catch(e){
+    if(e instanceof AuthError) return renderGate('La sessione è scaduta. Reinserisci il codice.');
+    return renderError('Non riesco a caricare i viaggi', e.message, viewHome);
+  }
 
   const cards = trips.map(t => {
     const stato = (t.stato||'').toLowerCase();
@@ -345,13 +453,18 @@ let CURRENT_DATA = null;
 
 async function viewTrip(id, section){
   $('#topbar').style.display = 'block';
-  $('#app').innerHTML = spinner();
+  $('#app').innerHTML = spinner('carico il viaggio…');
   let all;
   try { all = await api('all', { viaggio_id: id }); }
-  catch(e){ return renderGate('Sessione scaduta, rientra.'); }
+  catch(e){
+    if(e instanceof AuthError) return renderGate('La sessione è scaduta. Reinserisci il codice.');
+    return renderError('Non riesco a caricare il viaggio', e.message, ()=>viewTrip(id, section));
+  }
 
   const trip = (all.Viaggi||[])[0];
   if(!trip){ $('#app').innerHTML = `<div class="sheet empty"><div class="big">Viaggio non trovato</div><a href="#/">← torna ai viaggi</a></div>`; return; }
+  // reset del mese calendario se è cambiato viaggio
+  if(!CURRENT_TRIP || CURRENT_TRIP.id !== trip.id){ CDF_MONTH = null; CDF_VIEW = 'lista'; }
   CURRENT_TRIP = trip; CURRENT_DATA = all;
 
   const tabs = SECTIONS.map(([k,label]) =>
@@ -381,7 +494,7 @@ function renderSection(section){
     alloggi:     ()=>secTable('Alloggi', d.Alloggi, tid),
     voli:        ()=>secVoli(d.Voli, tid),
     spese:       ()=>secSpese(d, tid),
-    cosedafare:  ()=>secTable('CoseDaFare', d.CoseDaFare, tid),
+    cosedafare:  ()=>secCoseDaFare(d.CoseDaFare, tid),
     cosaportare: ()=>secTable('CosaPortare', d.CosaPortare, tid),
     contatti:    ()=>secTable('Contatti', d.Contatti, tid),
     info:        ()=>secInfo(d, tid),
@@ -438,10 +551,10 @@ function secRiepilogo(d){
 /* ---------- TABELLE GENERICHE (Alloggi, Voli, CoseDaFare...) ---------- */
 // Colonne mostrate per ciascun tab (le altre restano nel foglio ma non ingombrano)
 const COLS = {
-  Alloggi:     ['struttura','checkin','checkout','notti','totale','prezzo_testa','prezzo_testa_notte','valutazione','scelto'],
-  CoseDaFare:  ['tipo','attivita','posizione','durata','prenotazione_req','confermata'],
+  Alloggi:     ['struttura','checkin','checkout','notti','totale','prezzo_testa','prezzo_testa_notte','valutazione','link','scelto'],
+  CoseDaFare:  ['data','tipo','attivita','posizione','durata','prenotazione_req','confermata'],
   CosaPortare: ['categoria','cosa','qta','chi','priorita','spuntato'],
-  Contatti:    ['categoria','nome','telefono','indirizzo'],
+  Contatti:    ['categoria','nome','telefono','indirizzo','link'],
 };
 const LABELS = {
   checkin:'check-in', checkout:'check-out', n_volo:'n° volo', ora_part:'orario',
@@ -488,8 +601,26 @@ function cell(sheet, col, val){
   if(['totale','prezzo_notte','prezzo_testa','prezzo_testa_notte','costo','extra'].includes(col)) return `<span class="mono">${eur(val)}</span>`;
   if(DATE_FIELDS.includes(col)) return `<span class="mono">${toITDate(val)}</span>`;
   if(TIME_FIELDS.includes(col)) return `<span class="mono">${esc(toHM(val))}</span>`;
+  if(LINK_FIELDS.includes(col)) return linkCell(val);
   if(col==='valutazione'){ const n=num(val); return n?('★'.repeat(Math.min(5,Math.round(n)))):esc(val); }
   return esc(val);
+}
+
+// Link nascosto dietro icona: apri + copia
+function linkCell(url){
+  url = String(url||'').trim();
+  if(!url) return '<span class="chip">–</span>';
+  const safe = esc(url);
+  return `<span class="d-inline-flex gap-1">
+    <a class="link-btn" href="${safe}" target="_blank" rel="noopener" title="${safe}">🔗 apri</a>
+    <button class="link-btn" type="button" title="Copia link" onclick="copyLink(this,'${safe.replace(/'/g,"\\'")}')">⧉</button>
+  </span>`;
+}
+function copyLink(btn, url){
+  navigator.clipboard.writeText(url).then(()=>{
+    const t = btn.textContent; btn.textContent='✓'; toast('Link copiato','ok');
+    setTimeout(()=>btn.textContent=t, 1200);
+  }).catch(()=>toast('Impossibile copiare','error'));
 }
 
 /* ---------- SPESE (tabella + totale) ---------- */
@@ -590,8 +721,144 @@ function secVoli(rows, tid){
 
 async function delVolo(gruppoId){
   if(!confirm('Eliminare questo volo (tutte le sue tratte)?')) return;
-  try{ await api('delete_group',{sheet:'Voli',gruppo_id:gruppoId}); toast('Volo eliminato'); reloadCurrent(); }
-  catch(e){ toast('Errore: '+e.message); }
+  try{ await api('delete_group',{sheet:'Voli',gruppo_id:gruppoId}); toast('Volo eliminato','ok'); reloadCurrent(); }
+  catch(e){ if(e instanceof AuthError) sessionExpired(); else toast('Errore: '+e.message,'error'); }
+}
+
+/* ---------- COSE DA FARE (switch calendario / lista) ---------- */
+let CDF_VIEW = 'lista';   // vista corrente
+let CDF_MONTH = null;      // mese mostrato nel calendario (Date sul 1° del mese)
+
+const TIPO_ICON = {
+  'sport acquatico':'🌊','escursione':'🥾','gita':'🚌','cultura':'🏛️','cibo':'🍽️','serata':'🌙','relax':'🏖️'
+};
+function tipoIcon(t){ return TIPO_ICON[String(t||'').toLowerCase()] || '📍'; }
+
+function secCoseDaFare(rows, tid){
+  rows = rows || [];
+  ensureCdfMonth();
+  const toggle = `
+    <div class="btn-group btn-group-sm" role="group">
+      <button class="btn ${CDF_VIEW==='lista'?'btn-ink':'btn-ghost'}" onclick="setCdfView('lista')">Lista</button>
+      <button class="btn ${CDF_VIEW==='calendario'?'btn-ink':'btn-ghost'}" onclick="setCdfView('calendario')">Calendario</button>
+    </div>`;
+  const header = `
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+      <div class="d-flex align-items-center gap-2">${toggle}
+        <span class="mono" style="font-size:.72rem;color:var(--muted)">${rows.length} attività</span></div>
+      <button class="btn btn-stamp btn-sm" onclick="editRow('CoseDaFare', null, '${esc(tid)}')">+ Aggiungi</button>
+    </div>`;
+  return header + (CDF_VIEW==='calendario' ? cdfCalendar(rows, tid) : cdfList(rows, tid));
+}
+
+function setCdfView(v){ CDF_VIEW = v; renderSection('cosedafare'); }
+function ensureCdfMonth(){
+  if(!CDF_MONTH){
+    const iso = toISODate(CURRENT_TRIP && CURRENT_TRIP.data_inizio);
+    let base = iso ? new Date(iso+'T12:00:00') : new Date();
+    CDF_MONTH = new Date(base.getFullYear(), base.getMonth(), 1);
+  }
+}
+function cdfMonthShift(delta){
+  ensureCdfMonth();
+  CDF_MONTH = new Date(CDF_MONTH.getFullYear(), CDF_MONTH.getMonth()+delta, 1);
+  renderSection('cosedafare');
+}
+
+// --- vista LISTA (raggruppata per data, poi senza data) ---
+function cdfList(rows, tid){
+  const withDate = rows.filter(r=>toISODate(r.data)).sort((a,b)=>toISODate(a.data).localeCompare(toISODate(b.data)));
+  const noDate   = rows.filter(r=>!toISODate(r.data));
+  const groups = {};
+  withDate.forEach(r=>{ const k=toISODate(r.data); (groups[k] ??= []).push(r); });
+
+  const dayBlocks = Object.keys(groups).map(k=>`
+    <div class="mb-3">
+      <p class="eyebrow mb-2">${toITDateLong(k)}</p>
+      ${groups[k].map(r=>cdfItem(r)).join('')}
+    </div>`).join('');
+
+  const noDateBlock = noDate.length ? `
+    <div class="mb-3">
+      <p class="eyebrow mb-2">Senza data</p>
+      ${noDate.map(r=>cdfItem(r)).join('')}
+    </div>` : '';
+
+  if(!rows.length) return `<div class="sheet empty"><div class="big">Ancora niente da fare</div><div>Aggiungi la prima attività.</div></div>`;
+  return `<div class="sheet p-3">${dayBlocks}${noDateBlock}</div>`;
+}
+
+function cdfItem(r){
+  const conf = truthy(r.confermata);
+  return `<div class="d-flex align-items-start gap-2 py-2" style="border-bottom:1px solid var(--line)">
+    <span style="font-size:1.1rem;flex:none">${tipoIcon(r.tipo)}</span>
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:600">${esc(r.attivita||'')}
+        ${conf?'<span class="chip pick ms-1">✓</span>':''}
+        ${truthy(r.prenotazione_req)?'<span class="chip pri-cons ms-1">prenota</span>':''}</div>
+      <div style="font-size:.82rem;color:var(--ink-soft)">
+        ${r.posizione?esc(r.posizione):''}${r.durata?` · ${esc(r.durata)}`:''}${r.quando?` · ${esc(r.quando)}`:''}
+      </div>
+      ${r.note?`<div style="font-size:.78rem;color:var(--muted);margin-top:.15rem">${esc(r.note)}</div>`:''}
+    </div>
+    <div class="text-nowrap" style="flex:none">
+      ${r.link?linkCell(r.link):''}
+      <button class="icon-btn" onclick='editRow("CoseDaFare", ${JSON.stringify(r)})'>✎</button>
+      <button class="icon-btn" onclick="delRow('CoseDaFare','${esc(r.id)}')">🗑</button>
+    </div>
+  </div>`;
+}
+
+// --- vista CALENDARIO ---
+function cdfCalendar(rows, tid){
+  ensureCdfMonth();
+  const y = CDF_MONTH.getFullYear(), mo = CDF_MONTH.getMonth();
+  const first = new Date(y, mo, 1);
+  const startDow = (first.getDay()+6)%7;      // lun=0
+  const daysInMonth = new Date(y, mo+1, 0).getDate();
+  const monthName = CDF_MONTH.toLocaleDateString('it-IT', {month:'long', year:'numeric'});
+
+  // mappa attività per giorno ISO
+  const byDay = {};
+  rows.forEach(r=>{ const k=toISODate(r.data); if(k) (byDay[k] ??= []).push(r); });
+
+  // range vacanza per evidenziare
+  const vStart = toISODate(CURRENT_TRIP?.data_inizio), vEnd = toISODate(CURRENT_TRIP?.data_fine);
+
+  const dow = ['lun','mar','mer','gio','ven','sab','dom']
+    .map(d=>`<div class="cal-dow">${d}</div>`).join('');
+
+  let cells = '';
+  for(let i=0;i<startDow;i++) cells += `<div class="cal-cell empty"></div>`;
+  for(let d=1; d<=daysInMonth; d++){
+    const iso = `${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const items = byDay[iso]||[];
+    const inTrip = vStart && vEnd && iso>=vStart && iso<=vEnd;
+    const chips = items.slice(0,3).map(r=>
+      `<div class="cal-ev" title="${esc(r.attivita)}" onclick='editRow("CoseDaFare", ${JSON.stringify(r)})'>${tipoIcon(r.tipo)} ${esc((r.attivita||'').slice(0,14))}</div>`).join('');
+    const more = items.length>3 ? `<div class="cal-more">+${items.length-3}</div>` : '';
+    cells += `<div class="cal-cell${inTrip?' in-trip':''}" ondblclick="cdfQuickAdd('${iso}','${esc(tid)}')">
+      <div class="cal-num">${d}</div>${chips}${more}
+    </div>`;
+  }
+
+  return `
+    <div class="sheet p-3">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <button class="btn btn-ghost btn-sm" onclick="cdfMonthShift(-1)">‹</button>
+        <strong style="font-family:'Fraunces',serif;text-transform:capitalize">${esc(monthName)}</strong>
+        <button class="btn btn-ghost btn-sm" onclick="cdfMonthShift(1)">›</button>
+      </div>
+      <div class="cal-grid cal-head">${dow}</div>
+      <div class="cal-grid">${cells}</div>
+      <p class="mono mt-2 mb-0" style="font-size:.68rem;color:var(--muted)">
+        doppio click su un giorno per aggiungere · giorni evidenziati = durata vacanza
+      </p>
+    </div>`;
+}
+
+function cdfQuickAdd(iso, tid){
+  editRow('CoseDaFare', { viaggio_id: tid, data: iso }, tid);
 }
 
 /* ---------- INFO DESTINAZIONE (chiave/valore) ---------- */
@@ -627,7 +894,7 @@ const FIELD_ORDER = {
   Viaggi:['nome','destinazione','paese','data_inizio','data_fine','n_persone','stato','note'],
   Alloggi:['struttura','checkin','checkout','notti','persone','totale','prezzo_notte','prezzo_testa','prezzo_testa_notte','extra','link','indirizzo','posizione','valutazione','scelto','note'],
   Spese:['data','descrizione','categoria','persone','totale','prezzo_testa','note'],
-  CoseDaFare:['tipo','attivita','posizione','durata','costo','prenotazione_req','quando','link','note','confermata'],
+  CoseDaFare:['data','tipo','attivita','posizione','durata','costo','prenotazione_req','quando','link','note','confermata'],
   CosaPortare:['categoria','cosa','qta','chi','priorita','spuntato','note'],
   Contatti:['categoria','nome','telefono','link','indirizzo','note'],
   InfoDest:['sezione','chiave','valore'],
@@ -636,8 +903,14 @@ const BOOL_FIELDS = ['scelto','confermata','spuntato','prenotazione_req','bagagl
 const AREA_FIELDS = ['note'];
 // Campi che devono essere salvati come NUMERO puro (mai come testo/ora)
 const NUM_FIELDS = ['totale','prezzo_notte','prezzo_testa','prezzo_testa_notte','extra','costo','notti','persone','qta','valutazione','n_persone','tratta','opzione'];
+// Interi (persone, notti, quantità, voto…): niente decimali
+const INT_FIELDS = ['persone','notti','qta','n_persone','tratta','opzione','valutazione'];
+// Valute: decimali, ammessi negativi (es. rimborsi/sconti)
+const CUR_FIELDS = ['totale','prezzo_notte','prezzo_testa','prezzo_testa_notte','extra','costo'];
+// Link: campo url, in visualizzazione diventa icona
+const LINK_FIELDS = ['link'];
 // Campi data (datepicker) e ora (timepicker)
-const DATE_FIELDS = ['data_inizio','data_fine','checkin','checkout','data_part','data_arr'];
+const DATE_FIELDS = ['data_inizio','data_fine','checkin','checkout','data_part','data_arr','data'];
 const TIME_FIELDS = ['ora_part','ora_arr'];
 
 // Compagnie aeree note per la datalist (aperta: puoi comunque digitarne altre)
@@ -671,6 +944,13 @@ function toITDate(raw){
   if(!iso) return esc(raw||'');
   const p = iso.split('-');
   return p[2]+'/'+p[1]+'/'+p[0].slice(2);
+}
+// Data estesa "lunedì 4 agosto" per intestazioni della lista
+function toITDateLong(raw){
+  const iso = toISODate(raw);
+  if(!iso) return esc(raw||'');
+  const d = new Date(iso+'T12:00:00');
+  return d.toLocaleDateString('it-IT', {weekday:'long', day:'numeric', month:'long'});
 }
 // Ora "HH:mm" (accetta anche "06:20:00")
 function toHM(raw){
@@ -793,12 +1073,31 @@ function editRow(sheet, record, tid){
       return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
         <input class="form-control" id="f_${f}" list="airlines" value="${esc(v)}" placeholder="scegli o scrivi…"></div>`;
     }
-    if(NUM_FIELDS.includes(f)){
-      const hint = f==='prezzo_testa' ? 'auto se metti il totale'
+    if(LINK_FIELDS.includes(f)){
+      return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
+        <div class="input-group">
+          <span class="input-group-text" style="background:var(--paper-2);border-color:var(--line)">🔗</span>
+          <input class="form-control" id="f_${f}" type="url" value="${esc(v)}" placeholder="https://…" inputmode="url">
+        </div></div>`;
+    }
+    if(INT_FIELDS.includes(f)){
+      const iv = v!=='' ? Math.round(parseNum(v)) : '';
+      return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
+        <input class="form-control" id="f_${f}" type="number" step="1" min="0" inputmode="numeric" value="${iv!==''&&!isNaN(iv)?iv:''}"></div>`;
+    }
+    if(CUR_FIELDS.includes(f)){
+      const hint = f==='prezzo_testa' ? 'auto dal totale'
                  : f==='prezzo_testa_notte' ? 'auto (÷ persone ÷ notti)'
                  : f==='prezzo_notte' ? 'auto (÷ notti)'
                  : f==='totale' ? 'oppure compila "a testa"' : '';
       return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}${hint?` <span style="font-weight:400;color:var(--muted);font-size:.7rem">— ${hint}</span>`:''}</label>
+        <div class="input-group">
+          <span class="input-group-text" style="background:var(--paper-2);border-color:var(--line)">€</span>
+          <input class="form-control" id="f_${f}" type="text" inputmode="decimal" value="${v!==''?esc(fmtNumIT(parseNum(v))):''}" placeholder="0,00">
+        </div></div>`;
+    }
+    if(NUM_FIELDS.includes(f)){
+      return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
         <input class="form-control" id="f_${f}" type="text" inputmode="decimal" value="${v!==''?esc(fmtNumIT(parseNum(v))):''}"></div>`;
     }
     return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
@@ -811,50 +1110,47 @@ function editRow(sheet, record, tid){
     if(el) el.addEventListener('input', ()=>recalc(sheet, t));
   });
 
-  $('#mSave').onclick = async ()=>{
+  $('#mSave').onclick = ()=> withBtnLoading($('#mSave'), 'Salvo…', async ()=>{
     const out = { id: rec.id, viaggio_id: rec.viaggio_id };
     fields.forEach(f=>{
       const el = $('#f_'+f); if(!el) return;
-      if(BOOL_FIELDS.includes(f))      out[f] = el.checked ? 'Sì' : '';
-      else if(NUM_FIELDS.includes(f))  out[f] = parseNum(el.value);
-      else                             out[f] = el.value;
+      if(BOOL_FIELDS.includes(f))        out[f] = el.checked ? 'Sì' : '';
+      else if(INT_FIELDS.includes(f))    out[f] = el.value!=='' ? Math.round(parseNum(el.value)) : '';
+      else if(NUM_FIELDS.includes(f))    out[f] = parseNum(el.value);
+      else                               out[f] = el.value.trim();
     });
-    try{
-      $('#mSave').disabled = true;
-      if(rec.id) await api('update',{sheet, record:out});
-      else       await api('create',{sheet, record:out});
-      MODAL.hide(); toast('Salvato ✓');
-      reloadCurrent();
-    }catch(e){ toast('Errore: '+e.message); }
-    finally{ $('#mSave').disabled=false; }
-  };
+    if(rec.id) await api('update',{sheet, record:out});
+    else       await api('create',{sheet, record:out});
+    MODAL.hide(); toast('Salvato ✓','ok');
+    reloadCurrent();
+  });
   MODAL.show();
 }
 
 /* Modifica/crea viaggio (usa lo stesso modal, poi ricarica home o trip) */
 function editTrip(trip){
   editRow('Viaggi', trip, null);
-  const prev = $('#mSave').onclick;
-  $('#mSave').onclick = async ()=>{
+  $('#mSave').onclick = ()=> withBtnLoading($('#mSave'), 'Salvo…', async ()=>{
     const fields = FIELD_ORDER.Viaggi;
     const out = { id: trip?.id };
-    fields.forEach(f=>{ const el=$('#f_'+f); if(el) out[f]= NUM_FIELDS.includes(f) ? parseNum(el.value) : el.value; });
-    try{
-      $('#mSave').disabled=true;
-      if(trip?.id) await api('update',{sheet:'Viaggi',record:out});
-      else         await api('create',{sheet:'Viaggi',record:out});
-      MODAL.hide(); toast('Salvato ✓');
-      if(CURRENT_TRIP && trip?.id===CURRENT_TRIP.id) viewTrip(trip.id,'riepilogo');
-      else viewHome();
-    }catch(e){ toast('Errore: '+e.message); }
-    finally{ $('#mSave').disabled=false; }
-  };
+    fields.forEach(f=>{
+      const el=$('#f_'+f); if(!el) return;
+      if(INT_FIELDS.includes(f))     out[f] = el.value!=='' ? Math.round(parseNum(el.value)) : '';
+      else if(NUM_FIELDS.includes(f))out[f] = parseNum(el.value);
+      else                           out[f] = el.value.trim();
+    });
+    if(trip?.id) await api('update',{sheet:'Viaggi',record:out});
+    else         await api('create',{sheet:'Viaggi',record:out});
+    MODAL.hide(); toast('Salvato ✓','ok');
+    if(CURRENT_TRIP && trip?.id===CURRENT_TRIP.id) viewTrip(trip.id,'riepilogo');
+    else viewHome();
+  });
 }
 
 async function delRow(sheet, id){
   if(!confirm('Eliminare questa voce?')) return;
-  try{ await api('delete',{sheet,id}); toast('Eliminato'); reloadCurrent(); }
-  catch(e){ toast('Errore: '+e.message); }
+  try{ await api('delete',{sheet,id}); toast('Eliminato','ok'); reloadCurrent(); }
+  catch(e){ if(e instanceof AuthError) sessionExpired(); else toast('Errore: '+e.message,'error'); }
 }
 
 function reloadCurrent(){
@@ -953,8 +1249,9 @@ function editVolo(group, tid){
   $('#v_prezzo_testa').addEventListener('input', ()=>recalcVolo('prezzo_testa'));
   $('#v_persone').addEventListener('input', ()=>recalcVolo('persone'));
 
-  $('#mSave').onclick = async ()=>{
-    if(!legs.length){ toast('Aggiungi almeno una tratta'); return; }
+  $('#mSave').onclick = ()=>{
+    if(!legs.length){ toast('Aggiungi almeno una tratta','error'); return; }
+    return withBtnLoading($('#mSave'), 'Salvo…', async ()=>{
     // leggi le tratte dal DOM
     const readLegs = legs.map((_,i)=>({
       compagnia: $('#leg_comp_'+i).value.trim(),
@@ -969,8 +1266,8 @@ function editVolo(group, tid){
       bagaglio:  $('#leg_bag_'+i).checked ? 'Sì' : '',
     }));
     const direzione = $('#v_direzione').value;
-    const opzione   = parseNum($('#v_opzione').value)||1;
-    const persone   = parseNum($('#v_persone').value)||'';
+    const opzione   = Math.round(parseNum($('#v_opzione').value))||1;
+    const persone   = $('#v_persone').value!=='' ? Math.round(parseNum($('#v_persone').value)) : '';
     const totale    = parseNum($('#v_totale').value);
     const prezzo_testa = parseNum($('#v_prezzo_testa').value);
     const scelto    = $('#v_scelto').checked ? 'Sì' : '';
@@ -990,14 +1287,11 @@ function editVolo(group, tid){
       note: ''
     }));
 
-    try{
-      $('#mSave').disabled = true;
-      if(isNew) await api('create_many', { sheet:'Voli', records });
-      else      await api('replace_group', { sheet:'Voli', gruppo_id, records });
-      MODAL.hide(); toast('Volo salvato ✓');
-      reloadCurrent();
-    }catch(e){ toast('Errore: '+e.message); }
-    finally{ $('#mSave').disabled=false; }
+    if(isNew) await api('create_many', { sheet:'Voli', records });
+    else      await api('replace_group', { sheet:'Voli', gruppo_id, records });
+    MODAL.hide(); toast('Volo salvato ✓','ok');
+    reloadCurrent();
+    });
   };
   MODAL.show();
 }
@@ -1050,6 +1344,70 @@ function truthyEq(a,b){ return String(a||'').toLowerCase()===String(b).toLowerCa
 /* ============================================================
    BOOT
    ============================================================ */
+/* ============================================================
+   BACKUP / RESTORE
+   ============================================================ */
+async function doExport(){
+  toast('Preparo il backup…');
+  try{
+    const data = await api('export');
+    const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0,10);
+    a.href = url; a.download = `triphub-backup-${stamp}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    toast('Backup scaricato ✓','ok');
+  }catch(e){
+    if(e instanceof AuthError) sessionExpired();
+    else toast('Errore backup: '+e.message,'error');
+  }
+}
+
+async function doImport(input){
+  const file = input.files && input.files[0];
+  input.value = '';                 // reset così puoi re-importare lo stesso file
+  if(!file) return;
+  let payload;
+  try { payload = JSON.parse(await file.text()); }
+  catch(e){ return toast('File non valido (non è JSON)','error'); }
+
+  const mode = confirm(
+    'Come vuoi importare?\n\n' +
+    'OK = SOSTITUISCI tutto (svuota e reinserisce dal backup)\n' +
+    'Annulla = AGGIUNGI soltanto (unisce ai dati esistenti)'
+  ) ? 'replace' : 'merge';
+
+  if(mode==='replace' && !confirm('Confermi? I dati attuali verranno sostituiti con quelli del backup.')) return;
+
+  showOverlay('Importo il backup…');
+  try{
+    const report = await api('import', { payload, mode });
+    hideOverlay();
+    const tot = Object.values(report).reduce((s,n)=>s+(Number(n)||0),0);
+    toast(`Import completato: ${tot} righe`,'ok');
+    reloadCurrent();
+  }catch(e){
+    hideOverlay();
+    if(e instanceof AuthError) sessionExpired();
+    else toast('Errore import: '+e.message,'error');
+  }
+}
+
+function showOverlay(msg){
+  let ov = $('#loadOverlay');
+  if(!ov){
+    ov = document.createElement('div');
+    ov.id='loadOverlay'; ov.className='load-overlay';
+    document.body.appendChild(ov);
+  }
+  ov.innerHTML = `<div class="spinner-border" style="color:var(--stamp);width:2.5rem;height:2.5rem"></div>
+    <div class="mono">${esc(msg||'Attendere…')}</div>`;
+  ov.style.display='flex';
+}
+function hideOverlay(){ const ov=$('#loadOverlay'); if(ov) ov.style.display='none'; }
+
 function boot(){
   if(API_URL.includes('INCOLLA_QUI')){
     $('#app').innerHTML = `<div class="sheet p-4 m-4"><h2>⚙️ Configurazione mancante</h2>
