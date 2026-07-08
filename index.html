@@ -168,7 +168,7 @@
 /* ============================================================
    CONFIG — l'unica cosa da modificare dopo il deploy dell'API
    ============================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbxN6Xe9meHwq4GsQtkaHPgtXsvE0Hay_1ocL54XvEiZUPY4GcZ8_I5sRuCdM7yx3u3E/exec"; // es: https://script.google.com/macros/s/AKfy.../exec
+const API_URL = "INCOLLA_QUI_URL_WEB_APP"; // es: https://script.google.com/macros/s/AKfy.../exec
 
 /* ============================================================
    STATE
@@ -305,7 +305,7 @@ async function viewHome(){
         <div class="dest">${esc(t.destinazione||t.nome||'Senza nome')}</div>
         <div class="country mb-2">${esc(t.nome||'')}</div>
         <div class="mono" style="font-size:.72rem;color:var(--ink-soft)">
-          ${esc(t.data_inizio||'?')} → ${esc(t.data_fine||'?')} · ${esc(t.n_persone||'?')} pers.
+          ${t.data_inizio?toITDate(t.data_inizio):'?'} → ${t.data_fine?toITDate(t.data_fine):'?'} · ${esc(t.n_persone||'?')} pers.
         </div>
       </div>
     </div>`;
@@ -362,7 +362,7 @@ async function viewTrip(id, section){
     <a href="#/" class="mono" style="font-size:.75rem;text-decoration:none;color:var(--muted)">← tutti i viaggi</a>
     <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mt-2 mb-3">
       <div>
-        <p class="eyebrow mb-1">${esc(trip.paese||'')} · ${esc(trip.data_inizio||'')} → ${esc(trip.data_fine||'')}</p>
+        <p class="eyebrow mb-1">${esc(trip.paese||'')} · ${trip.data_inizio?toITDate(trip.data_inizio):''} → ${trip.data_fine?toITDate(trip.data_fine):''}</p>
         <h1 style="font-size:1.9rem;margin:0">${esc(trip.destinazione||trip.nome)}</h1>
       </div>
       <button class="btn btn-ghost btn-sm" onclick="editTrip(CURRENT_TRIP)">Modifica viaggio</button>
@@ -427,7 +427,7 @@ function secRiepilogo(d){
       <div class="sheet p-4 h-100">
         <p class="eyebrow mb-2">Dettagli viaggio</p>
         <div class="mb-2"><strong>${esc(t.destinazione||'')}</strong> — ${esc(t.paese||'')}</div>
-        <div class="mono mb-2" style="font-size:.8rem">${esc(t.data_inizio||'?')} → ${esc(t.data_fine||'?')}</div>
+        <div class="mono mb-2" style="font-size:.8rem">${t.data_inizio?toITDate(t.data_inizio):'?'} → ${t.data_fine?toITDate(t.data_fine):'?'}</div>
         ${t.note?`<p class="mb-3" style="font-size:.9rem">${esc(t.note)}</p>`:''}
         <div class="mt-2">${chips}</div>
       </div>
@@ -485,6 +485,8 @@ function cell(sheet, col, val){
     return esc(val);
   }
   if(col==='totale'||col==='prezzo_notte'||col==='costo') return `<span class="mono">${eur(val)}</span>`;
+  if(DATE_FIELDS.includes(col)) return `<span class="mono">${toITDate(val)}</span>`;
+  if(TIME_FIELDS.includes(col)) return `<span class="mono">${esc(toHM(val))}</span>`;
   if(col==='valutazione'){ const n=num(val); return n?('★'.repeat(Math.min(5,Math.round(n)))):esc(val); }
   return esc(val);
 }
@@ -563,6 +565,52 @@ const FIELD_ORDER = {
 };
 const BOOL_FIELDS = ['scelto','confermata','spuntato','prenotazione_req','bagaglio'];
 const AREA_FIELDS = ['note'];
+// Campi che devono essere salvati come NUMERO puro (mai come testo/ora)
+const NUM_FIELDS = ['totale','prezzo_notte','extra','costo','notti','persone','qta','valutazione','n_persone'];
+// Campi data (datepicker) e ora (timepicker)
+const DATE_FIELDS = ['data_inizio','data_fine','checkin','checkout','data_part','data_arr'];
+const TIME_FIELDS = ['ora_part','ora_arr'];
+
+// Porta qualsiasi data in ISO "YYYY-MM-DD" per l'input type=date.
+// Accetta: ISO, "04/08/26", "04/08/2026", "2026-08-03T22:00:00Z".
+function toISODate(raw){
+  if(!raw) return '';
+  const s = String(raw).trim();
+  let m;
+  if((m = s.match(/^(\d{4})-(\d{2})-(\d{2})/)))            return m[1]+'-'+m[2]+'-'+m[3];
+  if((m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/))){
+    let d=m[1], mo=m[2], y=m[3]; if(y.length===2) y='20'+y;
+    return y+'-'+mo.padStart(2,'0')+'-'+d.padStart(2,'0');
+  }
+  return '';
+}
+// Da ISO "YYYY-MM-DD" a "gg/mm/aa" per la visualizzazione in tabella.
+function toITDate(raw){
+  const iso = toISODate(raw);
+  if(!iso) return esc(raw||'');
+  const p = iso.split('-');
+  return p[2]+'/'+p[1]+'/'+p[0].slice(2);
+}
+// Ora "HH:mm" (accetta anche "06:20:00")
+function toHM(raw){
+  if(!raw) return '';
+  const m = String(raw).trim().match(/(\d{1,2}):(\d{2})/);
+  return m ? m[1].padStart(2,'0')+':'+m[2] : '';
+}
+
+// Converte "2027,70" | "2027.70" | "€ 2.027,70" -> 2027.7 (Number).
+// Se il campo è vuoto ritorna '' (cella vuota, non 0).
+function parseNum(raw){
+  if(raw === '' || raw == null) return '';
+  let s = String(raw).trim().replace(/[€\s]/g,'');
+  if(s === '') return '';
+  if(s.includes(',')){
+    // formato IT: il punto è separatore migliaia, la virgola è decimale
+    s = s.replace(/\./g,'').replace(',', '.');
+  }
+  const n = Number(s);
+  return isNaN(n) ? '' : n;
+}
 
 let MODAL = null;
 function ensureModal(){
@@ -603,16 +651,29 @@ function editRow(sheet, record, tid){
       return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
         <textarea class="form-control" id="f_${f}" rows="2">${esc(v)}</textarea></div>`;
     }
-    const type = /data/.test(f)?'text':/ora/.test(f)?'text':/totale|prezzo|costo|notti|persone|qta|valutazione|n_persone/.test(f)?'number':'text';
+    if(DATE_FIELDS.includes(f)){
+      return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
+        <input class="form-control" id="f_${f}" type="date" value="${esc(toISODate(v))}"></div>`;
+    }
+    if(TIME_FIELDS.includes(f)){
+      return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
+        <input class="form-control" id="f_${f}" type="time" value="${esc(toHM(v))}"></div>`;
+    }
+    if(NUM_FIELDS.includes(f)){
+      return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
+        <input class="form-control" id="f_${f}" type="text" inputmode="decimal" value="${esc(v)}" placeholder="es. 2027,70"></div>`;
+    }
     return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
-      <input class="form-control" id="f_${f}" type="${type}" value="${esc(v)}" step="any"></div>`;
+      <input class="form-control" id="f_${f}" type="text" value="${esc(v)}"></div>`;
   }).join('');
 
   $('#mSave').onclick = async ()=>{
     const out = { id: rec.id, viaggio_id: rec.viaggio_id };
     fields.forEach(f=>{
       const el = $('#f_'+f); if(!el) return;
-      out[f] = BOOL_FIELDS.includes(f) ? (el.checked?'Sì':'') : el.value;
+      if(BOOL_FIELDS.includes(f))      out[f] = el.checked ? 'Sì' : '';
+      else if(NUM_FIELDS.includes(f))  out[f] = parseNum(el.value);
+      else                             out[f] = el.value;
     });
     try{
       $('#mSave').disabled = true;
@@ -633,7 +694,7 @@ function editTrip(trip){
   $('#mSave').onclick = async ()=>{
     const fields = FIELD_ORDER.Viaggi;
     const out = { id: trip?.id };
-    fields.forEach(f=>{ const el=$('#f_'+f); if(el) out[f]=el.value; });
+    fields.forEach(f=>{ const el=$('#f_'+f); if(el) out[f]= NUM_FIELDS.includes(f) ? parseNum(el.value) : el.value; });
     try{
       $('#mSave').disabled=true;
       if(trip?.id) await api('update',{sheet:'Viaggi',record:out});
