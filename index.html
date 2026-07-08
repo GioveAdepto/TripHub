@@ -143,7 +143,7 @@
 <!-- ============ TOPBAR ============ -->
 <div class="topbar py-2" id="topbar" style="display:none">
   <div class="container d-flex align-items-center justify-content-between">
-    <a href="#/" class="brand"><span class="dot"></span> Rotte</a>
+    <a href="#/" class="brand"><span class="dot"></span> TripHub</a>
     <div class="d-flex align-items-center gap-3">
       <span class="mono d-none d-sm-inline" id="syncState">pronto</span>
       <button class="btn btn-sm btn-ghost" onclick="logout()">Esci</button>
@@ -165,7 +165,7 @@ const API_URL = "https://script.google.com/macros/s/AKfycbxN6Xe9meHwq4GsQtkaHPgt
 /* ============================================================
    STATE
    ============================================================ */
-let TOKEN = sessionStorage.getItem('rotte_token') || '';
+let TOKEN = sessionStorage.getItem('triphub_token') || '';
 
 /* ============================================================
    API LAYER
@@ -209,7 +209,7 @@ function renderGate(err){
     <div class="gate">
       <div class="text-center mb-3">
         <div class="brand justify-content-center" style="color:var(--ink);font-size:2rem;font-family:'Fraunces',serif;font-weight:700;display:flex;align-items:center;gap:.6rem">
-          <span class="dot" style="background:var(--stamp);width:14px;height:14px;border-radius:50%"></span> Rotte
+          <span class="dot" style="background:var(--stamp);width:14px;height:14px;border-radius:50%"></span> TripHub
         </div>
         <div class="mono" style="color:var(--muted);font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;margin-top:.3rem">viaggi di gruppo</div>
       </div>
@@ -233,7 +233,7 @@ async function doLogin(){
   if(!TOKEN){ return renderGate('Serve il codice.'); }
   try {
     await api('list', { sheet: 'Viaggi' });          // ping autenticato
-    sessionStorage.setItem('rotte_token', TOKEN);
+    sessionStorage.setItem('triphub_token', TOKEN);
     location.hash = '#/';
     boot();
   } catch(e){
@@ -242,7 +242,7 @@ async function doLogin(){
   }
 }
 function logout(){
-  sessionStorage.removeItem('rotte_token'); TOKEN='';
+  sessionStorage.removeItem('triphub_token'); TOKEN='';
   location.hash = '#/'; renderGate();
 }
 
@@ -294,7 +294,7 @@ async function viewHome(){
   $('#app').innerHTML = `
     <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
       <div>
-        <p class="eyebrow mb-1">Le tue rotte</p>
+        <p class="eyebrow mb-1">I tuoi viaggi</p>
         <h1 style="font-size:1.8rem;margin:0">Viaggi</h1>
       </div>
       <button class="btn btn-stamp" onclick="editTrip()">+ Nuovo viaggio</button>
