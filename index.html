@@ -89,8 +89,10 @@
   table.data th .arrow{color:var(--stamp);font-size:.7rem}
   table.data td{padding:.55rem .6rem;border-bottom:1px solid var(--line);vertical-align:top}
   table.data tr:hover td{background:rgba(209,98,42,.05)}
+  table.data tr.picked td{background:rgba(63,125,92,.09)}
   .chip{display:inline-block;font-size:.7rem;padding:.12rem .5rem;border-radius:20px;background:var(--paper-2);color:var(--ink-soft);font-weight:500}
   .chip.pick{background:var(--ok);color:#fff}
+  .chip.dir{background:var(--ink);color:var(--paper)}
   .chip.pri-ess{background:#c9432e;color:#fff}
   .chip.pri-cons{background:#e0a422;color:#3a2c00}
   .chip.toggle{cursor:pointer;transition:transform .08s ease}
@@ -102,6 +104,8 @@
   .btn-ink:hover{background:var(--ink-soft);color:#fff}
   .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--ink-soft)}
   .btn-ghost:hover{border-color:var(--stamp);color:var(--stamp)}
+  .btn-ok{background:var(--ok);border:none;color:#fff;font-weight:600}
+  .btn-ok:hover{background:#33654a;color:#fff}
   .btn-del{background:var(--danger);border:none;color:#fff;font-weight:600}
   .btn-del:hover{background:#872a18;color:#fff}
   .icon-btn{border:none;background:transparent;color:var(--muted);cursor:pointer;padding:.15rem .35rem;border-radius:6px}
@@ -134,6 +138,21 @@
     border-radius:7px;padding:.15rem .5rem;font-size:.78rem;color:var(--ink-soft);text-decoration:none;cursor:pointer}
   .link-btn:hover{border-color:var(--stamp);color:var(--stamp)}
   a{color:var(--stamp)}
+  /* --- Voli --- */
+  .volo-card{position:relative}
+  .volo-card.picked{border-color:var(--ok);border-width:2px;box-shadow:0 10px 26px -20px rgba(63,125,92,.9)}
+  .dirrow{display:flex;gap:.5rem;align-items:flex-start;padding:.45rem 0;border-top:1px dashed var(--line)}
+  .dirrow:first-of-type{border-top:none}
+  .route{font-weight:600;font-size:.95rem}
+  .route .arrow{color:var(--stamp);margin:0 .25rem}
+  .dirtag{font-family:'JetBrains Mono',monospace;font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--muted);min-width:56px;padding-top:.15rem;flex:none}
+  .derived{background:var(--paper-2);border:1px dashed var(--line);border-radius:.375rem;
+    padding:.375rem .75rem;font-size:.9rem;color:var(--ink-soft);min-height:38px;display:flex;align-items:center}
+  .legbox{background:#fdfbf5;border:1px solid var(--line);border-radius:10px}
+  .legbox + .legbox{margin-top:.5rem}
+  .errbox{background:#fdf1ea;border:1px solid #e0a98f;border-radius:10px;padding:.6rem .8rem;font-size:.82rem;color:var(--danger)}
+  .warnline{font-size:.72rem;color:#8a6a1f}
   /* calendario cose da fare */
   .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
   .cal-head{margin-bottom:4px}
@@ -569,8 +588,8 @@ async function viewTrip(id, section){
   }
   const trip = (all.Viaggi||[])[0];
   if(!trip){ $('#app').innerHTML = `<div class="sheet empty"><div class="big">Viaggio non trovato</div><a href="#/">← torna ai viaggi</a></div>`; return; }
-  // reset del mese calendario se è cambiato viaggio
-  if(!CURRENT_TRIP || CURRENT_TRIP.id !== trip.id){ CDF_MONTH = null; CDF_VIEW = 'lista'; }
+  // reset delle preferenze di vista se è cambiato viaggio
+  if(!CURRENT_TRIP || CURRENT_TRIP.id !== trip.id){ CDF_MONTH = null; CDF_VIEW = 'lista'; VOLI_VIEW = 'schede'; }
   CURRENT_TRIP = trip; CURRENT_DATA = all;
   renderTripShell(section);
 }
@@ -663,6 +682,7 @@ function computeBalances(d){
     allNames.forEach(n=>bal[n]+=q);
   });
   (d.Voli||[]).filter(v=>truthy(v.scelto)).forEach(v=>{
+    if(!num(v.totale)) return;
     const names = payerNames(v.paganti, allNames);
     const q = num(v.totale)/(names.length||nAll);
     (names.length?names:allNames).forEach(n=>{ if(n in bal) bal[n]+=q; });
@@ -682,8 +702,6 @@ function secRiepilogo(d){
   const t = d.Viaggi[0];
   const balances = computeBalances(d);
   const allogSel = (d.Alloggi||[]).filter(a=>truthy(a.scelto));
-  const voliSel  = (d.Voli||[]).filter(v=>truthy(v.scelto));
-  const voliGroupsSel = voliGroups(voliSel);
 
   const alloggioBox = allogSel.length ? allogSel.map(a=>`
     <div class="mb-2">
@@ -696,34 +714,6 @@ function secRiepilogo(d){
       <div class="mono" style="font-size:.8rem">${eur(a.totale)}${num(a.prezzo_testa)?` · ${eur(a.prezzo_testa)} a testa`:''}</div>
     </div>`).join('')
     : `<div class="mono" style="font-size:.8rem;color:var(--muted)">Nessun alloggio scelto — segna "scelto" su un'opzione in Alloggi.</div>`;
-
-  const voliBox = Object.keys(voliGroupsSel).length ? Object.keys(voliGroupsSel).map(k=>{
-    const legs = voliGroupsSel[k]; const h = legs[0];
-    const route = legs.map(l=>esc(l.da||'?')).concat(esc(legs[legs.length-1].a||'?')).join(' → ');
-    return `<div class="mb-2">
-      <div style="font-weight:600">${esc(h.direzione||'Volo')} <span style="font-weight:400;color:var(--muted);font-size:.8rem">${route}</span></div>
-      <div class="mono" style="font-size:.78rem;color:var(--ink-soft)">
-        ${toITDate(h.data_part)} ${esc(toHM(h.ora_part))}${legs.length>1?` · ${legs.length-1} scalo/i`:''}
-        ${num(h.totale)?` · ${eur(h.totale)}`:''}
-      </div>
-    </div>`;
-  }).join('')
-    : `<div class="mono" style="font-size:.8rem;color:var(--muted)">Nessun volo scelto.</div>`;
-
-  const balBox = balances && balances.length ? `
-    <div class="sheet p-4 mb-3">
-      <p class="eyebrow mb-2">Quota per persona · quanto mette ciascuno</p>
-      ${balances.map(x=>`<div class="budget-line"><span>${esc(x.nome)}</span><span class="mono per-person">${eur(x.quota)}</span></div>`).join('')}
-      <p class="mono mt-2 mb-0" style="font-size:.66rem;color:var(--muted)">
-        alloggio diviso tra tutti · voli e spese divisi tra i paganti indicati
-      </p>
-    </div>` : `
-    <div class="sheet p-4 mb-3">
-      <p class="eyebrow mb-1">Quota per persona</p>
-      <div class="mono" style="font-size:.8rem;color:var(--muted)">
-        Aggiungi i partecipanti nel tab <strong>Partecipanti</strong> per vedere quanto mette ciascuno.
-      </div>
-    </div>`;
 
   return `
   <div class="row g-3 mb-1">
@@ -751,10 +741,61 @@ function secRiepilogo(d){
       <div class="sheet p-4 h-100"><p class="eyebrow mb-2">🏠 Alloggio scelto</p>${alloggioBox}</div>
     </div>
     <div class="col-12 col-lg-6">
-      <div class="sheet p-4 h-100"><p class="eyebrow mb-2">✈️ Voli scelti</p>${voliBox}</div>
+      <div class="sheet p-4 h-100"><p class="eyebrow mb-2">✈️ Volo scelto</p>${riepVoli(d)}</div>
     </div>
   </div>
-  ${balBox}`;
+  ${balances && balances.length ? `
+    <div class="sheet p-4 mb-3">
+      <p class="eyebrow mb-2">Quota per persona · quanto mette ciascuno</p>
+      ${balances.map(x=>`<div class="budget-line"><span>${esc(x.nome)}</span><span class="mono per-person">${eur(x.quota)}</span></div>`).join('')}
+      <p class="mono mt-2 mb-0" style="font-size:.66rem;color:var(--muted)">
+        alloggio diviso tra tutti · voli e spese divisi tra i paganti indicati
+      </p>
+    </div>` : `
+    <div class="sheet p-4 mb-3">
+      <p class="eyebrow mb-1">Quota per persona</p>
+      <div class="mono" style="font-size:.8rem;color:var(--muted)">
+        Aggiungi i partecipanti nel tab <strong>Partecipanti</strong> per vedere quanto mette ciascuno.
+      </div>
+    </div>`}`;
+}
+
+// Blocco voli del riepilogo: mostra le opzioni scelte e avvisa se manca una direzione
+function riepVoli(d){
+  const groups = voliGroups((d.Voli||[]).filter(v=>truthy(v.scelto)));
+  const keys = Object.keys(groups);
+  if(!keys.length){
+    return `<div class="mono" style="font-size:.8rem;color:var(--muted)">
+      Nessun volo scelto — premi <strong>Scegli</strong> su un'opzione nel tab Voli.</div>`;
+  }
+  const covered = new Set();
+  const blocks = keys.map(k=>{
+    const legs = groups[k];
+    groupDirs(legs).forEach(x=>covered.add(x));
+    const a = legsOf(legs,'andata'), r = legsOf(legs,'ritorno');
+    const tot = groupTotal(legs), pt = groupPT(legs, d);
+    return `<div class="mb-2">
+      <div class="d-flex justify-content-between align-items-baseline">
+        <span style="font-weight:600">Opzione ${esc(legs[0].opzione||'')}</span>
+        <span class="mono" style="font-size:.82rem">${tot?eur(tot):''}${pt?` · <span class="per-person">${eur(pt)} a testa</span>`:''}</span>
+      </div>
+      ${a.length?riepDirLine('Andata',a):''}
+      ${r.length?riepDirLine('Ritorno',r):''}
+    </div>`;
+  }).join('');
+  const missing = ['andata','ritorno'].filter(x=>!covered.has(x));
+  const warn = missing.length===1 ? `<div class="warnline mt-1">⚠️ manca la scelta del volo di ${missing[0]}</div>` : '';
+  return blocks + warn;
+}
+
+function riepDirLine(label, legs){
+  const first = legs[0], last = legs[legs.length-1];
+  const scali = legs.length-1;
+  return `<div class="mono" style="font-size:.78rem;color:var(--ink-soft)">
+    <span class="dirtag">${esc(label)}</span>
+    ${esc(first.da||'?')} → ${esc(last.a||'?')} · ${toITDate(first.data_part)} ${esc(toHM(first.ora_part))}
+    ${scali?` · ${scali} scalo${scali>1?'i':''}`:' · diretto'}
+  </div>`;
 }
 
 /* ---------- PARTECIPANTI (anagrafica viaggiatori) ---------- */
@@ -1022,66 +1063,252 @@ function secSpese(d, tid){
     </div>`;
 }
 
-/* ---------- VOLI (raggruppati per volo, con tratte/scali) ---------- */
+/* ============================================================
+   VOLI
+   ------------------------------------------------------------
+   MODELLO: gruppo_id identifica un'OPZIONE COMPLETA, che può
+   contenere sia le tratte di andata sia quelle di ritorno.
+   Il totale dell'opzione è la SOMMA dei "totale" delle sue righe:
+   - prezzo unico A/R  → valorizzato solo sulla 1ª tratta andata
+   - prezzi separati   → valorizzato sulla 1ª tratta di ognuna
+   Così il riepilogo somma e basta, senza casi speciali.
+   ============================================================ */
+let VOLI_VIEW = 'schede';   // 'schede' | 'confronto'
+
+const DIR_RANK = { andata:0, ritorno:1 };
+function dirKeyOf(r){ return String(r.direzione||'').toLowerCase().trim(); }
+function dirRank(r){ const k=dirKeyOf(r); return (k in DIR_RANK) ? DIR_RANK[k] : 2; }
+function legsOf(legs, dir){ return legs.filter(l=>dirKeyOf(l)===dir); }
+function groupDirs(legs){ return [...new Set(legs.map(dirKeyOf).filter(Boolean))]; }
+function groupTotal(legs){ return legs.reduce((s,l)=>s+num(l.totale),0); }
+function groupPT(legs, d){
+  const explicit = legs.reduce((s,l)=>s+num(l.prezzo_testa),0);
+  if(explicit) return round2(explicit);
+  const tot = groupTotal(legs);
+  if(!tot) return 0;
+  const names = partList(d||CURRENT_DATA).map(pName);
+  const n = payerCount(legs[0].paganti, tripPeople(d||CURRENT_DATA), names);
+  return n ? round2(tot/n) : 0;
+}
+function groupScali(legs){
+  return Math.max(0, legsOf(legs,'andata').length-1) + Math.max(0, legsOf(legs,'ritorno').length-1);
+}
+
+function voliGroups(rows){
+  const g = {};
+  (rows||[]).forEach(r=>{
+    const k = r.gruppo_id || r.id;
+    (g[k] ??= []).push(r);
+  });
+  Object.values(g).forEach(arr=>arr.sort((a,b)=>dirRank(a)-dirRank(b) || num(a.tratta)-num(b.tratta)));
+  return g;
+}
+
+function voliKeysSorted(groups){
+  return Object.keys(groups).sort((a,b)=>{
+    const A=groups[a][0], B=groups[b][0];
+    return num(A.opzione)-num(B.opzione) || String(A.direzione||'').localeCompare(String(B.direzione||''));
+  });
+}
+
 function secVoli(rows, tid){
   rows = rows || [];
   const groups = voliGroups(rows);
-  const keys = Object.keys(groups);
-  keys.sort((a,b)=>{
-    const A=groups[a][0], B=groups[b][0];
-    const dir = String(A.direzione||'').localeCompare(String(B.direzione||''));
-    return dir!==0 ? dir : num(A.opzione)-num(B.opzione);
-  });
+  const keys = voliKeysSorted(groups);
+  const toggle = `
+    <div class="btn-group btn-group-sm" role="group">
+      <button class="btn ${VOLI_VIEW==='schede'?'btn-ink':'btn-ghost'}" onclick="setVoliView('schede')">Schede</button>
+      <button class="btn ${VOLI_VIEW==='confronto'?'btn-ink':'btn-ghost'}" onclick="setVoliView('confronto')">Confronto</button>
+    </div>`;
+  const header = `
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+      <div class="d-flex align-items-center gap-2">${toggle}
+        <span class="mono" style="font-size:.72rem;color:var(--muted)">${keys.length} opzion${keys.length===1?'e':'i'} · ${rows.length} tratte</span></div>
+      <button class="btn btn-stamp btn-sm" onclick="editVolo(null, '${jsArg(tid)}')">+ Nuova opzione</button>
+    </div>`;
+  if(!keys.length){
+    return header + `<div class="sheet empty"><div class="big">Nessun volo ancora</div>
+      <div>Crea la prima opzione: di default è andata e ritorno.</div></div>`;
+  }
+  return header + (VOLI_VIEW==='confronto' ? voliCompare(groups, keys) : voliCards(groups, keys));
+}
 
+function setVoliView(v){ VOLI_VIEW = v; renderSection('voli'); }
+
+function voliCards(groups, keys){
   const cards = keys.map(k=>{
     const legs = groups[k];
     const head = legs[0];
     const pick = truthy(head.scelto);
-    const totale = num(head.totale);
-    const pt = num(head.prezzo_testa);
-    const legsHtml = legs.map((l,i)=>`
-      <div class="d-flex align-items-center gap-2 py-1" style="border-top:${i?'1px dashed var(--line)':'none'}">
-        <span class="chip" style="flex:none">${i+1}</span>
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:600">${esc(l.da||'?')} → ${esc(l.a||'?')}
-            <span style="font-weight:400;color:var(--muted);font-size:.8rem">· ${esc(l.compagnia||'')} ${esc(l.n_volo||'')}</span></div>
-          <div class="mono" style="font-size:.75rem;color:var(--ink-soft)">
-            ${toITDate(l.data_part)} ${esc(toHM(l.ora_part))} → ${toITDate(l.data_arr)} ${esc(toHM(l.ora_arr))}
-            ${l.scalo?` · <span style="color:var(--stamp)">scalo ${esc(l.scalo)}</span>`:''}
-            ${truthy(l.bagaglio)?' · 🧳':''}
-          </div>
-        </div>
-      </div>`).join('');
+    const dirs = groupDirs(legs);
+    const isAR = dirs.length>1;
+    const a = legsOf(legs,'andata'), r = legsOf(legs,'ritorno');
+    const altre = a.length&&r.length ? [] : legs.filter(l=>!dirKeyOf(l)||!(dirKeyOf(l) in DIR_RANK));
+    const tot = groupTotal(legs), pt = groupPT(legs);
+    const tipo = isAR ? 'andata e ritorno'
+              : (a.length ? 'solo andata' : r.length ? 'solo ritorno' : 'volo');
     return `
       <div class="col-12 col-lg-6">
-        <div class="sheet p-3 h-100" style="${pick?'border-color:var(--ok);border-width:2px':''}">
-          <div class="d-flex justify-content-between align-items-start mb-2">
-            <div>
-              <span class="chip ${pick?'pick':''}">${esc(head.direzione||'?')}${head.opzione?` · opz. ${esc(head.opzione)}`:''}</span>
-              ${pick?'<span class="chip pick ms-1">✓ scelto</span>':''}
+        <div class="sheet volo-card p-3 h-100 ${pick?'picked':''}">
+          <div class="d-flex justify-content-between align-items-start mb-2 gap-2">
+            <div class="d-flex align-items-center gap-1 flex-wrap">
+              <span class="chip dir">opz. ${esc(head.opzione||'?')}</span>
+              <span class="chip">${tipo}</span>
+              ${pick?'<span class="chip pick">✓ scelto</span>':''}
             </div>
-            <div class="text-nowrap">
+            <div class="text-nowrap" style="flex:none">
               <button class="icon-btn" title="Modifica" onclick="editVoloById('${jsArg(k)}')">✎</button>
-              <button class="icon-btn" title="Elimina" onclick="delVolo('${jsArg(head.gruppo_id||head.id)}')">🗑</button>
+              <button class="icon-btn" title="Duplica opzione" onclick="dupVolo('${jsArg(k)}')">⧉</button>
+              ${!isAR?`<button class="icon-btn" title="Abbina a un'altra opzione" onclick="abbinaVolo('${jsArg(k)}')">⇄</button>`:''}
+              <button class="icon-btn" title="Elimina" onclick="delVolo('${jsArg(k)}')">🗑</button>
             </div>
           </div>
-          ${legsHtml}
-          ${(totale||pt)?`<div class="d-flex justify-content-between mt-2 pt-2" style="border-top:1px solid var(--line)">
-            <span class="mono" style="font-size:.85rem">${totale?eur(totale):''}</span>
-            <span class="per-person" style="font-size:.85rem">${pt?eur(pt)+' a testa':''}</span>
-          </div>`:''}
+          ${a.length?voloDirRow('Andata',a):''}
+          ${r.length?voloDirRow('Ritorno',r):''}
+          ${altre.length?voloDirRow('Tratte',altre):''}
+          <div class="d-flex justify-content-between align-items-center mt-2 pt-2 gap-2" style="border-top:1px solid var(--line)">
+            <button class="btn btn-sm ${pick?'btn-ok':'btn-ghost'}" onclick="toggleScelta('${jsArg(k)}')">
+              ${pick?'✓ Scelto':'Scegli'}</button>
+            <span class="text-end">
+              <span class="mono" style="font-size:.9rem">${tot?eur(tot):'—'}</span>
+              ${pt?`<span class="per-person" style="font-size:.82rem"> · ${eur(pt)} a testa</span>`:''}
+            </span>
+          </div>
         </div>
       </div>`;
   }).join('');
+  return `<div class="row g-3">${cards}</div>`;
+}
 
-  return `
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <p class="eyebrow mb-0">${keys.length} voli · ${rows.length} tratte</p>
-      <button class="btn btn-stamp btn-sm" onclick="editVolo(null, '${jsArg(tid)}')">+ Aggiungi volo</button>
+function voloDirRow(label, legs){
+  const first = legs[0], last = legs[legs.length-1];
+  const detail = legs.map((l,i)=>{
+    const scalo = l.scalo && i<legs.length-1 ? ` · <span style="color:var(--stamp)">scalo ${esc(l.scalo)}</span>` : '';
+    return `<div class="mono" style="font-size:.72rem;color:var(--muted)">
+      ${esc(l.da||'?')}→${esc(l.a||'?')} ${toITDate(l.data_part)} ${esc(toHM(l.ora_part))}–${esc(toHM(l.ora_arr))}
+      ${l.compagnia?' · '+esc(l.compagnia):''}${l.n_volo?' '+esc(l.n_volo):''}${truthy(l.bagaglio)?' · 🧳':''}${scalo}
+    </div>`;
+  }).join('');
+  return `<div class="dirrow">
+    <span class="dirtag">${esc(label)}</span>
+    <div style="flex:1;min-width:0">
+      <div class="route">${esc(first.da||'?')}<span class="arrow">→</span>${esc(last.a||'?')}
+        <span style="font-weight:400;color:var(--muted);font-size:.8rem">${toITDate(first.data_part)}${legs.length>1?` · ${legs.length-1} scalo${legs.length>2?'i':''}`:' · diretto'}</span></div>
+      ${detail}
     </div>
-    ${keys.length ? `<div class="row g-3">${cards}</div>`
-      : `<div class="sheet empty"><div class="big">Nessun volo ancora</div>
-         <div>Aggiungi un volo, anche con scali.</div></div>`}`;
+  </div>`;
+}
+
+function voliCompare(groups, keys){
+  const body = keys.map(k=>{
+    const legs = groups[k], head = legs[0], pick = truthy(head.scelto);
+    const a = legsOf(legs,'andata'), r = legsOf(legs,'ritorno');
+    const tot = groupTotal(legs), pt = groupPT(legs);
+    const scali = groupScali(legs);
+    const cellDir = arr => arr.length
+      ? `<span class="mono">${esc(arr[0].da||'?')}→${esc(arr[arr.length-1].a||'?')}</span><br>
+         <span class="mono" style="font-size:.72rem;color:var(--muted)">${toITDate(arr[0].data_part)} ${esc(toHM(arr[0].ora_part))}</span>`
+      : '<span class="chip">–</span>';
+    return `<tr class="${pick?'picked':''}">
+      <td><button class="btn btn-sm ${pick?'btn-ok':'btn-ghost'}" onclick="toggleScelta('${jsArg(k)}')">${pick?'✓':'scegli'}</button></td>
+      <td class="mono">${esc(head.opzione||'?')}</td>
+      <td>${cellDir(a)}</td>
+      <td>${cellDir(r)}</td>
+      <td class="mono">${scali?scali:'diretto'}</td>
+      <td class="mono">${tot?eur(tot):'—'}</td>
+      <td class="mono per-person">${pt?eur(pt):'—'}</td>
+      <td class="text-nowrap">
+        <button class="icon-btn" title="Modifica" onclick="editVoloById('${jsArg(k)}')">✎</button>
+        <button class="icon-btn" title="Duplica" onclick="dupVolo('${jsArg(k)}')">⧉</button>
+        <button class="icon-btn" title="Elimina" onclick="delVolo('${jsArg(k)}')">🗑</button>
+      </td></tr>`;
+  }).join('');
+  return `<div class="sheet p-2 p-md-3" style="overflow-x:auto">
+    <table class="data">
+      <thead><tr><th></th><th>opz.</th><th>andata</th><th>ritorno</th><th>scali</th><th>totale</th><th>a testa</th><th></th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+    <p class="mono mt-2 mb-0" style="font-size:.68rem;color:var(--muted)">
+      scegliendo un'opzione le altre che coprono le stesse direzioni vengono despuntate automaticamente
+    </p>
+  </div>`;
+}
+
+/* --- scelta rapida (esclusiva per direzione), ottimistica --- */
+async function toggleScelta(gid){
+  const groups = voliGroups(CURRENT_DATA?.Voli||[]);
+  const legs = groups[gid];
+  if(!legs) return;
+  const on = !truthy(legs[0].scelto);
+  const dirs = new Set(groupDirs(legs));
+  const rows = CURRENT_DATA.Voli||[];
+  const prev = rows.map(r=>r.scelto);
+  rows.forEach(r=>{
+    const k = String(r.gruppo_id||r.id);
+    if(k===String(gid)) r.scelto = on ? 'Sì' : '';
+    else if(on && dirs.has(dirKeyOf(r))) r.scelto = '';
+  });
+  refreshView();
+  try{
+    await api('set_scelta', { viaggio_id: CURRENT_TRIP.id, gruppo_id: gid, scelto: on, esclusivo: true });
+    toast(on?'Volo scelto ✓':'Scelta rimossa','ok');
+  }catch(e){
+    rows.forEach((r,i)=>r.scelto = prev[i]);
+    refreshView();
+    if(e instanceof AuthError) sessionExpired();
+    else toast('Errore: '+e.message,'error');
+  }
+}
+
+/* --- duplica un'opzione (per confrontare varianti) --- */
+async function dupVolo(gid){
+  const groups = voliGroups(CURRENT_DATA?.Voli||[]);
+  const legs = groups[gid];
+  if(!legs) return;
+  const ng = genGroupId();
+  const maxOpz = Object.values(groups).reduce((m,g)=>Math.max(m, num(g[0].opzione)), 0);
+  const records = legs.map(l=>{
+    const c = Object.assign({}, l);
+    delete c.id;
+    c.gruppo_id = ng; c.opzione = maxOpz+1; c.scelto = '';
+    return c;
+  });
+  try{
+    const saved = await api('create_many', { sheet:'Voli', records });
+    applyLocal('Voli','create_many', saved);
+    toast('Opzione duplicata ✓','ok');
+    refreshView();
+  }catch(e){ if(e instanceof AuthError) sessionExpired(); else toast('Errore: '+e.message,'error'); }
+}
+
+/* --- abbina un'andata e un ritorno in un'unica opzione --- */
+async function abbinaVolo(gid){
+  const groups = voliGroups(CURRENT_DATA?.Voli||[]);
+  const me = groups[gid];
+  if(!me) return;
+  const myDirs = new Set(groupDirs(me));
+  const cands = Object.keys(groups).filter(k=>{
+    if(k===gid) return false;
+    const dirs = groupDirs(groups[k]);
+    return dirs.length===1 && !myDirs.has(dirs[0]);
+  });
+  if(!cands.length) return toast('Nessuna opzione compatibile da abbinare','error');
+  const buttons = cands.slice(0,6).map(k=>{
+    const g = groups[k];
+    return { label:`opz. ${g[0].opzione||'?'} · ${g[0].da||'?'}→${g[g.length-1].a||'?'} ${toITDate(g[0].data_part)}`, value:k, cls:'btn-ink' };
+  });
+  buttons.unshift({label:'Annulla', value:null, cls:'btn-ghost'});
+  const pick = await ask('Con quale opzione vuoi abbinare questo volo?', buttons);
+  if(!pick) return;
+  try{
+    await api('merge_group', { target: gid, source: pick });
+    const opz = me[0].opzione;
+    (CURRENT_DATA.Voli||[]).forEach(r=>{
+      if(String(r.gruppo_id||r.id)===String(pick)){ r.gruppo_id = gid; r.opzione = opz; }
+    });
+    toast('Opzioni abbinate ✓','ok');
+    refreshView();
+  }catch(e){ if(e instanceof AuthError) sessionExpired(); else toast('Errore: '+e.message,'error'); }
 }
 
 function editVoloById(groupKey){
@@ -1092,7 +1319,7 @@ function editVoloById(groupKey){
 }
 
 async function delVolo(gruppoId){
-  if(!await askConfirm('Eliminare questo volo (tutte le sue tratte)?', true)) return;
+  if(!await askConfirm('Eliminare questa opzione di volo (tutte le sue tratte)?', true)) return;
   try{
     await api('delete_group',{sheet:'Voli',gruppo_id:gruppoId});
     applyLocal('Voli','delete_group', gruppoId);
@@ -1291,11 +1518,45 @@ const AIRLINES = [
   'Alitalia','American Airlines','ANA','Austrian Airlines','British Airways','Brussels Airlines',
   'Cathay Pacific','Delta Air Lines','Discover Airlines','easyJet','EgyptAir','El Al','Emirates',
   'Etihad Airways','Eurowings','Finnair','Iberia','ITA Airways','Japan Airlines','KLM','LOT Polish Airlines',
-  'Lufthansa','Norwegian','Pegasus Airlines','Qantas','Qatar Airways','Royal Air Maroc','Ryanair',
-  'SAS','Singapore Airlines','Swiss','TAP Air Portugal','Transavia','Turkish Airlines','United Airlines',
+  'Lufthansa','Norwegian','Olympic Air','Pegasus Airlines','Qantas','Qatar Airways','Royal Air Maroc','Ryanair',
+  'SAS','Singapore Airlines','Sky Express','Swiss','TAP Air Portugal','Transavia','Turkish Airlines','United Airlines',
   'Volotea','Vueling','Wizz Air'
 ].sort((a,b)=>a.localeCompare(b,'it'));
 const AIRLINE_FIELDS = ['compagnia'];
+
+// Prefisso IATA del numero di volo → compagnia (compilazione automatica)
+const AIRLINE_BY_CODE = {
+  A3:'Aegean Airlines', EI:'Aer Lingus', AC:'Air Canada', EN:'Air Dolomiti', AF:'Air France', KM:'Air Malta',
+  AA:'American Airlines', NH:'ANA', OS:'Austrian Airlines', BA:'British Airways', SN:'Brussels Airlines',
+  CX:'Cathay Pacific', DL:'Delta Air Lines', U2:'easyJet', EC:'easyJet', MS:'EgyptAir', LY:'El Al',
+  EK:'Emirates', EY:'Etihad Airways', EW:'Eurowings', AY:'Finnair', IB:'Iberia', AZ:'ITA Airways',
+  JL:'Japan Airlines', KL:'KLM', LO:'LOT Polish Airlines', LH:'Lufthansa', DY:'Norwegian', OA:'Olympic Air',
+  PC:'Pegasus Airlines', QF:'Qantas', QR:'Qatar Airways', AT:'Royal Air Maroc', FR:'Ryanair', SK:'SAS',
+  SQ:'Singapore Airlines', GQ:'Sky Express', LX:'Swiss', TP:'TAP Air Portugal', HV:'Transavia',
+  TK:'Turkish Airlines', UA:'United Airlines', V7:'Volotea', VY:'Vueling', W6:'Wizz Air'
+};
+
+// Aeroporti più frequenti: codice IATA + città (datalist per digitare in fretta)
+const AIRPORTS = [
+  ['MXP','Milano Malpensa'],['LIN','Milano Linate'],['BGY','Bergamo Orio al Serio'],['VRN','Verona'],
+  ['VCE','Venezia'],['TSF','Treviso'],['BLQ','Bologna'],['FLR','Firenze'],['PSA','Pisa'],['TRN','Torino'],
+  ['GOA','Genova'],['TRS','Trieste'],['FCO','Roma Fiumicino'],['CIA','Roma Ciampino'],['NAP','Napoli'],
+  ['BRI','Bari'],['BDS','Brindisi'],['SUF','Lamezia Terme'],['CTA','Catania'],['PMO','Palermo'],
+  ['CAG','Cagliari'],['OLB','Olbia'],['AHO','Alghero'],
+  ['ATH','Atene'],['CHQ','Chania — Creta'],['HER','Heraklion — Creta'],['JTR','Santorini'],['JMK','Mykonos'],
+  ['RHO','Rodi'],['CFU','Corfù'],['SKG','Salonicco'],['ZTH','Zante'],['KGS','Kos'],
+  ['CDG','Parigi Charles de Gaulle'],['ORY','Parigi Orly'],['AMS','Amsterdam'],['BRU','Bruxelles'],
+  ['FRA','Francoforte'],['MUC','Monaco di Baviera'],['BER','Berlino'],['DUS','Düsseldorf'],['HAM','Amburgo'],
+  ['VIE','Vienna'],['ZRH','Zurigo'],['GVA','Ginevra'],['LHR','Londra Heathrow'],['LGW','Londra Gatwick'],
+  ['STN','Londra Stansted'],['LTN','Londra Luton'],['DUB','Dublino'],['MAD','Madrid'],['BCN','Barcellona'],
+  ['AGP','Malaga'],['PMI','Palma di Maiorca'],['VLC','Valencia'],['LIS','Lisbona'],['OPO','Porto'],
+  ['CPH','Copenaghen'],['OSL','Oslo'],['ARN','Stoccolma'],['HEL','Helsinki'],['WAW','Varsavia'],
+  ['KRK','Cracovia'],['PRG','Praga'],['BUD','Budapest'],['OTP','Bucarest'],['IST','Istanbul'],
+  ['SAW','Istanbul Sabiha'],['MLA','Malta'],['LCA','Larnaca'],['TLV','Tel Aviv'],['CMN','Casablanca'],
+  ['RAK','Marrakech'],['TUN','Tunisi'],['CAI','Il Cairo'],['DXB','Dubai'],['DOH','Doha'],
+  ['JFK','New York JFK'],['EWR','New York Newark'],['BOS','Boston'],['MIA','Miami'],['LAX','Los Angeles'],
+  ['YYZ','Toronto']
+];
 
 const TIPI_ATTIVITA = [
   'Avventura','Benessere','Cibo','Cultura','Escursione','Evento','Gita','Locale','Mercato','Monumento',
@@ -1347,6 +1608,30 @@ function toHM(raw){
   if(!raw) return '';
   const m = String(raw).trim().match(/(\d{1,2}):(\d{2})/);
   return m ? m[1].padStart(2,'0')+':'+m[2] : '';
+}
+
+// aritmetica date in ISO (mezzogiorno = niente sorprese con l'ora legale)
+function addDays(iso, n){
+  const s = toISODate(iso);
+  if(!s) return '';
+  const d = new Date(s+'T12:00:00');
+  d.setDate(d.getDate() + (Number(n)||0));
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function minutesBetween(d1,t1,d2,t2){
+  d1=toISODate(d1); d2=toISODate(d2); t1=toHM(t1); t2=toHM(t2);
+  if(!d1||!d2||!t1||!t2) return null;
+  const a = new Date(d1+'T'+t1+':00'), b = new Date(d2+'T'+t2+':00');
+  return Math.round((b-a)/60000);
+}
+
+function fmtDur(min){
+  if(min==null || isNaN(min)) return '';
+  const sign = min<0 ? '−' : '';
+  min = Math.abs(min);
+  const h = Math.floor(min/60), m = min%60;
+  return sign + (h?h+'h ':'') + (m||!h ? m+'m' : '');
 }
 
 function parseNum(raw){
@@ -1442,6 +1727,7 @@ function payCountInForm(field){
 }
 
 function recalcPay(field){
+  if(field==='v_pag') return volRecalcPrice('paganti');
   const totEl = $('#f_totale'); const ptEl = $('#f_prezzo_testa');
   if(!totEl || !ptEl) return;
   const tot = parseNum(totEl.value);
@@ -1581,7 +1867,7 @@ function editRow(sheet, record, tid){
     }
     return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
       <input class="form-control" id="f_${f}" type="text" value="${esc(v)}"></div>`;
-  }).join('') + airlineDatalist();
+  }).join('') + airlineDatalist() + airportDatalist();
 
   CALC_TRIGGERS.forEach(t=>{
     const el = $('#f_'+t);
@@ -1683,13 +1969,205 @@ async function delRow(sheet, id){
 }
 
 /* ============================================================
-   FORM VOLI (dedicato — gestisce voli con uno o più scali)
+   FORM VOLI — un'opzione = andata + ritorno (o solo una delle due)
    ============================================================ */
 function airlineDatalist(){
   return `<datalist id="airlines">${AIRLINES.map(a=>`<option value="${esc(a)}">`).join('')}</datalist>`;
 }
+function airportDatalist(){
+  return `<datalist id="airports">${AIRPORTS.map(([c,n])=>`<option value="${esc(c)}">${esc(n)}</option>`).join('')}</datalist>`;
+}
 
-function voliPaganti(base){
+// Stato dell'editor volo (le tratte vivono qui, non nel DOM)
+let VE = null;
+
+function emptyLeg(dataPart){
+  return { compagnia:'', n_volo:'', da:'', a:'', data_part: toISODate(dataPart)||'',
+           ora_part:'', ora_arr:'', plus1:false, gap1:false, bagaglio:'' };
+}
+
+// Da righe del foglio a tratte dell'editor (ricava i flag "+1 giorno")
+function legsFromRows(rows){
+  return rows.map((r,i)=>{
+    const dp = toISODate(r.data_part), da = toISODate(r.data_arr);
+    const prevArr = i>0 ? toISODate(rows[i-1].data_arr) : '';
+    return {
+      compagnia:r.compagnia||'', n_volo:r.n_volo||'', da:r.da||'', a:r.a||'',
+      data_part: dp, ora_part: toHM(r.ora_part), ora_arr: toHM(r.ora_arr),
+      plus1: !!(dp && da && da>dp),
+      gap1:  !!(i>0 && prevArr && dp && dp>prevArr),
+      bagaglio: r.bagaglio||''
+    };
+  });
+}
+
+function veLegs(dk){ return dk==='a' ? VE.A : VE.R; }
+function veSetLegs(dk, arr){ if(dk==='a') VE.A = arr; else VE.R = arr; }
+function veDirName(dk){ return dk==='a' ? (VE.AR ? 'Andata' : VE.soloDir) : 'Ritorno'; }
+
+// Legge le tratte dal DOM nello stato (mai perdere quello che si sta scrivendo)
+function volReadLegs(dk){
+  const arr = veLegs(dk);
+  const out = arr.map((L,i)=>{
+    const g = k => document.getElementById(dk+'_'+k+'_'+i);
+    if(!g('comp')) return L;
+    return {
+      compagnia: g('comp').value,
+      n_volo:    g('nvolo').value,
+      da: (g('da').value||'').trim().toUpperCase(),
+      a:  (g('a').value ||'').trim().toUpperCase(),
+      data_part: i===0 && g('dpart') ? g('dpart').value : '',
+      ora_part:  g('opart').value,
+      ora_arr:   g('oarr').value,
+      plus1: g('plus1').checked,
+      gap1:  i>0 && g('gap1') ? g('gap1').checked : false,
+      bagaglio: g('bag').checked ? 'Sì' : ''
+    };
+  });
+  veSetLegs(dk, out);
+  return out;
+}
+
+// Catena delle date: la partenza di ogni tratta deriva dall'arrivo della precedente
+function volChain(dk){
+  const arr = veLegs(dk);
+  const out = []; let prevArr = '';
+  arr.forEach((L,i)=>{
+    const dp = i===0 ? (toISODate(L.data_part)||'') : (prevArr ? addDays(prevArr, L.gap1?1:0) : '');
+    const da = dp ? addDays(dp, L.plus1?1:0) : '';
+    out.push({ dp, da });
+    prevArr = da;
+  });
+  return out;
+}
+
+// Aggiorna SOLO le parti calcolate (date derivate, durate, scali): niente re-render,
+// così non si perde mai il focus mentre si digita
+function volChainRefresh(dk){
+  if(!VE) return;
+  volReadLegs(dk);
+  const arr = veLegs(dk), chain = volChain(dk);
+  arr.forEach((L,i)=>{
+    const dv = document.getElementById(dk+'_dpv_'+i);
+    if(dv) dv.textContent = chain[i].dp ? toITDateLong(chain[i].dp) : '—';
+    const info = document.getElementById(dk+'_info_'+i);
+    if(!info) return;
+    const parts = [];
+    const dur = minutesBetween(chain[i].dp, L.ora_part, chain[i].da, L.ora_arr);
+    if(dur!=null) parts.push(dur<0 ? '⚠️ arrivo prima della partenza' : 'volo '+fmtDur(dur));
+    const nx = arr[i+1];
+    if(nx){
+      const lay = minutesBetween(chain[i].da, L.ora_arr, chain[i+1].dp, nx.ora_part);
+      if(lay!=null) parts.push('scalo '+fmtDur(lay)+(lay<45?' ⚠️ stretto':''));
+    }
+    info.textContent = parts.join(' · ');
+  });
+  volWarnDates();
+}
+
+// Avviso non bloccante: date fuori dal periodo del viaggio
+function volWarnDates(){
+  const box = document.getElementById('v_warn');
+  if(!box) return;
+  const s = toISODate(CURRENT_TRIP?.data_inizio), e = toISODate(CURRENT_TRIP?.data_fine);
+  if(!s || !e){ box.textContent=''; return; }
+  const out = [];
+  ['a','r'].forEach(dk=>{
+    if(dk==='r' && !VE.AR) return;
+    const chain = volChain(dk);
+    chain.forEach(c=>{ if(c.dp && (c.dp<s || c.dp>e)) out.push(c.dp); });
+  });
+  box.textContent = out.length ? `⚠️ alcune date sono fuori dal periodo del viaggio (${toITDate(s)} → ${toITDate(e)})` : '';
+}
+
+function volFromFlightNo(dk, i){
+  const el = document.getElementById(dk+'_nvolo_'+i);
+  const comp = document.getElementById(dk+'_comp_'+i);
+  if(!el || !comp || comp.value.trim()) return;
+  const m = String(el.value||'').trim().toUpperCase().match(/^([A-Z0-9]{2})\s*\d/);
+  if(m && AIRLINE_BY_CODE[m[1]]) comp.value = AIRLINE_BY_CODE[m[1]];
+}
+
+function volAddLeg(dk){
+  volReadLegs(dk);
+  const arr = veLegs(dk);
+  const prev = arr[arr.length-1];
+  const L = emptyLeg('');
+  if(prev) L.da = prev.a || '';
+  arr.push(L);
+  volRenderLegs(dk);
+}
+
+function volDelLeg(dk, i){
+  volReadLegs(dk);
+  const arr = veLegs(dk);
+  arr.splice(i,1);
+  volRenderLegs(dk);
+}
+
+// Copia l'andata al contrario nel ritorno (rotta invertita, data = fine viaggio)
+function volMirror(){
+  volReadLegs('a'); volReadLegs('r');
+  const src = veLegs('a');
+  if(!src.length) return;
+  const mirrored = src.slice().reverse().map((L,i)=>({
+    compagnia: L.compagnia, n_volo:'', da: L.a, a: L.da,
+    data_part: i===0 ? (toISODate(CURRENT_TRIP?.data_fine)||'') : '',
+    ora_part:'', ora_arr:'', plus1:false, gap1:false, bagaglio: L.bagaglio
+  }));
+  veSetLegs('r', mirrored);
+  volRenderLegs('r');
+  toast('Ritorno compilato dall\'andata','ok');
+}
+
+function volToggleAR(chk){
+  volReadLegs('a'); volReadLegs('r');
+  VE.AR = chk.checked;
+  const blockR = document.getElementById('v_block_r');
+  const soloWrap = document.getElementById('v_solodir_wrap');
+  const sepWrap = document.getElementById('v_sep_wrap');
+  if(blockR)  blockR.style.display  = VE.AR ? '' : 'none';
+  if(soloWrap) soloWrap.style.display = VE.AR ? 'none' : '';
+  if(sepWrap)  sepWrap.style.display  = VE.AR ? '' : 'none';
+  if(!VE.AR){ VE.sep = false; const c=document.getElementById('v_sep'); if(c) c.checked=false; volToggleSep({checked:false}); }
+  const lab = document.getElementById('v_lab_a');
+  if(lab) lab.textContent = VE.AR ? 'Andata' : (VE.soloDir==='Ritorno' ? 'Ritorno' : 'Andata');
+  volWarnDates();
+}
+
+function volSoloDir(sel){
+  VE.soloDir = sel.value;
+  const lab = document.getElementById('v_lab_a');
+  if(lab) lab.textContent = VE.soloDir;
+}
+
+function volToggleSep(chk){
+  VE.sep = !!chk.checked;
+  const w = document.getElementById('v_tot_r_wrap');
+  if(w) w.style.display = VE.sep ? '' : 'none';
+  const l = document.getElementById('v_tot_a_label');
+  if(l) l.textContent = VE.sep ? 'totale andata' : 'totale volo';
+  volRecalcPrice('totale');
+}
+
+function volRecalcPrice(src){
+  const tA = document.getElementById('v_totale');
+  const tR = document.getElementById('v_totale_r');
+  const pt = document.getElementById('v_prezzo_testa');
+  if(!tA || !pt) return;
+  const n = payCountInForm('v_pag');
+  if(src==='prezzo_testa'){
+    const v = parseNum(pt.value);
+    if(v!=='' && n && !VE.sep && document.activeElement!==tA) tA.value = fmtNumIT(round2(v*n));
+    return;
+  }
+  const tot = (parseNum(tA.value)||0) + (VE.sep ? (parseNum(tR?.value)||0) : 0);
+  if(tot && n && document.activeElement!==pt) pt.value = fmtNumIT(round2(tot/n));
+  const sum = document.getElementById('v_tot_sum');
+  if(sum) sum.textContent = tot ? eur(tot) : '—';
+}
+
+function volPaganti(base){
   const people = partList(CURRENT_DATA).map(pName);
   const f = 'v_pag';
   if(!people.length){
@@ -1702,31 +2180,77 @@ function voliPaganti(base){
   return `<div class="mb-3"><label class="form-label">chi vola <span style="font-weight:400;color:var(--muted);font-size:.7rem">— divide il costo</span></label>
     <div class="sheet p-2" id="f_${f}_box" data-field="${f}">
       <div class="form-check">
-        <input class="form-check-input pay-all" type="checkbox" id="f_${f}_all" ${allSel?'checked':''} onchange="togglePayAll(this,'${f}');volRecalc()">
+        <input class="form-check-input pay-all" type="checkbox" id="f_${f}_all" ${allSel?'checked':''} onchange="togglePayAll(this,'${f}')">
         <label class="form-check-label" for="f_${f}_all"><strong>Tutti</strong></label>
       </div>
       <hr class="my-1" style="border-color:var(--line)">
       ${people.map((n,i)=>`<div class="form-check">
-        <input class="form-check-input pay-one" type="checkbox" id="f_${f}_${i}" value="${esc(n)}" ${(!allSel && selected.includes(n))?'checked':''} ${allSel?'disabled':''} onchange="onPayOne('${f}');volRecalc()">
+        <input class="form-check-input pay-one" type="checkbox" id="f_${f}_${i}" value="${esc(n)}" ${(!allSel && selected.includes(n))?'checked':''} ${allSel?'disabled':''} onchange="onPayOne('${f}')">
         <label class="form-check-label" for="f_${f}_${i}">${esc(n)}</label></div>`).join('')}
     </div></div>`;
 }
 
-function volRecalc(){
-  const totEl=$('#v_totale'), ptEl=$('#v_prezzo_testa');
-  if(!totEl||!ptEl) return;
-  const tot=parseNum(totEl.value); const n=payCountInForm('v_pag');
-  if(tot!=='' && n && document.activeElement!==ptEl) ptEl.value=fmtNumIT(round2(tot/n));
+function volRenderLegs(dk){
+  const box = document.getElementById('v_legs_'+dk);
+  if(!box) return;
+  const arr = veLegs(dk), chain = volChain(dk);
+  box.innerHTML = arr.map((L,i)=>volLegCard(L,i,arr.length,dk,chain[i])).join('');
+  volChainRefresh(dk);
 }
 
-function voliGroups(rows){
-  const g = {};
-  (rows||[]).forEach(r=>{
-    const k = r.gruppo_id || r.id;
-    (g[k] ??= []).push(r);
-  });
-  Object.values(g).forEach(arr=>arr.sort((a,b)=>num(a.tratta)-num(b.tratta)));
-  return g;
+function volLegCard(L,i,total,dk,c){
+  const id = k => `${dk}_${k}_${i}`;
+  return `<div class="legbox p-2 p-md-3">
+    <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
+      <span class="chip">tratta ${i+1}</span>
+      <div class="d-flex align-items-center gap-2">
+        ${i>0?`<div class="form-check m-0">
+          <input class="form-check-input" type="checkbox" id="${id('gap1')}" ${L.gap1?'checked':''} onchange="volChainRefresh('${dk}')">
+          <label class="form-check-label" style="font-size:.72rem" for="${id('gap1')}">riparte il giorno dopo</label></div>`:''}
+        ${total>1?`<button class="icon-btn" type="button" title="Rimuovi tratta" onclick="volDelLeg('${dk}',${i})">🗑</button>`:''}
+      </div>
+    </div>
+    <div class="row g-2">
+      <div class="col-5 col-sm-4"><label class="form-label">da</label>
+        <input class="form-control text-uppercase" id="${id('da')}" list="airports" value="${esc(L.da)}" placeholder="MXP" onchange="volChainRefresh('${dk}')"></div>
+      <div class="col-5 col-sm-4"><label class="form-label">a</label>
+        <input class="form-control text-uppercase" id="${id('a')}" list="airports" value="${esc(L.a)}" placeholder="CHQ" onchange="volChainRefresh('${dk}')"></div>
+      <div class="col-2 col-sm-4 d-flex align-items-end">
+        <div class="form-check"><input class="form-check-input" type="checkbox" id="${id('bag')}" ${truthy(L.bagaglio)?'checked':''}>
+          <label class="form-check-label" style="font-size:.78rem" for="${id('bag')}">🧳</label></div>
+      </div>
+      <div class="col-7 col-sm-5"><label class="form-label">compagnia</label>
+        <input class="form-control" id="${id('comp')}" list="airlines" value="${esc(L.compagnia)}" placeholder="scegli o scrivi…"></div>
+      <div class="col-5 col-sm-3"><label class="form-label">n° volo</label>
+        <input class="form-control" id="${id('nvolo')}" value="${esc(L.n_volo)}" placeholder="FR1234" onchange="volFromFlightNo('${dk}',${i})"></div>
+      <div class="col-12 col-sm-4"><label class="form-label">data partenza</label>
+        ${i===0
+          ? `<input class="form-control" id="${id('dpart')}" type="date" value="${esc(c.dp)}" onchange="volChainRefresh('${dk}')">`
+          : `<div class="derived" id="${id('dpv')}">${c.dp?toITDateLong(c.dp):'—'}</div>`}
+      </div>
+      <div class="col-4"><label class="form-label">ora part.</label>
+        <input class="form-control" id="${id('opart')}" type="time" value="${esc(L.ora_part)}" onchange="volChainRefresh('${dk}')"></div>
+      <div class="col-4"><label class="form-label">ora arrivo</label>
+        <input class="form-control" id="${id('oarr')}" type="time" value="${esc(L.ora_arr)}" onchange="volChainRefresh('${dk}')"></div>
+      <div class="col-4 d-flex align-items-end">
+        <div class="form-check"><input class="form-check-input" type="checkbox" id="${id('plus1')}" ${L.plus1?'checked':''} onchange="volChainRefresh('${dk}')">
+          <label class="form-check-label" style="font-size:.78rem" for="${id('plus1')}">+1 giorno</label></div>
+      </div>
+      <div class="col-12"><span class="mono" id="${id('info')}" style="font-size:.72rem;color:var(--muted)"></span></div>
+    </div>
+  </div>`;
+}
+
+function volDirBlock(dk, titolo){
+  return `
+    <div class="d-flex justify-content-between align-items-center mb-2 mt-3">
+      <p class="eyebrow mb-0" id="v_lab_${dk}">${titolo}</p>
+      <div class="d-flex gap-1">
+        ${dk==='r'?`<button class="btn btn-ghost btn-sm" type="button" onclick="volMirror()" title="Rotta inversa dell'andata">⇄ specchia andata</button>`:''}
+        <button class="btn btn-ghost btn-sm" type="button" onclick="volAddLeg('${dk}')">+ scalo</button>
+      </div>
+    </div>
+    <div id="v_legs_${dk}"></div>`;
 }
 
 function editVolo(group, tid){
@@ -1736,116 +2260,121 @@ function editVolo(group, tid){
   const gruppo_id = base.gruppo_id || genGroupId();
   const viaggio_id = base.viaggio_id || tid;
 
-  $('#mTitle').textContent = (isNew?'Nuovo volo':'Modifica volo');
+  const rowsA = group ? legsOf(group,'andata')  : [];
+  const rowsR = group ? legsOf(group,'ritorno') : [];
+  // righe senza direzione riconosciuta: trattale come andata
+  const rowsX = group ? group.filter(l=>!(dirKeyOf(l) in DIR_RANK)) : [];
+
+  const headA = rowsA[0] || rowsX[0], headR = rowsR[0];
+
+  VE = {
+    AR:  isNew ? true : (rowsA.length>0 && rowsR.length>0),
+    soloDir: rowsR.length && !rowsA.length ? 'Ritorno' : 'Andata',
+    sep: !!(headA && headR && num(headR.totale)>0),
+    A: (rowsA.length||rowsX.length) ? legsFromRows(rowsA.length?rowsA:rowsX) : [ emptyLeg(CURRENT_TRIP?.data_inizio) ],
+    R: rowsR.length ? legsFromRows(rowsR) : [ emptyLeg(CURRENT_TRIP?.data_fine) ]
+  };
+
+  // numero opzione: il prossimo libero se è nuova
+  const groups = voliGroups(CURRENT_DATA?.Voli||[]);
+  const nextOpz = Object.values(groups).reduce((m,g)=>Math.max(m, num(g[0].opzione)), 0) + 1;
+  const opzVal = base.opzione || (isNew ? nextOpz : 1);
+
+  const totA = headA ? parseNum(headA.totale) : '';
+  const totR = headR ? parseNum(headR.totale) : '';
+  const ptV  = (num(headA?.prezzo_testa) + num(headR?.prezzo_testa)) || '';
+
+  $('#mTitle').textContent = isNew ? 'Nuova opzione di volo' : 'Modifica opzione di volo';
   $('#mBody').innerHTML = `
-    <div class="row g-2 mb-3">
-      <div class="col-6"><label class="form-label">direzione</label>
-        <select class="form-select" id="v_direzione">
-          <option value="Andata"${truthyEq(base.direzione,'Andata')?' selected':''}>Andata</option>
-          <option value="Ritorno"${truthyEq(base.direzione,'Ritorno')?' selected':''}>Ritorno</option>
-        </select></div>
-      <div class="col-6"><label class="form-label">opzione n°</label>
-        <input class="form-control" id="v_opzione" type="text" inputmode="numeric" value="${esc(base.opzione||'1')}"></div>
-      <div class="col-8"><label class="form-label">totale volo <span style="font-weight:400;color:var(--muted);font-size:.7rem">— o compila "a testa"</span></label>
-        <div class="input-group">
-          <span class="input-group-text" style="background:var(--paper-2);border-color:var(--line)">€</span>
-          <input class="form-control" id="v_totale" type="text" inputmode="decimal" value="${base.totale!==''&&base.totale!=null?esc(fmtNumIT(parseNum(base.totale))):''}" placeholder="0,00"></div></div>
-      <div class="col-4 d-flex align-items-end">
+    <div class="row g-2 align-items-end mb-2">
+      <div class="col-4"><label class="form-label">opzione n°</label>
+        <input class="form-control" id="v_opzione" type="number" min="1" step="1" inputmode="numeric" value="${esc(opzVal)}"></div>
+      <div class="col-8 d-flex gap-3 pb-1">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="v_ar" ${VE.AR?'checked':''} onchange="volToggleAR(this)">
+          <label class="form-check-label" for="v_ar"><strong>andata e ritorno</strong></label></div>
         <div class="form-check">
           <input class="form-check-input" type="checkbox" id="v_scelto" ${truthy(base.scelto)?'checked':''}>
-          <label class="form-check-label" for="v_scelto">scelto</label>
+          <label class="form-check-label" for="v_scelto">scelto</label></div>
+      </div>
+      <div class="col-12" id="v_solodir_wrap" style="display:${VE.AR?'none':''}">
+        <label class="form-label">tipo di viaggio</label>
+        <select class="form-select" id="v_solodir" onchange="volSoloDir(this)">
+          <option value="Andata"${VE.soloDir==='Andata'?' selected':''}>solo andata</option>
+          <option value="Ritorno"${VE.soloDir==='Ritorno'?' selected':''}>solo ritorno</option>
+        </select>
+      </div>
+    </div>
+
+    ${volPaganti(base)}
+
+    <div class="sheet p-2 p-md-3 mb-2" style="background:#fdfbf5">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <p class="eyebrow mb-0">Prezzo</p>
+        <div class="form-check m-0" id="v_sep_wrap" style="display:${VE.AR?'':'none'}">
+          <input class="form-check-input" type="checkbox" id="v_sep" ${VE.sep?'checked':''} onchange="volToggleSep(this)">
+          <label class="form-check-label" style="font-size:.78rem" for="v_sep">biglietti separati A / R</label>
         </div>
       </div>
-      <div class="col-8"><label class="form-label">a testa <span style="font-weight:400;color:var(--muted);font-size:.7rem">— auto dal totale ÷ chi vola</span></label>
-        <div class="input-group">
-          <span class="input-group-text" style="background:var(--paper-2);border-color:var(--line)">€</span>
-          <input class="form-control" id="v_prezzo_testa" type="text" inputmode="decimal" value="${base.prezzo_testa!==''&&base.prezzo_testa!=null?esc(fmtNumIT(parseNum(base.prezzo_testa))):''}" placeholder="0,00"></div></div>
+      <div class="row g-2">
+        <div class="col-6"><label class="form-label" id="v_tot_a_label">${VE.sep?'totale andata':'totale volo'}</label>
+          <div class="input-group">
+            <span class="input-group-text" style="background:var(--paper-2);border-color:var(--line)">€</span>
+            <input class="form-control" id="v_totale" type="text" inputmode="decimal" value="${totA!==''?esc(fmtNumIT(totA)):''}" placeholder="0,00" oninput="volRecalcPrice('totale')"></div></div>
+        <div class="col-6" id="v_tot_r_wrap" style="display:${VE.sep?'':'none'}"><label class="form-label">totale ritorno</label>
+          <div class="input-group">
+            <span class="input-group-text" style="background:var(--paper-2);border-color:var(--line)">€</span>
+            <input class="form-control" id="v_totale_r" type="text" inputmode="decimal" value="${totR!==''?esc(fmtNumIT(totR)):''}" placeholder="0,00" oninput="volRecalcPrice('totale')"></div></div>
+        <div class="col-6"><label class="form-label">a testa <span style="font-weight:400;color:var(--muted);font-size:.7rem">— auto</span></label>
+          <div class="input-group">
+            <span class="input-group-text" style="background:var(--paper-2);border-color:var(--line)">€</span>
+            <input class="form-control" id="v_prezzo_testa" type="text" inputmode="decimal" value="${ptV!==''?esc(fmtNumIT(ptV)):''}" placeholder="0,00" oninput="volRecalcPrice('prezzo_testa')"></div></div>
+        <div class="col-6 d-flex align-items-end">
+          <div class="mono" style="font-size:.8rem;color:var(--ink-soft)">totale opzione: <strong id="v_tot_sum">—</strong></div>
+        </div>
+      </div>
     </div>
-    ${voliPaganti(base)}
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <p class="eyebrow mb-0">Tratte</p>
-      <button class="btn btn-ghost btn-sm" id="v_addLeg" type="button">+ scalo</button>
-    </div>
-    <div id="v_legs"></div>
-    ${airlineDatalist()}
+
+    <div id="v_err" class="errbox mb-2" style="display:none"></div>
+    <div id="v_warn" class="warnline mb-1"></div>
+
+    <div id="v_block_a">${volDirBlock('a', VE.AR?'Andata':VE.soloDir)}</div>
+    <div id="v_block_r" style="display:${VE.AR?'':'none'}">${volDirBlock('r','Ritorno')}</div>
+    ${airlineDatalist()}${airportDatalist()}
   `;
 
-  let legs = (group && group.length) ? group.map(legFromRow) : [ emptyLeg() ];
-  renderLegs();
-
-  // salva i valori digitati nelle tratte prima di ridisegnarle (non si perdono più)
-  function readLegsFromDom(){
-    return legs.map((L,i)=>{
-      const el = id => $('#'+id+'_'+i);
-      if(!el('leg_comp')) return L;
-      return {
-        compagnia: el('leg_comp').value, n_volo: el('leg_nvolo').value,
-        da: el('leg_da').value, a: el('leg_a').value,
-        data_part: el('leg_dpart').value, ora_part: el('leg_opart').value,
-        data_arr: el('leg_darr').value, ora_arr: el('leg_oarr').value,
-        scalo: el('leg_scalo').value, bagaglio: el('leg_bag').checked ? 'Sì' : ''
-      };
-    });
-  }
-
-  function renderLegs(){
-    const box = $('#v_legs');
-    box.innerHTML = legs.map((L,i)=>legCard(L,i,legs.length)).join('');
-    legs.forEach((L,i)=>{
-      const del = $('#leg_del_'+i);
-      if(del) del.onclick = ()=>{ legs = readLegsFromDom(); legs.splice(i,1); renderLegs(); };
-    });
-  }
-
-  $('#v_addLeg').onclick = ()=>{ legs = readLegsFromDom(); legs.push(emptyLeg()); renderLegs(); };
-
-  const recalcVolo = (src)=>{
-    const persone = payCountInForm('v_pag');
-    const tot = parseNum($('#v_totale').value);
-    const pt  = parseNum($('#v_prezzo_testa').value);
-    if(src==='prezzo_testa' && pt!=='' && persone){
-      const t = round2(pt*persone);
-      if(document.activeElement!==$('#v_totale')) $('#v_totale').value = fmtNumIT(t);
-    } else if(tot!=='' && persone){
-      if(src!=='prezzo_testa' && document.activeElement!==$('#v_prezzo_testa'))
-        $('#v_prezzo_testa').value = fmtNumIT(round2(tot/persone));
-    }
-  };
-  $('#v_totale').addEventListener('input', ()=>recalcVolo('totale'));
-  $('#v_prezzo_testa').addEventListener('input', ()=>recalcVolo('prezzo_testa'));
+  volRenderLegs('a');
+  volRenderLegs('r');
+  volRecalcPrice('totale');
 
   $('#mSave').onclick = ()=>{
-    if(!legs.length){ toast('Aggiungi almeno una tratta','error'); return; }
+    volReadLegs('a'); if(VE.AR) volReadLegs('r');
+    const errs = volValidate();
+    const box = $('#v_err');
+    if(errs.length){
+      box.style.display='';
+      box.innerHTML = '<strong>Controlla questi punti:</strong><ul class="mb-0 ps-3">'+errs.map(e=>`<li>${esc(e)}</li>`).join('')+'</ul>';
+      box.scrollIntoView({block:'nearest'});
+      return;
+    }
+    box.style.display='none';
+
     return withBtnLoading($('#mSave'), 'Salvo…', async ()=>{
-      const readLegs = readLegsFromDom().map(l=>({
-        compagnia: l.compagnia.trim(), n_volo: l.n_volo.trim(),
-        da: l.da.trim(), a: l.a.trim(),
-        data_part: l.data_part, ora_part: l.ora_part,
-        data_arr: l.data_arr, ora_arr: l.ora_arr,
-        scalo: l.scalo.trim(), bagaglio: l.bagaglio
-      }));
+      const opzione = Math.max(1, Math.round(parseNum($('#v_opzione').value)||1));
+      const paganti = readPayValue('v_pag');
+      const persone = payCountInForm('v_pag');
+      const scelto  = $('#v_scelto').checked ? 'Sì' : '';
+      const totA2   = parseNum($('#v_totale').value);
+      const totR2   = VE.sep ? parseNum($('#v_totale_r').value) : '';
+      const totale  = (num(totA2) + num(totR2)) || 0;
+      const ptTot   = parseNum($('#v_prezzo_testa').value);
+      // ripartizione del "a testa" coerente con come è spezzato il totale
+      const ptA = VE.sep && totale ? round2(ptTot * (num(totA2)/totale)) : ptTot;
+      const ptR = VE.sep && totale ? round2(ptTot - ptA) : '';
 
-      const direzione = $('#v_direzione').value;
-      const opzione   = Math.round(parseNum($('#v_opzione').value))||1;
-      const paganti   = readPayValue('v_pag');
-      const persone   = payCountInForm('v_pag');
-      const totale    = parseNum($('#v_totale').value);
-      const prezzo_testa = parseNum($('#v_prezzo_testa').value);
-      const scelto    = $('#v_scelto').checked ? 'Sì' : '';
-
-      const records = readLegs.map((leg,i)=>({
-        viaggio_id, gruppo_id,
-        opzione, direzione, tratta: i+1, persone, paganti,
-        compagnia: leg.compagnia, n_volo: leg.n_volo,
-        da: leg.da, a: leg.a,
-        data_part: leg.data_part, ora_part: leg.ora_part,
-        data_arr: leg.data_arr, ora_arr: leg.ora_arr,
-        scalo: leg.scalo,
-        totale:       i===0 ? totale : '',
-        prezzo_testa: i===0 ? prezzo_testa : '',
-        bagaglio: leg.bagaglio, scelto,
-        note: ''
-      }));
+      const common = { viaggio_id, gruppo_id, opzione, persone, paganti, scelto };
+      let records = volBuildRecords('a', veDirName('a'), common, totA2, ptA);
+      if(VE.AR) records = records.concat(volBuildRecords('r', 'Ritorno', common, VE.sep?totR2:'', VE.sep?ptR:''));
 
       let saved;
       if(isNew){
@@ -1863,48 +2392,55 @@ function editVolo(group, tid){
   MODAL.show();
 }
 
-function emptyLeg(){ return {compagnia:'',n_volo:'',da:'',a:'',data_part:'',ora_part:'',data_arr:'',ora_arr:'',scalo:'',bagaglio:''}; }
-
-function legFromRow(r){
-  return {
-    compagnia:r.compagnia||'', n_volo:r.n_volo||'', da:r.da||'', a:r.a||'',
-    data_part:toISODate(r.data_part), ora_part:toHM(r.ora_part),
-    data_arr:toISODate(r.data_arr), ora_arr:toHM(r.ora_arr),
-    scalo:r.scalo||'', bagaglio:r.bagaglio||''
-  };
+function volBuildRecords(dk, direzione, common, priceTot, pricePT){
+  const arr = veLegs(dk), chain = volChain(dk);
+  return arr.map((L,i)=>{
+    // scalo = attesa tra questa tratta e la successiva (calcolato, non digitato)
+    let scalo = '';
+    const nx = arr[i+1];
+    if(nx){
+      const lay = minutesBetween(chain[i].da, L.ora_arr, chain[i+1].dp, nx.ora_part);
+      if(lay!=null) scalo = fmtDur(lay);
+    }
+    return Object.assign({}, common, {
+      direzione, tratta: i+1,
+      compagnia: (L.compagnia||'').trim(), n_volo: (L.n_volo||'').trim(),
+      da: (L.da||'').trim().toUpperCase(), a: (L.a||'').trim().toUpperCase(),
+      data_part: chain[i].dp, ora_part: L.ora_part,
+      data_arr:  chain[i].da, ora_arr:  L.ora_arr,
+      scalo,
+      totale:       i===0 ? (priceTot===''?'':priceTot) : '',
+      prezzo_testa: i===0 ? (pricePT ===''?'':pricePT)  : '',
+      bagaglio: L.bagaglio, note: ''
+    });
+  });
 }
 
-function legCard(L,i,total){
-  return `<div class="sheet p-3 mb-2" style="background:#fdfbf5">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <span class="chip">tratta ${i+1}</span>
-      ${total>1?`<button class="icon-btn" id="leg_del_${i}" type="button" title="Rimuovi tratta">🗑</button>`:''}
-    </div>
-    <div class="row g-2">
-      <div class="col-8"><label class="form-label">compagnia</label>
-        <input class="form-control" id="leg_comp_${i}" list="airlines" value="${esc(L.compagnia)}" placeholder="scegli o scrivi…"></div>
-      <div class="col-4"><label class="form-label">n° volo</label>
-        <input class="form-control" id="leg_nvolo_${i}" value="${esc(L.n_volo)}" placeholder="LH 4326"></div>
-      <div class="col-6"><label class="form-label">da</label>
-        <input class="form-control" id="leg_da_${i}" value="${esc(L.da)}" placeholder="MXP"></div>
-      <div class="col-6"><label class="form-label">a</label>
-        <input class="form-control" id="leg_a_${i}" value="${esc(L.a)}" placeholder="MUC"></div>
-      <div class="col-6"><label class="form-label">data partenza</label>
-        <input class="form-control" id="leg_dpart_${i}" type="date" value="${esc(L.data_part)}"></div>
-      <div class="col-6"><label class="form-label">ora partenza</label>
-        <input class="form-control" id="leg_opart_${i}" type="time" value="${esc(L.ora_part)}"></div>
-      <div class="col-6"><label class="form-label">data arrivo</label>
-        <input class="form-control" id="leg_darr_${i}" type="date" value="${esc(L.data_arr)}"></div>
-      <div class="col-6"><label class="form-label">ora arrivo</label>
-        <input class="form-control" id="leg_oarr_${i}" type="time" value="${esc(L.ora_arr)}"></div>
-      <div class="col-8"><label class="form-label">scalo ${i<total-1?'<span style="font-weight:400;color:var(--muted);font-size:.7rem">— attesa prima della prossima tratta</span>':''}</label>
-        <input class="form-control" id="leg_scalo_${i}" value="${esc(L.scalo)}" placeholder="es. 1h 30m"></div>
-      <div class="col-4 d-flex align-items-end">
-        <div class="form-check"><input class="form-check-input" type="checkbox" id="leg_bag_${i}" ${truthy(L.bagaglio)?'checked':''}>
-          <label class="form-check-label" for="leg_bag_${i}">bagaglio</label></div>
-      </div>
-    </div>
-  </div>`;
+function volValidate(){
+  const errs = [];
+  const check = (dk, label)=>{
+    const arr = veLegs(dk), chain = volChain(dk);
+    if(!arr.length){ errs.push(`${label}: nessuna tratta`); return; }
+    arr.forEach((L,i)=>{
+      const t = arr.length>1 ? `${label} tratta ${i+1}` : label;
+      if(!L.da || !L.a) errs.push(`${t}: manca l'aeroporto di partenza o di arrivo`);
+      if(i===0 && !chain[0].dp) errs.push(`${label}: manca la data di partenza`);
+      const dur = minutesBetween(chain[i].dp, L.ora_part, chain[i].da, L.ora_arr);
+      if(dur!=null && dur<0) errs.push(`${t}: l'arrivo precede la partenza (serve "+1 giorno"?)`);
+      if(i>0){
+        const lay = minutesBetween(chain[i-1].da, arr[i-1].ora_arr, chain[i].dp, L.ora_part);
+        if(lay!=null && lay<0) errs.push(`${t}: parte prima dell'arrivo della tratta precedente`);
+      }
+    });
+  };
+  check('a', veDirName('a'));
+  if(VE.AR){
+    check('r', 'Ritorno');
+    const ca = volChain('a'), cr = volChain('r');
+    const lastA = ca[ca.length-1]?.da, firstR = cr[0]?.dp;
+    if(lastA && firstR && firstR < lastA) errs.push('Il ritorno parte prima che sia arrivata l\'andata');
+  }
+  return errs;
 }
 
 function genGroupId(){ return 'g' + Math.random().toString(36).slice(2,10); }
