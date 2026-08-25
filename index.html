@@ -177,6 +177,78 @@
     font-weight:600;font-size:.8rem;border-radius:7px;padding:.2rem .6rem;cursor:pointer;flex:none}
   .toast-mini .undo:hover{background:rgba(255,255,255,.3)}
 
+  /* --- COSA PORTARE --- */
+  .cp-head{display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+  .cp-ring{flex:none}
+  .cp-count{font-family:'Fraunces',serif;font-weight:600;font-size:1.15rem;line-height:1.2}
+  .cp-sub{font-size:.8rem;color:var(--muted)}
+  .cp-done-all{color:var(--ok);font-weight:600}
+
+  .cp-cat{margin-bottom:.9rem}
+  .cp-cat-head{display:flex;align-items:center;gap:.6rem;width:100%;background:none;border:none;
+    text-align:left;padding:.55rem .3rem;cursor:pointer;border-bottom:1px solid var(--line)}
+  .cp-cat-head:hover .cp-cat-name{color:var(--stamp)}
+  .cp-cat-ico{font-size:1.1rem;flex:none;width:1.6rem;text-align:center}
+  .cp-cat-name{font-family:'Fraunces',serif;font-weight:600;font-size:1rem;flex:1;min-width:0}
+  .cp-cat-n{font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--muted);flex:none}
+  .cp-caret{color:var(--muted);font-size:.7rem;flex:none;transition:transform .15s}
+  .cp-cat.closed .cp-caret{transform:rotate(-90deg)}
+  .cp-cat.closed .cp-body{display:none}
+  .cp-bar{height:3px;border-radius:3px;background:var(--paper-2);overflow:hidden;margin-bottom:.15rem}
+  .cp-bar i{display:block;height:100%;background:var(--stamp);border-radius:3px;transition:width .25s ease}
+  .cp-bar.full i{background:var(--ok)}
+
+  .cp-row{display:flex;align-items:flex-start;gap:.65rem;padding:.5rem .3rem;
+    border-bottom:1px solid rgba(212,201,178,.5);transition:opacity .15s}
+  .cp-row:last-child{border-bottom:none}
+  .cp-row.pri-ess{box-shadow:inset 3px 0 0 -1px #c9432e}
+  .cp-row.pri-cons{box-shadow:inset 3px 0 0 -1px #e0a422}
+  .cp-row.done{opacity:.5}
+  .cp-row.done .cp-name{text-decoration:line-through}
+  @media (hover:hover){ .cp-row:hover{background:rgba(209,98,42,.04)} }
+
+  .cp-check{flex:none;width:24px;height:24px;border-radius:50%;border:2px solid var(--line);
+    background:var(--card-2);cursor:pointer;padding:0;position:relative;margin-top:1px;
+    transition:background .12s,border-color .12s,transform .08s}
+  .cp-check:hover{border-color:var(--stamp)}
+  .cp-check:active{transform:scale(.9)}
+  .cp-check[aria-checked="true"]{background:var(--ok);border-color:var(--ok)}
+  .cp-check[aria-checked="true"]::after{content:'✓';position:absolute;inset:0;color:#fff;
+    font-size:.8rem;line-height:20px;text-align:center;font-weight:700}
+
+  .cp-main{flex:1;min-width:0}
+  .cp-name{font-size:.95rem;font-weight:500;line-height:1.35}
+  .cp-qta{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--stamp);
+    background:rgba(209,98,42,.1);border-radius:5px;padding:0 .3rem;margin-left:.3rem}
+  .cp-note{font-size:.76rem;color:var(--muted);margin-top:.1rem}
+  .cp-tags{display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.2rem}
+  .cp-who{font-size:.68rem;background:var(--ink-soft);color:var(--paper);border-radius:20px;padding:.05rem .45rem}
+  .cp-acts{flex:none;display:flex;align-items:center;opacity:.55;transition:opacity .12s}
+  .cp-row:hover .cp-acts,.cp-acts:focus-within{opacity:1}
+
+  .cp-add{display:flex;gap:.4rem;padding:.45rem .3rem .1rem}
+  .cp-add input{border:1px dashed var(--line);background:transparent;border-radius:8px;
+    padding:.3rem .6rem;font-size:.85rem;flex:1;min-width:0;color:var(--ink)}
+  .cp-add input:focus{outline:none;border-color:var(--stamp);border-style:solid;background:var(--card-2)}
+  .cp-add input::placeholder{color:var(--muted);opacity:.8}
+
+  .cp-filters{display:flex;gap:.3rem;flex-wrap:wrap;align-items:center}
+  .cp-fil{border:1px solid var(--line);background:var(--card-2);border-radius:20px;
+    font-size:.75rem;padding:.15rem .7rem;color:var(--ink-soft);cursor:pointer}
+  .cp-fil:hover{border-color:var(--stamp);color:var(--stamp)}
+  .cp-fil.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+  @media(max-width:640px){
+    .cp-check{width:28px;height:28px}
+    .cp-check[aria-checked="true"]::after{line-height:24px;font-size:.9rem}
+    .cp-acts{opacity:1}
+  }
+  @media print{
+    .cp-add,.cp-filters,.cp-acts{display:none !important}
+    .cp-row{opacity:1 !important;break-inside:avoid}
+    .cp-check{border:1.5px solid #000;background:#fff}
+    .cp-check[aria-checked="true"]::after{color:#000}
+  }
+
   /* --- SCHELETRI DI CARICAMENTO (velocità percepita) --- */
   .sk{background:linear-gradient(90deg,var(--paper-2) 25%,#f0e9d9 37%,var(--paper-2) 63%);
     background-size:400% 100%;animation:skShine 1.3s ease infinite;border-radius:7px;height:.85rem}
@@ -872,7 +944,8 @@ async function viewTrip(id, section){
 function mountTrip(all, section){
   const trip = (all.Viaggi||[])[0];
   // reset delle viste locali se è cambiato viaggio
-  if(!CURRENT_TRIP || CURRENT_TRIP.id !== trip.id){ CDF_MONTH = null; CDF_VIEW = 'lista'; VOLI_VIEW = 'schede'; ALG_VIEW = 'schede'; }
+  if(!CURRENT_TRIP || CURRENT_TRIP.id !== trip.id){ CDF_MONTH = null; CDF_VIEW = 'lista'; VOLI_VIEW = 'schede'; ALG_VIEW = 'schede';
+    CP_FILTER = 'tutti'; CP_WHO = null; CP_CLOSED = {}; }
   CURRENT_TRIP = trip; CURRENT_DATA = all;
   TRIP_CACHE.set(String(trip.id), all);
   document.title = (trip.destinazione||trip.nome||'Viaggio') + ' — TripHub';
@@ -978,7 +1051,7 @@ function renderSection(section, keepScroll){
     voli:        ()=>secVoli(d.Voli, tid),
     spese:       ()=>secSpese(d, tid),
     cosedafare:  ()=>secCoseDaFare(d.CoseDaFare, tid),
-    cosaportare: ()=>secTable('CosaPortare', d.CosaPortare, tid),
+    cosaportare: ()=>secCosaPortare(d.CosaPortare, tid),
     contatti:    ()=>secTable('Contatti', d.Contatti, tid),
     info:        ()=>secInfo(d, tid),
   };
@@ -2141,6 +2214,316 @@ function cdfQuickAdd(iso, tid){
   editRow('CoseDaFare', { viaggio_id: tid, data: iso }, tid);
 }
 
+
+/* ============================================================
+   COSA PORTARE
+   Lista di spunta, non tabella: raggruppata per categoria, con
+   avanzamento sempre visibile e aggiunta rapida in linea.
+   Spuntando NON si riordina la lista sotto il dito: il riordino
+   (fatti in fondo) avviene al rientro nella sezione.
+   ============================================================ */
+let CP_FILTER = 'tutti';       // 'tutti' | 'dafare' | 'fatti'
+let CP_WHO    = null;          // null = non ancora letto da localStorage
+let CP_CLOSED = {};            // categoria -> chiusa
+let CP_CATS   = [];            // categorie nell'ordine mostrato (per i pulsanti)
+
+const CP_ICON = {
+  'Abbigliamento':'👕','Accessori':'🎒','Attrezzatura':'🧰','Bagaglio':'🧳','Bambini':'🧸',
+  'Casa':'🏠','Cucina':'🍳','Documenti':'🪪','Elettronica':'🔌','Farmacia':'💊','Igiene':'🧴',
+  'Intrattenimento':'🎧','Mare':'🏖️','Montagna':'⛰️','Scarpe':'👟','Sport':'⚽',
+  'Tecnologia':'💻','Viaggio':'✈️'
+};
+function cpIcon(c){ return CP_ICON[String(c||'').trim()] || '📦'; }
+
+/* la persona scelta resta su questo dispositivo: ognuno vede la propria lista */
+function cpWhoKey(){ return 'triphub_who_' + (CURRENT_TRIP ? CURRENT_TRIP.id : ''); }
+function cpWho(){
+  if(CP_WHO === null){
+    try { CP_WHO = localStorage.getItem(cpWhoKey()) || ''; } catch(_){ CP_WHO = ''; }
+  }
+  return CP_WHO;
+}
+function cpSetWho(v){
+  CP_WHO = v || '';
+  try { v ? localStorage.setItem(cpWhoKey(), v) : localStorage.removeItem(cpWhoKey()); } catch(_){}
+  renderSection('cosaportare');
+}
+function cpSetFilter(f){ CP_FILTER = f; renderSection('cosaportare'); }
+function cpToggleCat(i){
+  const c = CP_CATS[i]; if(c==null) return;
+  CP_CLOSED[c] = !CP_CLOSED[c];
+  const el = $('#cp_cat_'+i);
+  if(el) el.classList.toggle('closed', !!CP_CLOSED[c]);
+  const h = $('#cp_head_'+i);
+  if(h) h.setAttribute('aria-expanded', CP_CLOSED[c] ? 'false' : 'true');
+}
+
+// una voce è "mia" se non ha destinatario, se è di tutti, o se mi nomina
+function cpMine(r, me){
+  if(!me) return true;
+  const s = String(r.chi||'').trim();
+  if(!s || s.toLowerCase()==='tutti') return true;
+  return s.split(',').map(x=>x.trim()).includes(me);
+}
+function cpPriRank(r){
+  const s = String(r.priorita||'').toLowerCase();
+  if(s.includes('essenz')) return 0;
+  if(s.includes('consig')) return 1;
+  return 2;
+}
+function cpPriClass(r){
+  const s = String(r.priorita||'').toLowerCase();
+  return s.includes('essenz') ? ' pri-ess' : s.includes('consig') ? ' pri-cons' : '';
+}
+
+function cpRing(done, tot){
+  const pct = tot ? done/tot : 0;
+  const r = 26, c = 2*Math.PI*r;
+  return `<svg width="66" height="66" viewBox="0 0 64 64" class="cp-ring" role="img"
+      aria-label="${done} di ${tot} preparati">
+    <circle cx="32" cy="32" r="${r}" fill="none" stroke="var(--paper-2)" stroke-width="7"/>
+    <circle id="cp_arc" cx="32" cy="32" r="${r}" fill="none" stroke="${pct>=1?'var(--ok)':'var(--stamp)'}"
+      stroke-width="7" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}"
+      stroke-dashoffset="${(c*(1-pct)).toFixed(1)}" transform="rotate(-90 32 32)"
+      style="transition:stroke-dashoffset .3s ease"/>
+    <text id="cp_pct" x="32" y="37" text-anchor="middle" font-family="'JetBrains Mono',monospace"
+      font-size="14" font-weight="500" fill="var(--ink)">${Math.round(pct*100)}%</text>
+  </svg>`;
+}
+
+function secCosaPortare(rows, tid){
+  rows = rows || [];
+  const me = cpWho();
+  const people = partList(CURRENT_DATA).map(pName);
+
+  const mine    = rows.filter(r=>cpMine(r, me));
+  const done    = mine.filter(r=>truthy(r.spuntato)).length;
+  const tot     = mine.length;
+  const visible = mine.filter(r=>
+    CP_FILTER==='fatti'  ? truthy(r.spuntato) :
+    CP_FILTER==='dafare' ? !truthy(r.spuntato) : true);
+
+  const whoSel = people.length ? `
+    <select class="form-select form-select-sm" style="max-width:190px" aria-label="Filtra per persona"
+      onchange="cpSetWho(this.value)">
+      <option value="">Tutta la lista</option>
+      ${people.map(n=>`<option value="${esc(n)}"${n===me?' selected':''}>Solo di ${esc(n)}</option>`).join('')}
+    </select>` : '';
+
+  const header = `
+    <div class="sheet p-3 p-md-4 mb-3">
+      <div class="cp-head">
+        ${cpRing(done, tot)}
+        <div style="flex:1;min-width:140px">
+          <div class="cp-count" id="cp_count">${done} di ${tot} ${tot===1?'cosa pronta':'cose pronte'}</div>
+          <div class="cp-sub" id="cp_sub">${
+            !tot ? 'la lista è ancora vuota'
+            : done===tot ? '<span class="cp-done-all">✓ valigia completa, si parte</span>'
+            : `mancano ${tot-done} ${tot-done===1?'voce':'voci'}${me?` per ${esc(me)}`:''}`
+          }</div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap align-items-center">
+          ${whoSel}
+          <button class="btn btn-stamp btn-sm" onclick="editRow('CosaPortare', null, '${jsArg(tid)}')">+ Aggiungi</button>
+        </div>
+      </div>
+      ${tot ? `<div class="cp-filters mt-3">
+        <button class="cp-fil${CP_FILTER==='tutti'?' on':''}" onclick="cpSetFilter('tutti')">Tutte · ${tot}</button>
+        <button class="cp-fil${CP_FILTER==='dafare'?' on':''}" onclick="cpSetFilter('dafare')">Da preparare · ${tot-done}</button>
+        <button class="cp-fil${CP_FILTER==='fatti'?' on':''}" onclick="cpSetFilter('fatti')">Fatte · ${done}</button>
+      </div>` : ''}
+    </div>`;
+
+  if(!rows.length){
+    return header + `<div class="sheet empty"><div class="big">Nessuna voce ancora</div>
+      <div>Scrivi cosa serve nelle caselle qui sotto, categoria per categoria.</div>
+      <div class="mt-3">${cpSeedBox(tid)}</div></div>`;
+  }
+
+  // raggruppa per categoria; i conteggi restano su TUTTE le voci della persona,
+  // così i numeri non ballano quando cambi filtro
+  const byCat = {};
+  visible.forEach(r=>{ const k = String(r.categoria||'Varie').trim() || 'Varie'; (byCat[k] ??= []).push(r); });
+  const allByCat = {};
+  mine.forEach(r=>{ const k = String(r.categoria||'Varie').trim() || 'Varie'; (allByCat[k] ??= []).push(r); });
+
+  CP_CATS = Object.keys(byCat).sort((a,b)=>a.localeCompare(b,'it'));
+
+  if(!CP_CATS.length){
+    return header + `<div class="sheet empty"><div class="big">${
+      CP_FILTER==='fatti' ? 'Niente di spuntato, per ora' : 'Tutto pronto ✓'}</div>
+      <div>Cambia filtro per vedere il resto della lista.</div></div>`;
+  }
+
+  const blocks = CP_CATS.map((cat,i)=>{
+    const all  = allByCat[cat] || [];
+    const dn   = all.filter(r=>truthy(r.spuntato)).length;
+    const pct  = all.length ? Math.round(dn/all.length*100) : 0;
+    const items = byCat[cat].slice().sort((a,b)=>
+      (truthy(a.spuntato)?1:0)-(truthy(b.spuntato)?1:0)
+      || cpPriRank(a)-cpPriRank(b)
+      || String(a.cosa||'').localeCompare(String(b.cosa||''),'it'));
+    const closed = !!CP_CLOSED[cat];
+    return `<div class="sheet p-2 p-md-3 cp-cat${closed?' closed':''}" id="cp_cat_${i}">
+      <button class="cp-cat-head" id="cp_head_${i}" onclick="cpToggleCat(${i})"
+        aria-expanded="${closed?'false':'true'}" aria-controls="cp_body_${i}">
+        <span class="cp-cat-ico">${cpIcon(cat)}</span>
+        <span class="cp-cat-name">${esc(cat)}</span>
+        <span class="cp-cat-n" id="cp_catn_${i}">${dn}/${all.length}</span>
+        <span class="cp-caret">▾</span>
+      </button>
+      <div class="cp-bar${pct===100?' full':''}" id="cp_bar_${i}"><i style="width:${pct}%"></i></div>
+      <div class="cp-body" id="cp_body_${i}">
+        ${items.map(r=>cpRow(r)).join('')}
+        <div class="cp-add">
+          <input type="text" id="cp_add_${i}" placeholder="+ aggiungi a ${esc(cat.toLowerCase())}…  (2x telo, ciabatte)"
+            aria-label="Aggiungi voce a ${esc(cat)}"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();cpQuickAdd(${i},'${jsArg(tid)}')}">
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  return header + blocks;
+}
+
+function cpRow(r){
+  const on = truthy(r.spuntato);
+  const qta = Math.round(num(r.qta));
+  const chi = String(r.chi||'').trim();
+  const chiTag = (chi && chi.toLowerCase()!=='tutti')
+    ? chi.split(',').map(x=>`<span class="cp-who">${esc(x.trim())}</span>`).join('') : '';
+  const pri = String(r.priorita||'').trim();
+  const priTag = pri ? `<span class="chip ${cpPriRank(r)===0?'pri-ess':cpPriRank(r)===1?'pri-cons':''}">${esc(pri)}</span>` : '';
+  return `<div class="cp-row${on?' done':''}${cpPriClass(r)}" id="cp_row_${jsArg(r.id)}">
+    <button class="cp-check" role="checkbox" aria-checked="${on}" id="cp_chk_${jsArg(r.id)}"
+      aria-label="${esc(r.cosa||'voce')}" onclick="cpToggle('${jsArg(r.id)}')"></button>
+    <div class="cp-main">
+      <div class="cp-name">${esc(r.cosa||'(senza nome)')}${qta>1?`<span class="cp-qta">×${qta}</span>`:''}</div>
+      ${(chiTag||priTag)?`<div class="cp-tags">${priTag}${chiTag}</div>`:''}
+      ${r.note?`<div class="cp-note">${esc(r.note)}</div>`:''}
+    </div>
+    <div class="cp-acts">
+      <button class="icon-btn" title="Modifica" aria-label="Modifica ${esc(r.cosa||'voce')}"
+        onclick="editRowById('CosaPortare','${jsArg(r.id)}')">✎</button>
+      <button class="icon-btn" title="Elimina" aria-label="Elimina ${esc(r.cosa||'voce')}"
+        onclick="delRow('CosaPortare','${jsArg(r.id)}')">🗑</button>
+    </div>
+  </div>`;
+}
+
+/* Spunta una voce: aggiorna la riga sul posto (niente salto sotto il dito)
+   e ricalcola solo i numeri. */
+async function cpToggle(id){
+  const r = findRow('CosaPortare', id);
+  if(!r) return;
+  const prev = r.spuntato;
+  const next = truthy(prev) ? '' : 'Sì';
+  r.spuntato = next;
+  cpPaintRow(r);
+  cpPaintCounts();
+  updateTabBadges();
+  try{
+    await api('update', { sheet:'CosaPortare', record:{ id, viaggio_id:r.viaggio_id, spuntato:next } });
+  }catch(e){
+    r.spuntato = prev;
+    cpPaintRow(r); cpPaintCounts(); updateTabBadges();
+    if(e instanceof AuthError) sessionExpired(); else toast('Errore: '+e.message,'error');
+  }
+}
+
+function cpPaintRow(r){
+  const on = truthy(r.spuntato);
+  const row = document.getElementById('cp_row_'+r.id);
+  const chk = document.getElementById('cp_chk_'+r.id);
+  if(row) row.classList.toggle('done', on);
+  if(chk) chk.setAttribute('aria-checked', on ? 'true' : 'false');
+}
+
+/* Ricalcola anello, testo e barre di categoria senza ricostruire le righe. */
+function cpPaintCounts(){
+  const me = cpWho();
+  const mine = (CURRENT_DATA.CosaPortare||[]).filter(r=>cpMine(r, me));
+  const tot = mine.length, done = mine.filter(r=>truthy(r.spuntato)).length;
+
+  const arc = document.getElementById('cp_arc');
+  if(arc){
+    const c = 2*Math.PI*26, pct = tot ? done/tot : 0;
+    arc.setAttribute('stroke-dashoffset', (c*(1-pct)).toFixed(1));
+    arc.setAttribute('stroke', pct>=1 ? 'var(--ok)' : 'var(--stamp)');
+    const t = document.getElementById('cp_pct');
+    if(t) t.textContent = Math.round(pct*100)+'%';
+  }
+  const cnt = document.getElementById('cp_count');
+  if(cnt) cnt.textContent = `${done} di ${tot} ${tot===1?'cosa pronta':'cose pronte'}`;
+  const sub = document.getElementById('cp_sub');
+  if(sub) sub.innerHTML = !tot ? 'la lista è ancora vuota'
+    : done===tot ? '<span class="cp-done-all">✓ valigia completa, si parte</span>'
+    : `mancano ${tot-done} ${tot-done===1?'voce':'voci'}${me?` per ${esc(me)}`:''}`;
+
+  CP_CATS.forEach((cat,i)=>{
+    const all = mine.filter(r=>(String(r.categoria||'Varie').trim()||'Varie')===cat);
+    const dn = all.filter(r=>truthy(r.spuntato)).length;
+    const n = document.getElementById('cp_catn_'+i);
+    if(n) n.textContent = `${dn}/${all.length}`;
+    const bar = document.getElementById('cp_bar_'+i);
+    if(bar){
+      const pct = all.length ? Math.round(dn/all.length*100) : 0;
+      bar.classList.toggle('full', pct===100);
+      const fill = bar.querySelector('i');
+      if(fill) fill.style.width = pct+'%';
+    }
+  });
+}
+
+/* Aggiunta rapida: "2x telo mare, ciabatte, crema" crea tre voci in un colpo. */
+function cpParseLine(txt){
+  return String(txt||'').split(',').map(x=>x.trim()).filter(Boolean).map(part=>{
+    const m = part.match(/^(\d{1,3})\s*[x×]\s*(.+)$/i);
+    return m ? { cosa:m[2].trim(), qta:Number(m[1]) } : { cosa:part, qta:'' };
+  });
+}
+
+async function cpQuickAdd(i, tid){
+  const box = document.getElementById('cp_add_'+i);
+  if(!box) return;
+  const parsed = cpParseLine(box.value);
+  if(!parsed.length) return;
+  const cat = CP_CATS[i] || 'Varie';
+  const me = cpWho();
+  box.value = ''; box.disabled = true;
+  const records = parsed.map(x=>({
+    viaggio_id: tid, categoria: cat, cosa: x.cosa,
+    qta: x.qta, chi: me || '', priorita: '', spuntato: '', note: ''
+  }));
+  try{
+    const saved = await api('create_many', { sheet:'CosaPortare', records });
+    applyLocal('CosaPortare','create_many', saved);
+    renderSection('cosaportare', true);
+    updateTabBadges();
+    const again = document.getElementById('cp_add_'+i);
+    if(again){ again.focus(); }               // resta pronto per la voce successiva
+    toast(saved.length>1 ? `${saved.length} voci aggiunte ✓` : 'Aggiunto ✓','ok');
+  }catch(e){
+    box.disabled = false; box.value = parsed.map(x=>(x.qta?x.qta+'x ':'')+x.cosa).join(', ');
+    if(e instanceof AuthError) sessionExpired(); else toast('Errore: '+e.message,'error');
+  }
+}
+
+/* Prima lista: quattro categorie di partenza con un campo per ciascuna. */
+function cpSeedBox(tid){
+  const base = ['Documenti','Abbigliamento','Igiene','Elettronica'];
+  CP_CATS = base;
+  return `<div class="row g-2 text-start" style="max-width:520px;margin:0 auto">
+    ${base.map((c,i)=>`<div class="col-12 col-sm-6">
+      <label class="form-label">${cpIcon(c)} ${esc(c)}</label>
+      <input class="form-control form-control-sm" id="cp_add_${i}"
+        placeholder="passaporto, 2x maglietta…"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();cpQuickAdd(${i},'${jsArg(tid)}')}">
+    </div>`).join('')}
+  </div>`;
+}
+
 /* ---------- INFO DESTINAZIONE (chiave/valore) ---------- */
 function secInfo(d, tid){
   const rows = d.InfoDest||[];
@@ -2249,8 +2632,11 @@ const TIPI_DOC = ["Carta d'identità",'Passaporto','Patente'];
 
 const STATI_VIAGGIO = ['Idea','Proposta','Annullato'];
 
+const PRIORITA = ['Essenziale','Consigliato','Opzionale'];
+
 const SELECT_LISTS = {
   stato: STATI_VIAGGIO,
+  priorita: PRIORITA,
   tipo: TIPI_ATTIVITA,
   categoria_portare: CATEGORIE_PORTARE,
   tipo_doc: TIPI_DOC
