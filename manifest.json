@@ -1,0 +1,16 @@
+{
+  "name": "TripHub — Viaggi di gruppo",
+  "short_name": "TripHub",
+  "description": "Organizza viaggi di gruppo: voli, alloggi, budget e attività in un posto solo.",
+  "start_url": "./#/",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f2ede1",
+  "theme_color": "#17324d",
+  "lang": "it",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
