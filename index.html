@@ -67,7 +67,11 @@
     font-size:.62rem;letter-spacing:.15em;padding:3px 34px;text-transform:uppercase;
   }
   .stamp.done{background:var(--ok)}
-  .stamp.idea{background:var(--ink-soft)}
+  .stamp.idea,.stamp.draft{background:var(--muted)}
+  .stamp.now{background:var(--stamp)}
+  .stamp:not(.done):not(.draft):not(.idea):not(.now){background:var(--ink-soft)}
+  .trip-card.past{opacity:.72}
+  .trip-card.past:hover{opacity:1}
   /* --- Tabs --- */
   .navtabs{display:flex;gap:.35rem;flex-wrap:nowrap;overflow-x:auto;border-bottom:2px solid var(--line);padding-bottom:0;
     scrollbar-width:thin;-webkit-overflow-scrolling:touch}
@@ -502,6 +506,47 @@ async function route(){
 window.addEventListener('hashchange', route);
 
 /* ============================================================
+   STATO DEL VIAGGIO — dedotto dalle date, salvo stati manuali
+   ("idea", "proposta", "annullato") che restano quello che sono.
+   ============================================================ */
+function todayISO(){
+  const d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+const STATI_MANUALI = ['idea','propost','annull','cancell','sospe','forse'];
+
+function tripStato(t){
+  const s = String(t.stato||'').toLowerCase().trim();
+  if(STATI_MANUALI.some(k=>s.includes(k))) return { txt:s, cls:'draft', hint:'' };
+
+  const oggi = todayISO();
+  const a = toISODate(t.data_inizio), b = toISODate(t.data_fine);
+
+  if(b && b < oggi)                      return { txt:'concluso',    cls:'done', hint:'' };
+  if(a && b && a<=oggi && oggi<=b)       return { txt:'in corso',    cls:'now',
+                                                  hint: b===oggi ? 'ultimo giorno' : `finisce il ${toITDate(b)}` };
+  if(a && a > oggi){
+    const g = nightsBetween(oggi, a);
+    const hint = g===1 ? 'domani' : (g<=120 ? `tra ${g} giorni` : '');
+    return { txt:'in programma', cls:'', hint };
+  }
+  if(a && a === oggi)                    return { txt:'in corso', cls:'now', hint:'si parte oggi' };
+  if(s)                                  return { txt:s, cls: s.includes('conclus')||s.includes('fatto') ? 'done' : '', hint:'' };
+  return { txt:'senza date', cls:'draft', hint:'' };
+}
+
+function tripRank(t){
+  const c = tripStato(t).cls;
+  return c==='now' ? 0 : c==='done' ? 3 : c==='draft' ? 2 : 1;
+}
+function tripSort(a,b){
+  const ra=tripRank(a), rb=tripRank(b);
+  if(ra!==rb) return ra-rb;
+  const da=toISODate(a.data_inizio)||'zzz', db=toISODate(b.data_inizio)||'zzz';
+  return ra===3 ? db.localeCompare(da) : da.localeCompare(db);   // i conclusi dal più recente
+}
+
+/* ============================================================
    VIEW: HOME (lista viaggi + ricerca)
    ============================================================ */
 async function viewHome(){
@@ -513,22 +558,20 @@ async function viewHome(){
     if(e instanceof AuthError) return renderGate('La sessione è scaduta. Reinserisci il codice.');
     return renderError('Non riesco a caricare i viaggi', e.message, viewHome);
   }
-  const cards = trips.map(t => {
-    const stato = (t.stato||'').toLowerCase();
-    const stampCls = stato.includes('conclus')||stato.includes('fatto') ? 'done'
-                   : stato.includes('idea')||stato.includes('propost') ? 'idea' : '';
-    const stampTxt = stato ? stato : 'in programma';
-    const searchKey = [t.destinazione,t.nome,t.paese,t.stato].map(x=>String(x||'').toLowerCase()).join(' ');
+  const cards = trips.slice().sort(tripSort).map(t => {
+    const st = tripStato(t);
+    const searchKey = [t.destinazione,t.nome,t.paese,t.stato,st.txt].map(x=>String(x||'').toLowerCase()).join(' ');
     return `
     <div class="col-12 col-md-6 col-lg-4 trip-col" data-search="${esc(searchKey)}">
-      <div class="trip-card" onclick="location.hash='#/viaggio/${jsArg(t.id)}'">
-        <div class="stamp ${stampCls}">${esc(stampTxt)}</div>
+      <div class="trip-card${st.cls==='done'?' past':''}" onclick="location.hash='#/viaggio/${jsArg(t.id)}'">
+        <div class="stamp ${st.cls}">${esc(st.txt)}</div>
         <p class="eyebrow mb-1">${esc(t.paese||'')}</p>
         <div class="dest">${esc(t.destinazione||t.nome||'Senza nome')}</div>
         <div class="country mb-2">${esc(t.nome||'')}</div>
         <div class="mono" style="font-size:.72rem;color:var(--ink-soft)">
           ${t.data_inizio?toITDate(t.data_inizio):'?'} → ${t.data_fine?toITDate(t.data_fine):'?'} · ${esc(t.n_persone||'?')} pers.
         </div>
+        ${st.hint?`<div class="mono mt-1" style="font-size:.7rem;color:var(--stamp);font-weight:500">${esc(st.hint)}</div>`:''}
       </div>
     </div>`;
   }).join('');
@@ -609,6 +652,7 @@ async function viewTrip(id, section){
 // Disegna intestazione + tab + sezione, dai dati in memoria (nessuna rete)
 function renderTripShell(section){
   const trip = CURRENT_TRIP, id = trip.id;
+  const st = tripStato(trip);
   const tabs = SECTIONS.map(([k,label]) =>
     `<a href="#/viaggio/${jsArg(id)}/${k}" data-tab="${k}" class="${k===section?'active':''}">${label}</a>`
   ).join('');
@@ -616,8 +660,14 @@ function renderTripShell(section){
     <a href="#/" class="mono" style="font-size:.75rem;text-decoration:none;color:var(--muted)">← tutti i viaggi</a>
     <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mt-2 mb-3">
       <div>
-        <p class="eyebrow mb-1">${esc(trip.paese||'')} · ${trip.data_inizio?toITDate(trip.data_inizio):''} → ${trip.data_fine?toITDate(trip.data_fine):''}</p>
+        <p class="eyebrow mb-1">${esc(trip.paese||'')}</p>
         <h1 style="font-size:1.9rem;margin:0">${esc(trip.destinazione||trip.nome)}</h1>
+        <div class="d-flex align-items-center gap-1 flex-wrap mt-1">
+          <button class="quick-chip mono" onclick="editTrip(CURRENT_TRIP)" title="modifica le date">
+            ${trip.data_inizio?toITDate(trip.data_inizio):'?'} → ${trip.data_fine?toITDate(trip.data_fine):'?'} ✎</button>
+          <span class="chip${st.cls==='done'?' pick':''}">${esc(st.txt)}</span>
+          ${tripDatesChip(CURRENT_DATA)}
+        </div>
       </div>
       <div class="d-flex gap-2">
         <button class="btn btn-ghost btn-sm" onclick="editTrip(CURRENT_TRIP)">Modifica viaggio</button>
@@ -653,6 +703,83 @@ function renderSection(section){
     info:        ()=>secInfo(d, tid),
   };
   box.innerHTML = (map[section]||map.riepilogo)();
+}
+
+/* ============================================================
+   DATE DEL VIAGGIO — le date iniziali sono indicative: appena
+   scegli un volo (o, in mancanza, un alloggio) l'app propone di
+   allinearle a quelle reali con un click.
+   ============================================================ */
+function tripDatesSuggestion(d){
+  if(!d) return null;
+  let start=null, end=null, src=null;
+
+  const groups = voliGroups(d.Voli||[]);
+  Object.keys(groups).forEach(k=>{
+    const legs = groups[k];
+    if(!groupChosen(legs)) return;
+    const A = legsOfDir(legs,'Andata'), R = legsOfDir(legs,'Ritorno');
+    if(A.length){ const s = toISODate(A[0].data_part); if(s && (!start || s<start)) start = s; }
+    if(R.length){ const e = rowArrISO(R[R.length-1]); if(e && (!end || e>end)) end = e; }
+  });
+  if(start||end) src = 'i voli scelti';
+
+  if(!start && !end){
+    (d.Alloggi||[]).filter(a=>truthy(a.scelto)).forEach(a=>{
+      const s = toISODate(a.checkin), e = toISODate(a.checkout);
+      if(s && (!start || s<start)) start = s;
+      if(e && (!end   || e>end))   end   = e;
+    });
+    if(start||end) src = 'gli alloggi scelti';
+  }
+  if(!start && !end) return null;
+
+  const t  = (d.Viaggi||[])[0] || {};
+  const cs = toISODate(t.data_inizio), ce = toISODate(t.data_fine);
+  const S  = start || cs, E = end || ce;
+  return { start:S, end:E, src, diff: (S && S!==cs) || (E && E!==ce) };
+}
+
+function tripDatesBanner(d){
+  const s = tripDatesSuggestion(d);
+  if(!s || !s.diff) return '';
+  const t = (d.Viaggi||[])[0] || {};
+  return `<div class="sheet p-2 px-3 mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2"
+      style="border-color:#e0a98f;background:#fdf1ea">
+    <div style="font-size:.85rem">📅 Il viaggio è segnato
+      <span class="mono">${toITDate(t.data_inizio)||'?'} → ${toITDate(t.data_fine)||'?'}</span>,
+      ma ${esc(s.src)} dicono <strong class="mono">${toITDate(s.start)} → ${toITDate(s.end)}</strong></div>
+    <button class="btn btn-stamp btn-sm" onclick="alignTripDates('${jsArg(s.start)}','${jsArg(s.end)}')">Allinea le date</button>
+  </div>`;
+}
+
+// mostrato accanto al titolo finché non c'è un volo scelto a confermare le date
+function tripDatesChip(d){
+  const groups = voliGroups(d.Voli||[]);
+  const chosen = Object.keys(groups).filter(k=>groupChosen(groups[k]));
+  if(!chosen.length) return '<span class="chip ms-1" title="nessun volo scelto: le date possono ancora cambiare">date indicative</span>';
+  const dirs = {};
+  chosen.forEach(k=>groupDirs(groups[k]).forEach(x=>dirs[x]=true));
+  if(!dirs.Andata || !dirs.Ritorno) return '<span class="chip ms-1">date parziali</span>';
+  return '<span class="chip pick ms-1" title="date confermate dai voli scelti">✓ da volo</span>';
+}
+
+async function alignTripDates(start, end){
+  if(!CURRENT_TRIP) return;
+  const prev = { data_inizio: CURRENT_TRIP.data_inizio, data_fine: CURRENT_TRIP.data_fine };
+  const out  = { id: CURRENT_TRIP.id, data_inizio: start, data_fine: end };
+  Object.assign(CURRENT_TRIP, out);
+  if(CURRENT_DATA?.Viaggi?.[0]) Object.assign(CURRENT_DATA.Viaggi[0], out);
+  renderTripShell(currentSection());
+  try{
+    await api('update', { sheet:'Viaggi', record: out });
+    toast('Date del viaggio aggiornate ✓','ok');
+  }catch(e){
+    Object.assign(CURRENT_TRIP, prev);
+    if(CURRENT_DATA?.Viaggi?.[0]) Object.assign(CURRENT_DATA.Viaggi[0], prev);
+    renderTripShell(currentSection());
+    if(e instanceof AuthError) sessionExpired(); else toast('Errore: '+e.message,'error');
+  }
 }
 
 /* ---------- PARTECIPANTI: helper condivisi ---------- */
@@ -772,7 +899,7 @@ function secRiepilogo(d){
       </div>
     </div>`;
 
-  return `
+  return tripDatesBanner(d) + `
   <div class="row g-3 mb-1">
     <div class="col-12 col-lg-7">
       <div class="sheet p-4 h-100">
@@ -899,7 +1026,8 @@ const LABELS = {
   data_part:'data part.', data_arr:'data arr.', ora_arr:'ora arr.',
   data_nascita:'data di nascita', luogo_nascita:'luogo di nascita', tipo_doc:'tipo documento',
   num_doc:'n° documento', scadenza_doc:'scadenza documento', cod_fiscale:'codice fiscale',
-  nazionalita:'nazionalità', paganti:'paganti', chi:'chi', n_persone:'n° persone'
+  nazionalita:'nazionalità', paganti:'paganti', chi:'chi', n_persone:'n° persone',
+  stato:'stato — lascia vuoto per calcolarlo dalle date'
 };
 const lbl = k => LABELS[k] || k.replace(/_/g,' ');
 
@@ -1168,7 +1296,7 @@ function secAlloggi(rows, tid){
     ? alloggiTable(sorted)
     : `<div class="row g-3">${sorted.map(a=>alloggioCard(a)).join('')}</div>`;
 
-  return header + warn + body;
+  return header + tripDatesBanner(CURRENT_DATA) + warn + body;
 }
 
 function alloggioCard(a){
@@ -1400,7 +1528,7 @@ function secVoli(rows, tid){
     ? voliTable(groups, keys)
     : `<div class="row g-3">${keys.map(k=>voloCard(k, groups[k], groups)).join('')}</div>`;
 
-  return header + voliCoverageWarn(groups) + body;
+  return header + tripDatesBanner(CURRENT_DATA) + voliCoverageWarn(groups) + body;
 }
 
 function dirSummary(d, legs){
@@ -1814,7 +1942,10 @@ const CATEGORIE_PORTARE = [
 
 const TIPI_DOC = ["Carta d'identità",'Passaporto','Patente'];
 
+const STATI_VIAGGIO = ['Idea','Proposta','Annullato'];
+
 const SELECT_LISTS = {
+  stato: STATI_VIAGGIO,
   tipo: TIPI_ATTIVITA,
   categoria_portare: CATEGORIE_PORTARE,
   tipo_doc: TIPI_DOC
@@ -2035,7 +2166,7 @@ function editRow(sheet, record, tid){
       const opts = SELECT_LISTS[selKey];
       return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
         <select class="form-select" id="f_${f}">
-          <option value="">— scegli —</option>
+          <option value="">${f==='stato'?'— automatico dalle date —':'— scegli —'}</option>
           ${opts.map(o=>`<option value="${esc(o)}"${String(v)===o?' selected':''}>${esc(o)}</option>`).join('')}
           ${v && !opts.includes(String(v))?`<option value="${esc(v)}" selected>${esc(v)} (attuale)</option>`:''}
         </select></div>`;
