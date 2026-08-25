@@ -5,6 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TripHub — Viaggi di gruppo</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%2317324d'/%3E%3Ccircle cx='32' cy='32' r='24' fill='none' stroke='%23d1622a' stroke-width='2' stroke-dasharray='1.5 4' stroke-linecap='round'/%3E%3Cg transform='translate(32 32) rotate(-40) scale(0.62)' fill='%23f2ede1'%3E%3Cpath d='M 0 -30 C 3 -30 4.5 -24 4.5 -16 L 4.5 -8 L 30 6 L 30 12 L 4.5 4 L 4.5 16 L 12 22 L 12 26 L 0 22 L -12 26 L -12 22 L -4.5 16 L -4.5 4 L -30 12 L -30 6 L -4.5 -8 L -4.5 -16 C -4.5 -24 -3 -30 0 -30 Z'/%3E%3C/g%3E%3C/svg%3E">
+<meta name="theme-color" content="#17324d">
+<meta name="color-scheme" content="light">
+<meta name="description" content="TripHub — organizza viaggi di gruppo: voli, alloggi, budget e attività in un posto solo.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TripHub">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
+<!-- preconnect: apre le connessioni ai CDN mentre l'HTML è ancora in parsing -->
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="dns-prefetch" href="https://script.google.com">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
@@ -20,13 +33,24 @@
     --ok:       #3f7d5c;
     --danger:   #a3341f;
     --muted:    #7a6f5a;
+    --card:     #fbf8f0;
+    --card-2:   #fdfbf5;
+    --shadow:   0 8px 24px -18px rgba(23,50,77,.4);
+    --shadow-up:0 14px 30px -20px rgba(23,50,77,.55);
+    --radius:   14px;
+    --topbar-h: 52px;
   }
   *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
   body{
     background:var(--paper);
     color:var(--ink);
     font-family:'Inter',system-ui,sans-serif;
     margin:0;
+    -webkit-text-size-adjust:100%;
+    text-rendering:optimizeLegibility;
+    padding-bottom:env(safe-area-inset-bottom);
+    overflow-wrap:break-word;
     background-image:
       linear-gradient(rgba(23,50,77,.035) 1px, transparent 1px),
       linear-gradient(90deg, rgba(23,50,77,.035) 1px, transparent 1px);
@@ -35,7 +59,8 @@
   h1,h2,h3,.display{font-family:'Fraunces',Georgia,serif}
   .mono{font-family:'JetBrains Mono',monospace}
   /* --- Topbar --- */
-  .topbar{background:var(--ink);color:var(--paper);border-bottom:3px solid var(--stamp)}
+  .topbar{background:var(--ink);color:var(--paper);border-bottom:3px solid var(--stamp);
+    position:sticky;top:0;z-index:1035;padding-top:env(safe-area-inset-top)}
   .topbar .brand{
     font-family:'Fraunces',serif;font-weight:700;letter-spacing:.5px;
     font-size:1.35rem;color:var(--paper);text-decoration:none;
@@ -58,7 +83,10 @@
     transition:transform .12s ease, box-shadow .12s ease, border-color .12s;
     position:relative;overflow:hidden;
   }
-  .trip-card:hover{transform:translateY(-3px);box-shadow:0 14px 30px -20px rgba(23,50,77,.55);border-color:var(--stamp)}
+  @media (hover:hover){
+    .trip-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-up);border-color:var(--stamp)}
+  }
+  .trip-card:active{transform:translateY(-1px)}
   .trip-card .dest{font-family:'Fraunces',serif;font-weight:600;font-size:1.25rem;line-height:1.15}
   .trip-card .country{color:var(--muted);font-size:.85rem}
   .stamp{
@@ -73,14 +101,25 @@
   .trip-card.past{opacity:.72}
   .trip-card.past:hover{opacity:1}
   /* --- Tabs --- */
+  .navtabs-wrap{position:sticky;top:calc(var(--topbar-h) + env(safe-area-inset-top));z-index:1020;
+    background:var(--paper);margin:0 -12px;padding:0 12px}
+  .navtabs-wrap::after{content:'';position:absolute;right:12px;top:0;bottom:2px;width:28px;pointer-events:none;
+    background:linear-gradient(90deg,rgba(242,237,225,0),var(--paper))}
   .navtabs{display:flex;gap:.35rem;flex-wrap:nowrap;overflow-x:auto;border-bottom:2px solid var(--line);padding-bottom:0;
-    scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+    scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .navtabs::-webkit-scrollbar{display:none}
   .navtabs a{
     text-decoration:none;color:var(--ink-soft);font-weight:500;font-size:.9rem;
     padding:.5rem .85rem;border-radius:8px 8px 0 0;position:relative;top:2px;
     border:2px solid transparent;border-bottom:none;white-space:nowrap;flex:none;
+    display:inline-flex;align-items:center;gap:.35rem;transition:color .12s,background .12s;
   }
-  .navtabs a.active{background:#fbf8f0;border-color:var(--line);color:var(--ink);border-bottom:2px solid #fbf8f0}
+  .navtabs a:hover{color:var(--stamp)}
+  .navtabs a.active{background:var(--card);border-color:var(--line);color:var(--ink);border-bottom:2px solid var(--card)}
+  .tab-badge{font-family:'JetBrains Mono',monospace;font-size:.62rem;background:var(--paper-2);
+    color:var(--ink-soft);border-radius:20px;padding:.05rem .35rem;line-height:1.4}
+  .navtabs a.active .tab-badge{background:var(--paper)}
+  .tab-dot{width:6px;height:6px;border-radius:50%;background:var(--stamp);flex:none}
   /* --- Table --- */
   table.data{width:100%;border-collapse:collapse;font-size:.88rem}
   table.data th{
@@ -108,8 +147,10 @@
   .btn-ghost:hover{border-color:var(--stamp);color:var(--stamp)}
   .btn-del{background:var(--danger);border:none;color:#fff;font-weight:600}
   .btn-del:hover{background:#872a18;color:#fff}
-  .icon-btn{border:none;background:transparent;color:var(--muted);cursor:pointer;padding:.15rem .35rem;border-radius:6px}
+  .icon-btn{border:none;background:transparent;color:var(--muted);cursor:pointer;padding:.25rem .4rem;
+    border-radius:7px;min-width:32px;min-height:32px;transition:background .12s,color .12s}
   .icon-btn:hover{background:var(--paper-2);color:var(--ink)}
+  .icon-btn:active{transform:scale(.94)}
   /* --- Budget --- */
   .budget-total{font-family:'Fraunces',serif;font-weight:700;font-size:2rem;color:var(--ink)}
   .budget-line{display:flex;justify-content:space-between;padding:.5rem 0;border-bottom:1px dashed var(--line)}
@@ -123,12 +164,63 @@
   .empty{text-align:center;padding:3rem 1rem;color:var(--muted)}
   .empty .big{font-family:'Fraunces',serif;font-size:1.3rem;color:var(--ink-soft);margin-bottom:.3rem}
   .spinner-wrap{display:flex;justify-content:center;padding:3rem}
-  .toast-mini{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  .toast-mini{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom));left:50%;
+    transform:translateX(-50%) translateY(8px);
     background:var(--ink);color:var(--paper);padding:.6rem 1.1rem;border-radius:10px;
-    font-size:.85rem;z-index:2000;box-shadow:0 8px 24px -12px rgba(0,0,0,.5);opacity:0;transition:opacity .25s;pointer-events:none;max-width:90vw;text-align:center}
-  .toast-mini.show{opacity:1}
+    font-size:.85rem;z-index:2000;box-shadow:0 10px 30px -12px rgba(0,0,0,.55);opacity:0;
+    transition:opacity .22s ease, transform .22s ease;pointer-events:none;max-width:92vw;
+    display:flex;align-items:center;gap:.75rem}
+  .toast-mini.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .toast-mini.err{background:var(--danger)}
   .toast-mini.ok{background:var(--ok)}
+  .toast-mini .undo{pointer-events:auto;background:rgba(255,255,255,.16);border:none;color:#fff;
+    font-weight:600;font-size:.8rem;border-radius:7px;padding:.2rem .6rem;cursor:pointer;flex:none}
+  .toast-mini .undo:hover{background:rgba(255,255,255,.3)}
+
+  /* --- SCHELETRI DI CARICAMENTO (velocità percepita) --- */
+  .sk{background:linear-gradient(90deg,var(--paper-2) 25%,#f0e9d9 37%,var(--paper-2) 63%);
+    background-size:400% 100%;animation:skShine 1.3s ease infinite;border-radius:7px;height:.85rem}
+  @keyframes skShine{0%{background-position:100% 50%}100%{background-position:0 50%}}
+  .sk-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:1.1rem 1.2rem}
+
+  /* --- BARRA OFFLINE --- */
+  .netbar{position:fixed;left:0;right:0;bottom:0;z-index:1990;background:var(--danger);color:#fff;
+    text-align:center;font-size:.8rem;padding:.4rem calc(.6rem + env(safe-area-inset-bottom));
+    transform:translateY(110%);transition:transform .25s ease}
+  .netbar.show{transform:translateY(0)}
+
+  /* --- ACCESSIBILITÀ --- */
+  :focus-visible{outline:2px solid var(--stamp);outline-offset:2px;border-radius:4px}
+  .btn:focus-visible,.form-control:focus-visible,.form-select:focus-visible{outline-offset:1px}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+    clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  .skip-link{position:absolute;left:-9999px;top:0;background:var(--ink);color:var(--paper);
+    padding:.5rem .9rem;z-index:3000;border-radius:0 0 8px 0}
+  .skip-link:focus{left:0}
+
+  /* --- tabelle scorrevoli con indizio visivo --- */
+  .scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch;
+    background:
+      linear-gradient(90deg,var(--card) 30%,rgba(251,248,240,0)) left center/24px 100% no-repeat,
+      linear-gradient(90deg,rgba(251,248,240,0),var(--card) 70%) right center/24px 100% no-repeat,
+      radial-gradient(farthest-side at 0 50%,rgba(23,50,77,.14),transparent) left center/10px 100% no-repeat,
+      radial-gradient(farthest-side at 100% 50%,rgba(23,50,77,.14),transparent) right center/10px 100% no-repeat;
+    background-attachment:local,local,scroll,scroll}
+
+  /* --- STAMPA: il piano di viaggio su carta --- */
+  @media print{
+    @page{margin:14mm}
+    body{background:#fff !important;background-image:none !important;color:#000}
+    .topbar,.navtabs-wrap,.toast-mini,.netbar,.btn,.icon-btn,.quick-chip,.link-btn,
+    .modal,.modal-backdrop,.load-overlay,.skip-link{display:none !important}
+    #app{padding:0 !important;max-width:100% !important}
+    .sheet,.trip-card,.alg-card,.volo-card{box-shadow:none !important;border:1px solid #bbb !important;
+      break-inside:avoid;page-break-inside:avoid}
+    .row>[class*=col-]{width:50% !important;flex:0 0 50% !important;max-width:50% !important}
+    a[href^="http"]::after{content:" (" attr(href) ")";font-size:.7em;color:#555;word-break:break-all}
+    .chip{border:1px solid #999}
+    h1{font-size:20pt}
+  }
   /* overlay caricamento globale */
   .load-overlay{position:fixed;inset:0;background:rgba(242,237,225,.7);backdrop-filter:blur(2px);
     display:flex;align-items:center;justify-content:center;z-index:1900;flex-direction:column;gap:.8rem}
@@ -184,6 +276,10 @@
   .dir-edit{border-left:3px solid var(--paper-2);padding-left:.7rem}
   .dir-edit.rit{border-left-color:#cbd8e0}
   @media(max-width:640px){
+    .icon-btn{min-width:38px;min-height:38px}
+    .navtabs a{font-size:.85rem;padding:.5rem .7rem}
+    h1{font-size:1.55rem !important}
+    .budget-total{font-size:1.7rem}
     .cal-cell{min-height:58px}
     .cal-ev{font-size:.56rem}
     .cal-dow{font-size:.58rem}
@@ -196,6 +292,7 @@
 </style>
 </head>
 <body>
+<a href="#app" class="skip-link">Vai al contenuto</a>
 
 <!-- ============ TOPBAR ============ -->
 <div class="topbar py-2" id="topbar" style="display:none">
@@ -209,9 +306,10 @@
         </g>
       </svg> TripHub</a>
     <div class="d-flex align-items-center gap-2">
-      <span class="mono d-none d-sm-inline" id="syncState">pronto</span>
+      <span class="mono d-none d-sm-inline" id="syncState" role="status" aria-live="polite">pronto</span>
+      <span class="mono d-none d-md-inline" id="buildTag" style="opacity:.45" title="versione">v3.3</span>
       <div class="dropdown">
-        <button class="btn btn-sm btn-ghost dropdown-toggle" data-bs-toggle="dropdown">⋯</button>
+        <button class="btn btn-sm btn-ghost dropdown-toggle" data-bs-toggle="dropdown" aria-label="Altre azioni">⋯</button>
         <ul class="dropdown-menu dropdown-menu-end" style="background:#fbf8f0;border-color:var(--line)">
           <li><button class="dropdown-item" onclick="doExport()">⬇︎ Esporta backup (JSON)</button></li>
           <li><button class="dropdown-item" onclick="document.getElementById('importFile').click()">⬆︎ Importa backup…</button></li>
@@ -225,8 +323,9 @@
 </div>
 
 <!-- ============ APP ROOT ============ -->
-<div id="app" class="container py-4"></div>
-<div class="toast-mini" id="toast"></div>
+<main id="app" class="container py-4"></main>
+<div class="toast-mini" id="toast" role="status" aria-live="polite"></div>
+<div class="netbar" id="netbar">Sei offline — le modifiche non vengono salvate finché non torna la rete</div>
 
 <script>
 /* ============================================================
@@ -284,6 +383,38 @@ function sessionExpired(){
 }
 
 /* ============================================================
+   CACHE DI SESSIONE
+   Apps Script risponde in 1-3 secondi: tenere in memoria l'ultimo
+   payload e ridisegnarlo subito (rivalidando in sottofondo) è ciò
+   che cambia di più la sensazione di velocità. La cache conserva
+   LO STESSO oggetto usato come CURRENT_DATA, quindi ogni modifica
+   ottimistica la aggiorna senza codice extra.
+   ============================================================ */
+const TRIP_CACHE = new Map();   // viaggio_id -> oggetto "all"
+let TRIPS_CACHE = null;         // elenco viaggi
+const INFLIGHT = new Map();     // richieste già in volo, per non duplicarle
+
+function cacheTrips(list){ TRIPS_CACHE = list; }
+function invalidateTrips(){ TRIPS_CACHE = null; }
+
+// scarica il payload di un viaggio, riusando l'eventuale richiesta già partita
+function fetchTrip(id){
+  const key = 'all:'+id;
+  if(INFLIGHT.has(key)) return INFLIGHT.get(key);
+  const pr = api('all', { viaggio_id:id })
+    .then(data=>{ TRIP_CACHE.set(String(id), data); return data; })
+    .finally(()=>INFLIGHT.delete(key));
+  INFLIGHT.set(key, pr);
+  return pr;
+}
+
+// chiamata al passaggio del mouse/dito su una card: quando clicchi è già pronto
+function prefetchTrip(id){
+  if(!id || TRIP_CACHE.has(String(id))) return;
+  fetchTrip(id).catch(()=>{});
+}
+
+/* ============================================================
    STATO LOCALE — dopo ogni salvataggio aggiorniamo i dati in
    memoria e ridisegniamo SOLO la sezione corrente, senza
    rifare l'intera chiamata "all" (l'app diventa molto reattiva)
@@ -318,10 +449,14 @@ function currentSection(){
   return (m && m[1]) ? m[1] : 'riepilogo';
 }
 
-// Ridisegna la vista corrente usando i dati in memoria (nessuna chiamata rete)
+// Ridisegna la vista corrente usando i dati in memoria (nessuna chiamata rete).
+// keepScroll: ridisegnare una sezione lunga riporterebbe la pagina in cima,
+// che dopo ogni spunta è fastidioso.
 function refreshView(){
-  if(CURRENT_TRIP && /^#\/viaggio\//.test(location.hash)) renderSection(currentSection());
-  else viewHome();
+  if(CURRENT_TRIP && /^#\/viaggio\//.test(location.hash)){
+    renderSection(currentSection(), true);
+    updateTabBadges();
+  } else viewHome();
 }
 
 // Ricarica completa dal server (usata dopo import o quando serve)
@@ -343,12 +478,57 @@ const num = n => Number(String(n).replace(/[^\d.-]/g,'')) || 0;
 
 function setSync(t){ const e = $('#syncState'); if(e) e.textContent = t; }
 
-function toast(msg, type){
+function toast(msg, type, action){
   const t = $('#toast');
-  t.textContent = msg;
+  t.innerHTML = '';
+  const span = document.createElement('span');
+  span.textContent = msg;
+  t.appendChild(span);
+  let ms = type==='error' ? 3200 : 1800;
+  if(action){
+    const b = document.createElement('button');
+    b.className = 'undo'; b.type='button'; b.textContent = action.label;
+    b.onclick = ()=>{ t.classList.remove('show'); clearTimeout(t._timer); action.fn(); };
+    t.appendChild(b);
+    ms = 7000;                       // più tempo per accorgersi e annullare
+  }
   t.className = 'toast-mini show' + (type==='error'?' err':type==='ok'?' ok':'');
   clearTimeout(t._timer);
-  t._timer = setTimeout(()=>t.classList.remove('show'), type==='error'?3200:1800);
+  t._timer = setTimeout(()=>t.classList.remove('show'), ms);
+}
+
+/* ---------- SCHELETRI: struttura finta mentre arrivano i dati ---------- */
+function skeletonCards(n){
+  const one = `<div class="col-12 col-md-6 col-lg-4"><div class="sk-card">
+      <div class="sk mb-2" style="width:32%;height:.6rem"></div>
+      <div class="sk mb-2" style="width:70%;height:1.2rem"></div>
+      <div class="sk mb-3" style="width:45%"></div>
+      <div class="sk" style="width:85%;height:.7rem"></div>
+    </div></div>`;
+  return `<div class="d-flex align-items-center justify-content-between mb-3">
+      <div><div class="sk mb-2" style="width:90px;height:.6rem"></div>
+        <div class="sk" style="width:130px;height:1.6rem"></div></div>
+      <div class="sk" style="width:140px;height:2.2rem;border-radius:8px"></div>
+    </div>
+    <div class="row g-3" aria-hidden="true">${one.repeat(n||3)}</div>
+    <span class="sr-only">Caricamento in corso…</span>`;
+}
+
+function skeletonTrip(){
+  return `<div class="sk mb-3" style="width:110px;height:.7rem"></div>
+    <div class="sk mb-2" style="width:210px;height:1.9rem"></div>
+    <div class="sk mb-4" style="width:280px;height:1.1rem"></div>
+    <div class="d-flex gap-2 mb-4" aria-hidden="true">
+      ${'<div class="sk" style="width:92px;height:2rem;border-radius:8px 8px 0 0"></div>'.repeat(5)}
+    </div>
+    <div class="row g-3" aria-hidden="true">
+      <div class="col-12 col-lg-7"><div class="sk-card"><div class="sk mb-3" style="width:40%;height:.6rem"></div>
+        <div class="sk mb-3" style="width:60%;height:2rem"></div>
+        <div class="sk mb-2"></div><div class="sk mb-2"></div><div class="sk" style="width:80%"></div></div></div>
+      <div class="col-12 col-lg-5"><div class="sk-card"><div class="sk mb-3" style="width:50%;height:.6rem"></div>
+        <div class="sk mb-2"></div><div class="sk" style="width:70%"></div></div></div>
+    </div>
+    <span class="sr-only">Caricamento del viaggio…</span>`;
 }
 
 function spinner(msg){
@@ -486,6 +666,7 @@ async function doLogin(){
 function logout(){
   sessionStorage.removeItem('triphub_token'); TOKEN='';
   CURRENT_TRIP = null; CURRENT_DATA = null;
+  TRIP_CACHE.clear(); invalidateTrips();
   location.hash = '#/'; renderGate();
 }
 
@@ -551,19 +732,43 @@ function tripSort(a,b){
    ============================================================ */
 async function viewHome(){
   $('#topbar').style.display = 'block';
-  $('#app').innerHTML = spinner('carico i viaggi…');
+  document.title = 'TripHub — Viaggi';
+  CURRENT_TRIP = null; CURRENT_DATA = null;
+
+  // se abbiamo già l'elenco lo mostriamo subito, poi lo rivalidiamo in sottofondo
+  if(TRIPS_CACHE){
+    paintHome(TRIPS_CACHE);
+    api('list', { sheet:'Viaggi' }).then(fresh=>{
+      if(JSON.stringify(fresh)!==JSON.stringify(TRIPS_CACHE) && location.hash.replace('#','')==='/' ){
+        cacheTrips(fresh); paintHome(fresh);
+      } else cacheTrips(fresh);
+    }).catch(()=>{});
+    return;
+  }
+
+  $('#app').innerHTML = skeletonCards(3);
   let trips = [];
   try { trips = await api('list', { sheet:'Viaggi' }); }
   catch(e){
     if(e instanceof AuthError) return renderGate('La sessione è scaduta. Reinserisci il codice.');
     return renderError('Non riesco a caricare i viaggi', e.message, viewHome);
   }
+  cacheTrips(trips);
+  paintHome(trips);
+}
+
+function paintHome(trips){
   const cards = trips.slice().sort(tripSort).map(t => {
     const st = tripStato(t);
     const searchKey = [t.destinazione,t.nome,t.paese,t.stato,st.txt].map(x=>String(x||'').toLowerCase()).join(' ');
     return `
     <div class="col-12 col-md-6 col-lg-4 trip-col" data-search="${esc(searchKey)}">
-      <div class="trip-card${st.cls==='done'?' past':''}" onclick="location.hash='#/viaggio/${jsArg(t.id)}'">
+      <div class="trip-card${st.cls==='done'?' past':''}" role="link" tabindex="0"
+        onclick="location.hash='#/viaggio/${jsArg(t.id)}'"
+        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.hash='#/viaggio/${jsArg(t.id)}'}"
+        onmouseenter="prefetchTrip('${jsArg(t.id)}')" onfocus="prefetchTrip('${jsArg(t.id)}')"
+        ontouchstart="prefetchTrip('${jsArg(t.id)}')"
+        aria-label="${esc((t.destinazione||t.nome||'viaggio')+' — '+st.txt)}">
         <div class="stamp ${st.cls}">${esc(st.txt)}</div>
         <p class="eyebrow mb-1">${esc(t.paese||'')}</p>
         <div class="dest">${esc(t.destinazione||t.nome||'Senza nome')}</div>
@@ -578,7 +783,8 @@ async function viewHome(){
 
   const search = trips.length>3 ? `
     <input class="form-control form-control-sm search-box" id="tripSearch" type="search"
-      placeholder="🔎 cerca viaggio…" oninput="filterTrips(this.value)">` : '';
+      placeholder="🔎 cerca viaggio…  (premi /)" aria-label="Cerca tra i viaggi"
+      oninput="filterTrips(this.value)">` : '';
 
   $('#app').innerHTML = `
     <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -634,28 +840,94 @@ async function viewTrip(id, section){
     renderSection(section);
     return;
   }
-  $('#app').innerHTML = spinner('carico il viaggio…');
+  // cache-first: se il viaggio è già stato aperto (o pre-caricato al passaggio
+  // del mouse) compare all'istante, e la rete lavora in sottofondo
+  const cached = TRIP_CACHE.get(String(id));
+  if(cached && (cached.Viaggi||[])[0]){
+    mountTrip(cached, section);
+    fetchTrip(id).then(fresh=>{
+      const stillHere = CURRENT_TRIP && String(CURRENT_TRIP.id)===String(id);
+      const editing = !!document.querySelector('.modal.show');
+      if(stillHere && !editing && JSON.stringify(fresh)!==JSON.stringify(cached)){
+        mountTrip(fresh, currentSection());
+      }
+    }).catch(()=>{});
+    return;
+  }
+
+  $('#app').innerHTML = skeletonTrip();
   let all;
-  try { all = await api('all', { viaggio_id: id }); }
+  try { all = await fetchTrip(id); }
   catch(e){
     if(e instanceof AuthError) return renderGate('La sessione è scaduta. Reinserisci il codice.');
     return renderError('Non riesco a caricare il viaggio', e.message, ()=>viewTrip(id, section));
   }
+  if(!(all.Viaggi||[])[0]){
+    $('#app').innerHTML = `<div class="sheet empty"><div class="big">Viaggio non trovato</div><a href="#/">← torna ai viaggi</a></div>`;
+    return;
+  }
+  mountTrip(all, section);
+}
+
+function mountTrip(all, section){
   const trip = (all.Viaggi||[])[0];
-  if(!trip){ $('#app').innerHTML = `<div class="sheet empty"><div class="big">Viaggio non trovato</div><a href="#/">← torna ai viaggi</a></div>`; return; }
-  // reset del mese calendario se è cambiato viaggio
+  // reset delle viste locali se è cambiato viaggio
   if(!CURRENT_TRIP || CURRENT_TRIP.id !== trip.id){ CDF_MONTH = null; CDF_VIEW = 'lista'; VOLI_VIEW = 'schede'; ALG_VIEW = 'schede'; }
   CURRENT_TRIP = trip; CURRENT_DATA = all;
+  TRIP_CACHE.set(String(trip.id), all);
+  document.title = (trip.destinazione||trip.nome||'Viaggio') + ' — TripHub';
   renderTripShell(section);
+}
+
+/* Contatori e avvisi sulle linguette: da qui si capisce a colpo d'occhio
+   quanto c'è dentro ogni sezione e cosa manca ancora. */
+function tabBadge(k, d){
+  const len = a => (a||[]).length;
+  if(k==='partecipanti') return { n: len(d.Partecipanti) };
+  if(k==='alloggi'){
+    const tot = len(d.Alloggi), sel = (d.Alloggi||[]).filter(a=>truthy(a.scelto)).length;
+    return { n: tot, warn: tot>0 && !sel };
+  }
+  if(k==='voli'){
+    const g = voliGroups(d.Voli||[]), keys = Object.keys(g);
+    const sel = keys.filter(x=>groupChosen(g[x])).length;
+    return { n: keys.length, warn: keys.length>0 && !sel };
+  }
+  if(k==='spese')      return { n: len(d.Spese) };
+  if(k==='cosedafare') return { n: len(d.CoseDaFare) };
+  if(k==='cosaportare'){
+    const rows = d.CosaPortare||[];
+    if(!rows.length) return { n:0 };
+    const done = rows.filter(r=>truthy(r.spuntato)).length;
+    return { n: `${done}/${rows.length}`, done: done===rows.length };
+  }
+  if(k==='contatti') return { n: len(d.Contatti) };
+  if(k==='info')     return { n: len(d.InfoDest) };
+  return { n:0 };
+}
+
+function tabsHtml(section){
+  const id = CURRENT_TRIP.id, d = CURRENT_DATA || {};
+  return SECTIONS.map(([k,label])=>{
+    const b = tabBadge(k, d);
+    const badge = b.n ? `<span class="tab-badge">${esc(b.n)}</span>` : '';
+    const dot   = b.warn ? `<span class="tab-dot" title="niente di scelto"></span>` : '';
+    const on = k===section;
+    return `<a href="#/viaggio/${jsArg(id)}/${k}" data-tab="${k}" class="${on?'active':''}"
+      ${on?'aria-current="page"':''}>${label}${badge}${dot}</a>`;
+  }).join('');
+}
+
+function updateTabBadges(){
+  const box = $('#navtabs');
+  if(box && CURRENT_TRIP) box.innerHTML = tabsHtml(currentSection());
 }
 
 // Disegna intestazione + tab + sezione, dai dati in memoria (nessuna rete)
 function renderTripShell(section){
   const trip = CURRENT_TRIP, id = trip.id;
   const st = tripStato(trip);
-  const tabs = SECTIONS.map(([k,label]) =>
-    `<a href="#/viaggio/${jsArg(id)}/${k}" data-tab="${k}" class="${k===section?'active':''}">${label}</a>`
-  ).join('');
+  const tabs = tabsHtml(section);
   $('#app').innerHTML = `
     <a href="#/" class="mono" style="font-size:.75rem;text-decoration:none;color:var(--muted)">← tutti i viaggi</a>
     <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mt-2 mb-3">
@@ -674,7 +946,7 @@ function renderTripShell(section){
         <button class="btn btn-ghost btn-sm" style="color:var(--danger);border-color:#e0b3a8" onclick="delTrip()">Elimina</button>
       </div>
     </div>
-    <div class="navtabs mb-3">${tabs}</div>
+    <div class="navtabs-wrap mb-3"><nav class="navtabs" id="navtabs" aria-label="Sezioni del viaggio">${tabs}</nav></div>
     <div id="section"></div>
   `;
   renderSection(section);
@@ -682,13 +954,21 @@ function renderTripShell(section){
 
 function setActiveTab(section){
   document.querySelectorAll('.navtabs a').forEach(a=>{
-    a.classList.toggle('active', a.getAttribute('data-tab')===section);
+    const on = a.getAttribute('data-tab')===section;
+    a.classList.toggle('active', on);
+    if(on){
+      a.setAttribute('aria-current','page');
+      // porta la linguetta attiva dentro la vista sulla barra scorrevole del telefono
+      if(a.scrollIntoView) try{ a.scrollIntoView({block:'nearest',inline:'nearest'}); }catch(_){}
+    }
+    else a.removeAttribute('aria-current');
   });
 }
 
-function renderSection(section){
+function renderSection(section, keepScroll){
   const box = $('#section');
   if(!box) return;
+  const y = keepScroll ? window.scrollY : 0;
   setActiveTab(section);
   const d = CURRENT_DATA, tid = CURRENT_TRIP.id;
   const map = {
@@ -703,6 +983,7 @@ function renderSection(section){
     info:        ()=>secInfo(d, tid),
   };
   box.innerHTML = (map[section]||map.riepilogo)();
+  if(keepScroll) window.scrollTo(0, y);
 }
 
 /* ============================================================
@@ -773,6 +1054,7 @@ async function alignTripDates(start, end){
   renderTripShell(currentSection());
   try{
     await api('update', { sheet:'Viaggi', record: out });
+    invalidateTrips();
     toast('Date del viaggio aggiornate ✓','ok');
   }catch(e){
     Object.assign(CURRENT_TRIP, prev);
@@ -1087,7 +1369,7 @@ function secTable(sheet, rows, tid){
       <p class="eyebrow mb-0">${rows.length} voci</p>
       <button class="btn btn-stamp btn-sm" onclick="editRow('${jsArg(sheet)}', null, '${jsArg(tid)}')">+ Aggiungi</button>
     </div>
-    <div class="sheet p-2 p-md-3" style="overflow-x:auto">
+    <div class="sheet p-2 p-md-3 scroll-x">
       ${rows.length ? `<table class="data"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`
         : `<div class="empty"><div class="big">Ancora niente qui</div><div>Aggiungi la prima voce.</div></div>`}
     </div>`;
@@ -1097,7 +1379,9 @@ function cell(sheet, col, val, rowId){
   if(BOOL_FIELDS.includes(col)){
     const on = truthy(val);
     const toggleAttr = QUICK_TOGGLE.includes(col) && rowId
-      ? ` onclick="toggleBool('${jsArg(sheet)}','${jsArg(rowId)}','${jsArg(col)}',event)" title="clicca per cambiare"` : '';
+      ? ` onclick="toggleBool('${jsArg(sheet)}','${jsArg(rowId)}','${jsArg(col)}',event)"`
+        + ` onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleBool('${jsArg(sheet)}','${jsArg(rowId)}','${jsArg(col)}',event)}"`
+        + ` role="button" tabindex="0" aria-pressed="${on?'true':'false'}" title="clicca per cambiare"` : '';
     const cls = toggleAttr ? ' toggle' : '';
     if(col==='scelto' && on) return `<span class="chip pick${cls}"${toggleAttr}>✓ scelto</span>`;
     return on ? `<span class="chip pick${cls}"${toggleAttr}>✓</span>` : `<span class="chip${cls}"${toggleAttr}>–</span>`;
@@ -1116,21 +1400,35 @@ function cell(sheet, col, val, rowId){
   return esc(val);
 }
 
-// Toggle rapido di un booleano: salva subito, aggiorna in locale (ottimistico)
+/* Toggle rapido di un booleano.
+   Su una lista lunga (la spesa "cosa portare" può avere 60 voci) ridisegnare
+   tutta la sezione a ogni spunta costa e fa sfarfallare la pagina: qui si
+   ridipinge solo il chip cliccato, e si aggiornano i contatori dei tab. */
+function paintBoolChip(el, sheet, col, on){
+  if(!el) return;
+  el.className = 'chip toggle' + (on ? ' pick' : '');
+  el.textContent = (col==='scelto' && on) ? '✓ scelto' : (on ? '✓' : '–');
+  el.setAttribute('aria-pressed', on ? 'true' : 'false');
+}
+
 async function toggleBool(sheet, id, field, ev){
   if(ev) ev.stopPropagation();
   const r = findRow(sheet, id);
   if(!r) return;
+  const el = ev && ev.currentTarget;
   const prev = r[field];
   const next = truthy(prev) ? '' : 'Sì';
-  r[field] = next;                 // ottimistico: UI subito aggiornata
-  refreshView();
+  r[field] = next;
+
+  // "scelto" cambia budget e riepiloghi: lì serve il ridisegno completo
+  const heavy = (field === 'scelto');
+  if(heavy) refreshView(); else { paintBoolChip(el, sheet, field, truthy(next)); updateTabBadges(); }
+
   try {
     await api('update', { sheet, record: { id, viaggio_id: r.viaggio_id, [field]: next } });
-    toast('Salvato ✓','ok');
   } catch(e){
-    r[field] = prev;               // rollback
-    refreshView();
+    r[field] = prev;
+    if(heavy) refreshView(); else { paintBoolChip(el, sheet, field, truthy(prev)); updateTabBadges(); }
     if(e instanceof AuthError) sessionExpired();
     else toast('Errore: '+e.message,'error');
   }
@@ -1184,7 +1482,7 @@ function secSpese(d, tid){
       <p class="eyebrow mb-0">spese extra oltre a voli/alloggio</p>
       <button class="btn btn-stamp btn-sm" onclick="editRow('Spese', null, '${jsArg(tid)}')">+ Aggiungi spesa</button>
     </div>
-    <div class="sheet p-2 p-md-3 mb-3" style="overflow-x:auto">
+    <div class="sheet p-2 p-md-3 mb-3 scroll-x">
       ${rows.length?`<table class="data">
         <thead><tr>${head}</tr></thead>
         <tbody>${body}</tbody>
@@ -1362,7 +1660,7 @@ function alloggiTable(rows){
         <button class="icon-btn" onclick="delRow('Alloggi','${jsArg(a.id)}')">🗑</button></td>
     </tr>`;
   }).join('');
-  return `<div class="sheet p-2 p-md-3" style="overflow-x:auto">
+  return `<div class="sheet p-2 p-md-3 scroll-x">
     <table class="data"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
@@ -1612,7 +1910,7 @@ function voliTable(groups, keys){
         <button class="icon-btn" onclick="delVolo('${jsArg(k)}')">🗑</button></td>
     </tr>`;
   }).join('');
-  return `<div class="sheet p-2 p-md-3" style="overflow-x:auto"><table class="data">
+  return `<div class="sheet p-2 p-md-3 scroll-x"><table class="data">
     <thead><tr><th>opz.</th><th>andata</th><th>ritorno</th><th>totale</th><th>a testa</th><th>scelta</th><th></th></tr></thead>
     <tbody>${body}</tbody></table></div>`;
 }
@@ -1645,11 +1943,18 @@ async function delVolo(key){
   const legs = voliGroups(CURRENT_DATA?.Voli||[])[key];
   if(!legs) return;
   if(!await askConfirm('Eliminare questa opzione di volo (tutte le sue tratte)?', true)) return;
+  const snapshot = legs.map(l=>Object.assign({}, l));
   try{
     await api('delete_group', { sheet:'Voli', gruppo_id:key, ids: legs.map(l=>l.id) });
     CURRENT_DATA.Voli = (CURRENT_DATA.Voli||[]).filter(r=>String(r.gruppo_id||r.id)!==String(key));
-    toast('Volo eliminato','ok');
     refreshView();
+    toast('Volo eliminato','ok', { label:'Annulla', fn: async ()=>{
+      try{
+        const saved = await api('create_many', { sheet:'Voli', records: snapshot });
+        CURRENT_DATA.Voli = (CURRENT_DATA.Voli||[]).concat(saved);
+        refreshView(); toast('Ripristinato ✓','ok');
+      }catch(err){ toast('Non sono riuscito a ripristinare: '+err.message,'error'); }
+    }});
   }catch(e){ if(e instanceof AuthError) sessionExpired(); else toast('Errore: '+e.message,'error'); }
 }
 
@@ -2100,11 +2405,12 @@ function ensureModal(){
   if(MODAL) return MODAL;
   const el = document.createElement('div');
   el.className='modal fade'; el.id='editModal'; el.tabIndex=-1;
+  el.setAttribute('aria-labelledby','mTitle');
   el.innerHTML=`<div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg modal-fullscreen-sm-down">
-    <div class="modal-content" style="background:#fbf8f0;border:1px solid var(--line);border-radius:14px">
+    <div class="modal-content" style="background:var(--card);border:1px solid var(--line);border-radius:var(--radius)">
       <div class="modal-header" style="border-bottom:1px solid var(--line)">
         <h5 class="modal-title" id="mTitle" style="font-family:'Fraunces',serif"></h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
       </div>
       <div class="modal-body" id="mBody"></div>
       <div class="modal-footer" style="border-top:1px solid var(--line)">
@@ -2283,6 +2589,7 @@ function editTrip(trip){
     });
     if(trip?.id){
       await api('update',{sheet:'Viaggi',record:out});
+      invalidateTrips();
       MODAL.hide(); toast('Salvato ✓','ok');
       if(CURRENT_TRIP && trip.id===CURRENT_TRIP.id){
         // aggiorna in memoria e ridisegna intestazione + sezione, senza rifetch
@@ -2292,6 +2599,7 @@ function editTrip(trip){
       } else viewHome();
     } else {
       const saved = await api('create',{sheet:'Viaggi',record:out});
+      invalidateTrips();
       MODAL.hide(); toast('Viaggio creato ✓','ok');
       location.hash = '#/viaggio/'+saved.id;    // apri subito il nuovo viaggio
     }
@@ -2306,6 +2614,7 @@ async function delTrip(){
   showOverlay('Elimino il viaggio…');
   try{
     await api('delete_trip', { id: CURRENT_TRIP.id });
+    TRIP_CACHE.delete(String(CURRENT_TRIP.id)); invalidateTrips();
     hideOverlay();
     toast('Viaggio eliminato','ok');
     CURRENT_TRIP = null; CURRENT_DATA = null;
@@ -2317,15 +2626,31 @@ async function delTrip(){
   }
 }
 
+/* Eliminazione con possibilità di annullare.
+   Il backend riusa l'id che gli passiamo, quindi il ripristino rimette la riga
+   identica a prima: niente riferimenti rotti altrove. */
 async function delRow(sheet, id){
   if(!await askConfirm('Eliminare questa voce?', true)) return;
+  const snapshot = Object.assign({}, findRow(sheet, id) || {});
   try{
     await api('delete',{sheet,id});
     applyLocal(sheet, 'delete', id);
-    toast('Eliminato','ok');
     refreshView();
+    toast('Eliminato', 'ok', snapshot.id ? { label:'Annulla', fn:()=>undoDelRow(sheet, snapshot) } : null);
   }
   catch(e){ if(e instanceof AuthError) sessionExpired(); else toast('Errore: '+e.message,'error'); }
+}
+
+async function undoDelRow(sheet, rec){
+  try{
+    const saved = await api('create', { sheet, record: rec });
+    applyLocal(sheet, 'create', saved);
+    refreshView();
+    toast('Ripristinato ✓','ok');
+  }catch(e){
+    if(e instanceof AuthError) sessionExpired();
+    else toast('Non sono riuscito a ripristinare: '+e.message,'error');
+  }
 }
 
 /* ============================================================
@@ -3063,6 +3388,7 @@ async function doImport(input){
   showOverlay('Importo il backup…');
   try{
     const report = await api('import', { payload, mode });
+    TRIP_CACHE.clear(); invalidateTrips();
     hideOverlay();
     const tot = Object.values(report).reduce((s,n)=>s+(Number(n)||0),0);
     toast(`Import completato: ${tot} righe`,'ok');
@@ -3088,6 +3414,55 @@ function showOverlay(msg){
 function hideOverlay(){ const ov=$('#loadOverlay'); if(ov) ov.style.display='none'; }
 
 /* ============================================================
+   SCORCIATOIE DA TASTIERA
+   Restano zitte se stai scrivendo in un campo o se c'è una finestra
+   aperta, così non intralciano mai l'inserimento dati.
+   ============================================================ */
+let WIRED = false;
+function initKeyboard(){
+  if(WIRED) return; WIRED = true;
+  document.addEventListener('keydown', e=>{
+    if(e.metaKey || e.ctrlKey || e.altKey) return;
+    const t = e.target;
+    if(t && (t.tagName==='INPUT' || t.tagName==='TEXTAREA' || t.tagName==='SELECT' || t.isContentEditable)) return;
+    if(document.querySelector('.modal.show')) return;
+
+    if(e.key === '/'){
+      const box = $('#tripSearch');
+      if(box){ e.preventDefault(); box.focus(); box.select(); }
+      return;
+    }
+    if(e.key === 'Escape' && $('#tripSearch') && $('#tripSearch').value){
+      $('#tripSearch').value=''; filterTrips(''); return;
+    }
+    // 1-9 saltano fra le sezioni del viaggio aperto
+    if(/^[1-9]$/.test(e.key) && CURRENT_TRIP && /^#\/viaggio\//.test(location.hash)){
+      const sec = SECTIONS[Number(e.key)-1];
+      if(sec){ e.preventDefault(); location.hash = `#/viaggio/${CURRENT_TRIP.id}/${sec[0]}`; }
+    }
+  });
+}
+
+/* ============================================================
+   STATO DELLA RETE
+   ============================================================ */
+let NET_WIRED = false;
+function initNetwork(){
+  const bar = $('#netbar');
+  if(NET_WIRED){ bar.classList.toggle('show', !navigator.onLine); return; }
+  NET_WIRED = true;
+  const paint = ()=>{
+    const off = !navigator.onLine;
+    bar.classList.toggle('show', off);
+    if(off) setSync('offline');
+    else if($('#syncState') && $('#syncState').textContent==='offline') setSync('pronto');
+  };
+  window.addEventListener('online', ()=>{ paint(); toast('Connessione ripristinata','ok'); });
+  window.addEventListener('offline', paint);
+  paint();
+}
+
+/* ============================================================
    BOOT
    ============================================================ */
 function boot(){
@@ -3096,6 +3471,8 @@ function boot(){
       <p>Apri <code>index.html</code> e incolla l'URL della Web App in <code>API_URL</code>.</p></div>`;
     return;
   }
+  initKeyboard();
+  initNetwork();
   if(!TOKEN) renderGate(); else route();
 }
 document.addEventListener('DOMContentLoaded', boot);
