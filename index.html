@@ -1546,7 +1546,7 @@ function secPartecipanti(rows, tid){
             <span class="mono" style="font-size:.72rem" data-doc="${esc(p.cod_fiscale)}">${esc(maskDoc(p.cod_fiscale))}</span>
             <button class="link-btn" type="button" onclick="revealDoc(this)">mostra</button></div>`:''}
           ${(p.telefono||p.email)?`<div style="font-size:.78rem;color:var(--ink-soft);margin-top:.3rem">
-            ${p.telefono?`<a href="tel:${esc(String(p.telefono).replace(/\s/g,''))}">${esc(p.telefono)}</a>`:''}${p.telefono&&p.email?' · ':''}${p.email?`<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>`:''}</div>`:''}
+            ${telHref(p.telefono)?`<a href="${esc(telHref(p.telefono))}">${esc(p.telefono)}</a>`:esc(p.telefono||'')}${p.telefono&&p.email?' · ':''}${p.email?`<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>`:''}</div>`:''}
           ${p.note?`<div style="font-size:.76rem;color:var(--muted);margin-top:.3rem">${esc(p.note)}</div>`:''}
         </div>
       </div>
@@ -1686,7 +1686,7 @@ function cell(sheet, col, val, rowId){
   }
   if(col==='telefono'){
     const v = String(val||'').trim();
-    return v ? `<a href="tel:${esc(v.replace(/\s/g,''))}">${esc(v)}</a>` : '<span class="chip">–</span>';
+    return telHref(v) ? `<a href="${esc(telHref(v))}">${esc(v)}</a>` : (v ? esc(v) : '<span class="chip">–</span>');
   }
   if(col==='pnr') return codeChip('cod.', val) || '<span class="chip">–</span>';
   if(CUR_FIELDS.includes(col)) return `<span class="mono">${eur(val)}</span>`;
@@ -3115,12 +3115,19 @@ const CNT_ICONS = {
 const cntIcon = c => CNT_ICONS[String(c||'').trim()] || '📌';
 let CNT_FILTER = '';
 
+// Normalizza un numero: tiene solo cifre e un "+" in testa, e traduce
+// il prefisso internazionale "00" in "+" (così WhatsApp funziona comunque).
+function telDigits(v){
+  let s = String(v==null?'':v).trim().replace(/[^\d+]/g,'').replace(/(?!^)\+/g,'');
+  if(/^00\d/.test(s)) s = '+' + s.slice(2);
+  return s;
+}
 function telHref(v){
-  const s = String(v||'').replace(/[^\d+]/g,'');
+  const s = telDigits(v);
   return s.length>=3 ? 'tel:'+s : '';
 }
 function waHref(v){
-  const s = String(v||'').replace(/[^\d+]/g,'');
+  const s = telDigits(v);
   return /^\+\d{8,}$/.test(s) ? 'https://wa.me/'+s.slice(1) : '';
 }
 
@@ -3257,6 +3264,10 @@ function editContatto(record, tid){
       : '';
   };
   $('#c_telefono').addEventListener('input', hint); hint();
+  $('#c_telefono').addEventListener('blur', ()=>{
+    const el = $('#c_telefono'), v = el.value.trim();
+    if(/^00\d/.test(v.replace(/\s/g,''))){ el.value = '+' + v.replace(/^\s*00/,''); hint(); }
+  });
   $('#c_indirizzo').addEventListener('input', ()=>{
     const v = $('#c_indirizzo').value.trim();
     if(isUrl(v)){ $('#c_mappa_link').value = v; $('#c_indirizzo').value=''; toast('Link spostato nel campo mappa ✓','ok'); }
