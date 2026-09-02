@@ -263,6 +263,7 @@
     background:var(--card-2);height:100%}
   .tpl-card:hover{border-color:var(--stamp)}
   .tpl-card.on{border-color:var(--ok);background:#f1f6f2}
+  .tpl-card.disabled{opacity:.5;cursor:not-allowed}
   .tpl-name{font-weight:600;font-size:.9rem}
   .tpl-list{font-size:.72rem;color:var(--muted);line-height:1.35}
   @media(max-width:640px){
@@ -394,6 +395,42 @@
   .leg-time.arr{text-align:right}
   .leg-mid{flex:1;min-width:0;font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .leg-sub{color:var(--muted);font-size:.74rem;margin-left:.35rem}
+  .tz-chip{display:inline-block;font-size:.66rem;font-weight:600;letter-spacing:.02em;
+    padding:.05rem .32rem;border:1px solid var(--line);border-radius:.5rem;
+    background:var(--paper-2);color:var(--stamp);vertical-align:.08em}
+  .leg-dur{font-size:.7rem;color:var(--muted);margin-top:.3rem}
+
+  /* --- Contatti --- */
+  .cnt-card{display:flex;gap:.7rem;align-items:flex-start;padding:.6rem .2rem;
+    border-bottom:1px solid var(--line)}
+  .cnt-card:last-child{border-bottom:0}
+  .cnt-ico{width:2rem;height:2rem;flex:0 0 2rem;border-radius:.55rem;display:grid;place-items:center;
+    background:var(--paper-2);border:1px solid var(--line);font-size:1rem}
+  .cnt-body{flex:1;min-width:0}
+  .cnt-name{font-weight:600;line-height:1.25}
+  .cnt-meta{font-size:.75rem;color:var(--muted);line-height:1.5;word-break:break-word}
+  .cnt-actions{display:flex;gap:.15rem;flex-wrap:wrap;margin-top:.25rem}
+  .cnt-act{display:inline-flex;align-items:center;gap:.22rem;font-size:.74rem;text-decoration:none;
+    padding:.12rem .42rem;border:1px solid var(--line);border-radius:.5rem;
+    background:var(--paper-2);color:var(--ink)}
+  .cnt-act:hover{border-color:var(--stamp);color:var(--stamp)}
+  .cnt-sos .cnt-ico{background:#fdecec;border-color:var(--danger)}
+  .cnt-sos .cnt-name{color:var(--danger)}
+  .filter-chip{font-size:.74rem;padding:.16rem .55rem;border:1px solid var(--line);border-radius:1rem;
+    background:var(--paper-2);cursor:pointer;color:var(--ink-soft)}
+  .filter-chip.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
+  /* --- Info destinazione --- */
+  .inf-row{display:flex;gap:.6rem;align-items:baseline;padding:.4rem 0;border-bottom:1px solid var(--line)}
+  .inf-row:last-child{border-bottom:0}
+  .inf-key{flex:0 0 40%;font-weight:600;font-size:.85rem}
+  .inf-val{flex:1;min-width:0;font-size:.88rem;cursor:text;border-radius:.35rem;
+    padding:.05rem .25rem;margin:-.05rem -.25rem;word-break:break-word}
+  .inf-val:hover{background:var(--paper-2);outline:1px dashed var(--line)}
+  .inf-val.vuoto{color:var(--muted);font-style:italic}
+  .inf-val input{width:100%;font:inherit;border:1px solid var(--stamp);border-radius:.35rem;
+    padding:.1rem .3rem;background:var(--paper)}
+  @media (max-width:575px){ .inf-row{flex-direction:column;gap:.1rem} .inf-key{flex:none} }
   .scalo-row{font-size:.7rem;color:var(--stamp);padding-left:3.6rem;line-height:1.4}
   .scalo-pill{font-size:.72rem;color:var(--stamp);margin:.15rem 0 .4rem .3rem;font-family:'JetBrains Mono',monospace}
   .dir-edit{border-left:3px solid var(--paper-2);padding-left:.7rem}
@@ -1215,7 +1252,7 @@ function renderSection(section, keepScroll){
     spese:       ()=>secSpese(d, tid),
     cosedafare:  ()=>secCoseDaFare(d.CoseDaFare, tid),
     cosaportare: ()=>secCosaPortare(d.CosaPortare, tid),
-    contatti:    ()=>secTable('Contatti', d.Contatti, tid),
+    contatti:    ()=>secContatti(d.Contatti, tid),
     info:        ()=>secInfo(d, tid),
   };
   box.innerHTML = (map[section]||map.riepilogo)();
@@ -2040,11 +2077,73 @@ function nextOpz(){
   return max+1;
 }
 
-/* -- date/ore su righe già salvate -- */
-function dtOf(dateRaw, timeRaw){
+/* -- date/ore su righe già salvate --
+   Gli orari dei voli sono SEMPRE ora locale dell'aeroporto: sommarli
+   così com'erano dava durate sbagliate di un'ora o più su ogni tratta
+   internazionale. Ora ogni orario viene convertito nell'istante UTC
+   reale usando il fuso dell'aeroporto, e la durata torna quella vera. */
+const TZ_CACHE = {};
+function iataOf(v){
+  const m = String(v||'').trim().toUpperCase().match(/^([A-Z]{3})\b/);
+  return m ? m[1] : '';
+}
+function tzOf(place){
+  const c = iataOf(place);
+  return c ? (AIRPORT_TZ[c] || '') : '';
+}
+// scarto dall'UTC (minuti) di una zona in un dato istante — tiene conto dell'ora legale
+function tzOffsetMin(tz, ms){
+  const key = tz + '|' + Math.floor(ms/3600000);
+  if(TZ_CACHE[key] != null) return TZ_CACHE[key];
+  let off = 0;
+  try{
+    const p = {};
+    new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour12:false,
+      year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })
+      .formatToParts(new Date(ms)).forEach(x=>{ p[x.type] = x.value; });
+    const asUTC = Date.UTC(+p.year, +p.month-1, +p.day, (+p.hour)%24, +p.minute);
+    off = Math.round((asUTC - Math.floor(ms/60000)*60000) / 60000);
+  }catch(e){ off = 0; }
+  TZ_CACHE[key] = off;
+  return off;
+}
+// istante UTC di un orario "da parete" letto in una certa zona
+function zonedTs(iso, hm, tz){
+  const [y,m,d]  = iso.split('-').map(Number);
+  const [hh,mi]  = String(hm||'00:00').split(':').map(Number);
+  const naive = Date.UTC(y, m-1, d, hh||0, mi||0);
+  const off1 = tzOffsetMin(tz, naive);
+  const ts   = naive - off1*60000;
+  const off2 = tzOffsetMin(tz, ts);        // secondo giro: cambio d'ora legale
+  return off2===off1 ? ts : naive - off2*60000;
+}
+function dtOf(dateRaw, timeRaw, place){
   const iso = toISODate(dateRaw);
   if(!iso) return null;
-  return new Date(iso+'T'+(toHM(timeRaw)||'00:00')+':00');
+  const hm = toHM(timeRaw) || '00:00';
+  const tz = place ? tzOf(place) : '';
+  return tz ? new Date(zonedTs(iso, hm, tz)) : new Date(iso+'T'+hm+':00');
+}
+// differenza di fuso fra due aeroporti in una data (minuti, 0 se ignota)
+function tzDiffMin(fromPlace, toPlace, iso){
+  const a = tzOf(fromPlace), b = tzOf(toPlace);
+  if(!a || !b || a===b) return 0;
+  const ms = iso ? Date.parse(iso+'T12:00:00Z') : Date.now();
+  return tzOffsetMin(b, ms) - tzOffsetMin(a, ms);
+}
+function fmtTzDiff(m){
+  if(!m) return '';
+  const a = Math.abs(m), h = Math.floor(a/60), mm = a%60;
+  return (m>0?'+':'−') + h + (mm?':'+String(mm).padStart(2,'0'):'') + 'h';
+}
+// aeroporti citati di cui non conosciamo il fuso (per avvisare invece di mentire)
+function tzUnknown(places){
+  const out = [];
+  (places||[]).forEach(p=>{
+    const c = iataOf(p);
+    if(String(p||'').trim() && !tzOf(p) && !out.includes(c||String(p).trim())) out.push(c||String(p).trim());
+  });
+  return out;
 }
 function minsBetween(a,b){ if(!a||!b) return null; return Math.round((b-a)/60000); }
 function fmtDur(m){
@@ -2054,13 +2153,23 @@ function fmtDur(m){
   return (h?h+'h ':'') + (mm?mm+'m':(h?'':'0m'));
 }
 function rowArrISO(l){ return toISODate(l.data_arr) || toISODate(l.data_part); }
+function legDuration(l){
+  return minsBetween(dtOf(l.data_part, l.ora_part, l.da), dtOf(rowArrISO(l), l.ora_arr, l.a));
+}
 function dirDuration(legs){
   if(!legs || !legs.length) return null;
   const L = legs[legs.length-1];
-  return minsBetween(dtOf(legs[0].data_part, legs[0].ora_part), dtOf(rowArrISO(L), L.ora_arr));
+  return minsBetween(dtOf(legs[0].data_part, legs[0].ora_part, legs[0].da),
+                     dtOf(rowArrISO(L), L.ora_arr, L.a));
 }
 function rowScaloMins(prev, next){
-  return minsBetween(dtOf(rowArrISO(prev), prev.ora_arr), dtOf(next.data_part, next.ora_part));
+  // stesso aeroporto, quindi stesso fuso: passiamo comunque il codice
+  return minsBetween(dtOf(rowArrISO(prev), prev.ora_arr, prev.a),
+                     dtOf(next.data_part, next.ora_part, next.da));
+}
+function dirTzDiff(legs){
+  if(!legs || !legs.length) return 0;
+  return tzDiffMin(legs[0].da, legs[legs.length-1].a, toISODate(legs[0].data_part));
 }
 function arrDayShift(l){
   const p = toISODate(l.data_part), a = toISODate(l.data_arr);
@@ -2120,20 +2229,22 @@ function dirSummary(d, legs){
   const first = legs[0];
   const dur = fmtDur(dirDuration(legs));
   const scali = legs.length-1;
+  const tzd = dirTzDiff(legs);
   const detail = legs.map((l,i)=>{
     const pre = i>0
       ? `<div class="scalo-row">↳ scalo a ${esc(l.da||'?')}${(()=>{const m=rowScaloMins(legs[i-1],l);return m!=null?` · <strong${m<45&&m>=0?' style="color:var(--danger)"':''}>${fmtDur(m)}</strong>`:(l.scalo?` · ${esc(l.scalo)}`:'');})()}</div>`
       : '';
+    const ld = fmtDur(legDuration(l));
     return pre + `<div class="leg-row">
       <span class="mono leg-time">${esc(toHM(l.ora_part)||'--:--')}</span>
       <span class="leg-mid"><strong>${esc(l.da||'?')} → ${esc(l.a||'?')}</strong>
-        <span class="leg-sub">${esc(l.compagnia||'')} ${esc(l.n_volo||'')}</span></span>
+        <span class="leg-sub">${esc(l.compagnia||'')} ${esc(l.n_volo||'')}${ld?` · ${ld}`:''}</span></span>
       <span class="mono leg-time arr">${esc(toHM(l.ora_arr)||'--:--')}${arrDayShift(l)?'<sup>+1</sup>':''}</span>
     </div>`;
   }).join('');
   return `<div class="dir-block">
     <div class="dir-head">
-      <span>${d==='Ritorno'?'🛬':'🛫'} ${d}</span>
+      <span>${d==='Ritorno'?'🛬':'🛫'} ${d}${tzd?` <span class="tz-chip" title="A destinazione l'orologio va spostato di ${esc(fmtTzDiff(tzd))}">🕓 ${esc(fmtTzDiff(tzd))}</span>`:''}</span>
       <span class="mono">${toITDate(first.data_part)}${dur?` · ${dur}`:''} · ${scali?scali+' scalo'+(scali>1?'i':''):'diretto'}</span>
     </div>${detail}</div>`;
 }
@@ -2988,30 +3099,462 @@ function cpTemplateModal(tid){
   MODAL.show();
 }
 
-/* ---------- INFO DESTINAZIONE (chiave/valore) ---------- */
+/* ============================================================
+   CONTATTI — la rubrica del viaggio: numeri che devono essere
+   raggiungibili in un tocco, non righe di tabella da leggere.
+   ============================================================ */
+const CATEGORIE_CONTATTO = [
+  'Emergenza','Salute','Ambasciata','Alloggio','Trasporti','Noleggio',
+  'Tour e guide','Ristorante','Attività','Assicurazione','Banca','Informazioni','Altro'
+];
+const CNT_ICONS = {
+  'Emergenza':'🚨','Salute':'🏥','Ambasciata':'🏛️','Alloggio':'🏠','Trasporti':'🚌',
+  'Noleggio':'🚗','Tour e guide':'🧭','Ristorante':'🍽️','Attività':'⛷️',
+  'Assicurazione':'🛡️','Banca':'🏦','Informazioni':'ℹ️','Altro':'📌'
+};
+const cntIcon = c => CNT_ICONS[String(c||'').trim()] || '📌';
+let CNT_FILTER = '';
+
+function telHref(v){
+  const s = String(v||'').replace(/[^\d+]/g,'');
+  return s.length>=3 ? 'tel:'+s : '';
+}
+function waHref(v){
+  const s = String(v||'').replace(/[^\d+]/g,'');
+  return /^\+\d{8,}$/.test(s) ? 'https://wa.me/'+s.slice(1) : '';
+}
+
+function secContatti(rows, tid){
+  rows = (rows||[]).slice();
+  const cats = CATEGORIE_CONTATTO
+    .filter(c=>rows.some(r=>String(r.categoria||'').trim()===c))
+    .concat([...new Set(rows.map(r=>String(r.categoria||'').trim()).filter(c=>c && !CATEGORIE_CONTATTO.includes(c)))]);
+  if(rows.some(r=>!String(r.categoria||'').trim())) cats.push('');
+
+  const blocks = cats.map(cat=>{
+    const items = rows.filter(r=>String(r.categoria||'').trim()===cat);
+    if(!items.length) return '';
+    const sos = cat==='Emergenza';
+    return `<div class="sheet p-2 p-md-3 mb-3 cnt-group" data-cat="${esc(cat)}">
+      <p class="eyebrow mb-1">${cntIcon(cat)} ${esc(cat||'Senza categoria')}</p>
+      ${items.map(r=>cntCard(r, sos)).join('')}
+    </div>`;
+  }).join('');
+
+  return `
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+      <p class="eyebrow mb-0">${rows.length} contatt${rows.length===1?'o':'i'}</p>
+      <div class="d-flex gap-2">
+        <button class="btn btn-ghost btn-sm" onclick="cntTemplateModal('${jsArg(tid)}')">☎️ Numeri utili</button>
+        <button class="btn btn-stamp btn-sm" onclick="editContatto(null,'${jsArg(tid)}')">+ Aggiungi</button>
+      </div>
+    </div>
+    ${rows.length?`<div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+      <input class="form-control form-control-sm" id="cntSearch" style="max-width:230px"
+        placeholder="cerca nome o numero…" oninput="cntApply()">
+      <span class="filter-chip${CNT_FILTER===''?' on':''}" onclick="cntFilter('')">tutti</span>
+      ${cats.filter(c=>c).map(c=>`<span class="filter-chip${CNT_FILTER===c?' on':''}" onclick="cntFilter('${jsArg(c)}')">${cntIcon(c)} ${esc(c)}</span>`).join('')}
+    </div>`:''}
+    ${rows.length?blocks:`<div class="sheet empty"><div class="big">Nessun contatto</div>
+      <div>Metti qui i numeri che ti servirebbero di corsa: emergenze, host, taxi, assicurazione.</div></div>`}`;
+}
+
+function cntCard(r, sos){
+  const tel = telHref(r.telefono), wa = waHref(r.telefono);
+  const map = mapsHref({ mappa_link:r.mappa_link, indirizzo:r.indirizzo, struttura:r.nome });
+  const q = [r.nome, r.telefono, r.indirizzo, r.note, r.categoria, r.email]
+    .map(x=>String(x||'')).join(' ').toLowerCase();
+  return `<div class="cnt-card${sos?' cnt-sos':''}" data-cat="${esc(String(r.categoria||'').trim())}" data-q="${esc(q)}">
+    <div class="cnt-ico">${cntIcon(r.categoria)}</div>
+    <div class="cnt-body">
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <div class="cnt-name">${esc(r.nome||'—')}</div>
+        <div class="text-nowrap">
+          <button class="icon-btn" title="Modifica" onclick="editContattoById('${jsArg(r.id)}')">✎</button>
+          <button class="icon-btn" title="Elimina" onclick="delRow('Contatti','${jsArg(r.id)}')">🗑</button>
+        </div>
+      </div>
+      ${r.telefono?`<div class="cnt-meta mono">${esc(r.telefono)}</div>`:''}
+      ${r.indirizzo?`<div class="cnt-meta">📍 ${esc(r.indirizzo)}</div>`:''}
+      ${r.note?`<div class="cnt-meta">${esc(r.note)}</div>`:''}
+      <div class="cnt-actions">
+        ${tel?`<a class="cnt-act" href="${esc(tel)}">📞 chiama</a>`:''}
+        ${wa?`<a class="cnt-act" href="${esc(wa)}" target="_blank" rel="noopener">💬 WhatsApp</a>`:''}
+        ${r.email?`<a class="cnt-act" href="mailto:${esc(r.email)}">✉️ email</a>`:''}
+        ${map?`<a class="cnt-act" href="${esc(map)}" target="_blank" rel="noopener">📍 mappa</a>`:''}
+        ${isUrl(r.link)?`<a class="cnt-act" href="${esc(r.link)}" target="_blank" rel="noopener">🌐 sito</a>`:''}
+        ${r.telefono?`<button class="cnt-act" onclick="copyText('${jsArg(r.telefono)}')">⧉ copia</button>`:''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function cntFilter(cat){ CNT_FILTER = cat; renderSection('contatti', true); cntApply(); }
+
+// filtro dal vivo, senza ridisegnare: la casella di ricerca non perde il fuoco
+function cntApply(){
+  const box = $('#cntSearch');
+  const q = box ? box.value.trim().toLowerCase() : '';
+  document.querySelectorAll('.cnt-group').forEach(g=>{
+    let visible = 0;
+    g.querySelectorAll('.cnt-card').forEach(c=>{
+      const okCat = !CNT_FILTER || c.getAttribute('data-cat')===CNT_FILTER;
+      const okQ   = !q || (c.getAttribute('data-q')||'').includes(q);
+      const show  = okCat && okQ;
+      c.style.display = show ? '' : 'none';
+      if(show) visible++;
+    });
+    g.style.display = visible ? '' : 'none';
+  });
+}
+
+function editContattoById(id){ editContatto(findRow('Contatti', id), CURRENT_TRIP.id); }
+
+function editContatto(record, tid){
+  ensureModal();
+  const r = Object.assign({ viaggio_id: tid, categoria:'', nome:'', telefono:'', email:'',
+    link:'', indirizzo:'', mappa_link:'', note:'' }, record||{});
+  const isNew = !r.id;
+  $('#mTitle').textContent = isNew ? 'Nuovo contatto' : 'Modifica contatto';
+  $('#mSave').textContent = 'Salva';
+  $('#mBody').innerHTML = `
+    <div class="row g-2 mb-2">
+      <div class="col-12 col-md-5"><label class="form-label">categoria</label>
+        <select class="form-select" id="c_categoria">
+          <option value="">— nessuna —</option>
+          ${CATEGORIE_CONTATTO.map(c=>`<option value="${esc(c)}"${r.categoria===c?' selected':''}>${cntIcon(c)} ${esc(c)}</option>`).join('')}
+          ${(r.categoria && !CATEGORIE_CONTATTO.includes(r.categoria))?`<option value="${esc(r.categoria)}" selected>${esc(r.categoria)}</option>`:''}
+        </select></div>
+      <div class="col-12 col-md-7"><label class="form-label">nome</label>
+        <input class="form-control" id="c_nome" value="${esc(r.nome)}" placeholder="es. Taksi Rovaniemi"></div>
+      <div class="col-12 col-md-6"><label class="form-label">telefono</label>
+        <input class="form-control mono" id="c_telefono" type="tel" value="${esc(r.telefono)}" placeholder="+358 600 14000">
+        <div class="mono" id="c_telHint" style="font-size:.68rem;color:var(--muted);margin-top:.2rem"></div></div>
+      <div class="col-12 col-md-6"><label class="form-label">email</label>
+        <input class="form-control" id="c_email" type="email" inputmode="email" value="${esc(r.email)}" placeholder="info@…"></div>
+      <div class="col-12"><label class="form-label">sito o link</label>
+        <div class="input-group">
+          <span class="input-group-text" style="background:var(--paper-2);border-color:var(--line)">🔗</span>
+          <input class="form-control" id="c_link" type="url" inputmode="url" value="${esc(r.link)}" placeholder="https://…"></div></div>
+      <div class="col-12"><label class="form-label">indirizzo</label>
+        <input class="form-control" id="c_indirizzo" value="${esc(r.indirizzo)}" placeholder="via, città"></div>
+      <div class="col-12"><label class="form-label">link mappa
+          <span style="font-weight:400;color:var(--muted);font-size:.7rem">— il "Condividi" di Google Maps</span></label>
+        <div class="input-group">
+          <span class="input-group-text" style="background:var(--paper-2);border-color:var(--line)">📍</span>
+          <input class="form-control" id="c_mappa_link" type="url" inputmode="url" value="${esc(r.mappa_link)}" placeholder="https://maps.app.goo.gl/…">
+          <button class="btn btn-ghost" type="button" id="c_mapTest">prova</button></div></div>
+      <div class="col-12"><label class="form-label">note</label>
+        <textarea class="form-control" id="c_note" rows="2">${esc(r.note)}</textarea></div>
+    </div>`;
+
+  const hint = ()=>{
+    const h = $('#c_telHint'); if(!h) return;
+    const v = $('#c_telefono').value;
+    h.textContent = telHref(v)
+      ? (waHref(v) ? '→ chiamabile e raggiungibile su WhatsApp'
+                   : '→ chiamabile · con il prefisso internazionale (+358…) attivo anche WhatsApp')
+      : '';
+  };
+  $('#c_telefono').addEventListener('input', hint); hint();
+  $('#c_indirizzo').addEventListener('input', ()=>{
+    const v = $('#c_indirizzo').value.trim();
+    if(isUrl(v)){ $('#c_mappa_link').value = v; $('#c_indirizzo').value=''; toast('Link spostato nel campo mappa ✓','ok'); }
+  });
+  $('#c_mapTest').onclick = ()=>{
+    const href = mapsHref({ mappa_link:$('#c_mappa_link').value, indirizzo:$('#c_indirizzo').value, struttura:$('#c_nome').value });
+    if(href) window.open(href,'_blank','noopener'); else toast('Scrivi un indirizzo o incolla un link','error');
+  };
+
+  $('#mSave').onclick = ()=> withBtnLoading($('#mSave'), 'Salvo…', async ()=>{
+    const out = { id:r.id, viaggio_id:r.viaggio_id };
+    ['categoria','nome','telefono','email','link','indirizzo','mappa_link','note']
+      .forEach(f=>{ out[f] = $('#c_'+f).value.trim(); });
+    if(!out.nome && !out.telefono){ toast('Serve almeno un nome o un numero','error'); return; }
+    if(r.id){ await api('update',{sheet:'Contatti',record:out}); applyLocal('Contatti','update',out); }
+    else { const saved = await api('create',{sheet:'Contatti',record:out}); applyLocal('Contatti','create',saved); }
+    MODAL.hide(); toast('Salvato ✓','ok'); refreshView();
+  });
+  MODAL.show();
+}
+
+/* Numeri che valgono ovunque in Europa: meglio averli scritti prima
+   di averne bisogno. Inserisce solo quelli che mancano. */
+const CNT_TEMPLATES = [
+  { nome:'Numero unico di emergenza', cat:'Emergenza', tel:'112',
+    note:'Vale in tutta l\'UE — polizia, ambulanza, vigili del fuoco. Si può chiamare anche senza credito.' },
+  { nome:'Emergenza SMS per non udenti', cat:'Emergenza', tel:'112',
+    note:'In molti paesi UE il 112 accetta SMS previa registrazione.' },
+  { nome:'Blocco carte — Visa Italia', cat:'Banca', tel:'+39 800 819 014',
+    note:'Numero verde internazionale per bloccare la carta smarrita.' },
+  { nome:'Blocco carte — Mastercard Italia', cat:'Banca', tel:'+39 800 870 866', note:'' },
+  { nome:'Ambasciata d\'Italia (paese di destinazione)', cat:'Ambasciata', tel:'', note:'Da compilare con il paese del viaggio.' },
+  { nome:'Assicurazione viaggio', cat:'Assicurazione', tel:'', note:'Numero della centrale operativa + numero di polizza.' },
+  { nome:'Host / struttura', cat:'Alloggio', tel:'', note:'' },
+  { nome:'Taxi locale', cat:'Trasporti', tel:'', note:'' }
+];
+
+function cntTemplateModal(tid){
+  ensureModal();
+  const have = new Set((CURRENT_DATA.Contatti||[]).map(r=>String(r.nome||'').trim().toLowerCase()));
+  $('#mTitle').textContent = 'Numeri utili';
+  $('#mSave').textContent = 'Aggiungi selezionati';
+  $('#mBody').innerHTML = `
+    <p style="font-size:.88rem;color:var(--ink-soft)">Aggiungo solo quelli che non hai già. Quelli senza numero restano da riempire.</p>
+    <div class="sheet p-2">
+      ${CNT_TEMPLATES.map((t,i)=>{
+        const già = have.has(t.nome.toLowerCase());
+        return `<div class="form-check py-1">
+          <input class="form-check-input cnt-tpl" type="checkbox" id="ct_${i}" value="${i}" ${già?'disabled':'checked'}>
+          <label class="form-check-label" for="ct_${i}">
+            <strong>${cntIcon(t.cat)} ${esc(t.nome)}</strong>${t.tel?` <span class="mono" style="font-size:.75rem">${esc(t.tel)}</span>`:''}
+            ${già?'<span class="chip pick">già presente</span>':''}
+            ${t.note?`<div class="cnt-meta">${esc(t.note)}</div>`:''}
+          </label></div>`;
+      }).join('')}
+    </div>`;
+  $('#mSave').onclick = ()=> withBtnLoading($('#mSave'), 'Aggiungo…', async ()=>{
+    const idx = [...document.querySelectorAll('.cnt-tpl')].filter(c=>c.checked && !c.disabled).map(c=>Number(c.value));
+    if(!idx.length){ toast('Non hai selezionato niente','error'); return; }
+    const records = idx.map(i=>{
+      const t = CNT_TEMPLATES[i];
+      return { viaggio_id:tid, categoria:t.cat, nome:t.nome, telefono:t.tel, email:'', link:'', indirizzo:'', mappa_link:'', note:t.note };
+    });
+    const saved = await api('create_many',{sheet:'Contatti',records});
+    applyLocal('Contatti','create_many',saved);
+    MODAL.hide(); toast(`${saved.length} contatti aggiunti ✓`,'ok'); refreshView();
+  });
+  MODAL.show();
+}
+
+/* ============================================================
+   INFO DESTINAZIONE — coppie chiave/valore raggruppate.
+   Il valore si modifica cliccandolo: è il campo che si aggiorna
+   di continuo mentre si prepara il viaggio, e aprire un modal
+   ogni volta per due parole era la cosa più fastidiosa del tab.
+   ============================================================ */
+const SEZIONI_INFO = ['Generale','Documenti','Denaro','Salute','Sicurezza','Spostamenti',
+  'Comunicazioni','Clima','Cultura','Cibo','Acquisti','Altro'];
+const INF_ICONS = {
+  'Generale':'📌','Documenti':'🪪','Denaro':'💶','Salute':'🏥','Sicurezza':'🛡️','Spostamenti':'🚌',
+  'Comunicazioni':'📶','Clima':'🌡️','Cultura':'🎭','Cibo':'🍽️','Acquisti':'🛍️','Altro':'📎'
+};
+const infIcon = s => INF_ICONS[String(s||'').trim()] || '📎';
+
+const INFO_TEMPLATES = {
+  'Kit essenziale': [
+    ['Generale','Fuso orario',''], ['Denaro','Valuta',''], ['Cultura','Lingua',''],
+    ['Comunicazioni','Prese elettriche',''], ['Salute','Numero emergenze',''],
+    ['Documenti','Documento richiesto',''], ['Salute','Assicurazione sanitaria','']
+  ],
+  'Denaro e pagamenti': [
+    ['Denaro','Valuta',''], ['Denaro','Carte accettate',''], ['Denaro','Contanti utili',''],
+    ['Denaro','Mance',''], ['Denaro','Bancomat',''], ['Denaro','Costo medio di un pasto','']
+  ],
+  'Salute e sicurezza': [
+    ['Salute','Numero emergenze',''], ['Salute','Guardia medica / pronto soccorso',''],
+    ['Salute','Farmacia più vicina',''], ['Salute','Tessera sanitaria (TEAM)',''],
+    ['Salute','Acqua del rubinetto',''], ['Sicurezza','Rischi da conoscere','']
+  ],
+  'Spostamenti': [
+    ['Spostamenti','Dall\'aeroporto al centro',''], ['Spostamenti','Trasporto pubblico',''],
+    ['Spostamenti','Biglietti e costi',''], ['Spostamenti','Taxi',''],
+    ['Spostamenti','Guida e patente',''], ['Spostamenti','Noleggio auto','']
+  ],
+  'Clima e abbigliamento': [
+    ['Clima','Temperature previste',''], ['Clima','Ore di luce',''],
+    ['Clima','Che tempo aspettarsi',''], ['Clima','Come vestirsi','']
+  ],
+  'Comunicazioni': [
+    ['Comunicazioni','Prese elettriche',''], ['Comunicazioni','SIM e dati',''],
+    ['Comunicazioni','Wi-Fi',''], ['Comunicazioni','Prefisso telefonico','']
+  ],
+  'Cultura e abitudini': [
+    ['Cultura','Lingua',''], ['Cultura','Parole utili',''], ['Cultura','Orari dei pasti',''],
+    ['Cultura','Orari dei negozi',''], ['Cultura','Cosa non fare','']
+  ]
+};
+
 function secInfo(d, tid){
   const rows = d.InfoDest||[];
-  const bySez = {};
-  rows.forEach(r=>{ (bySez[r.sezione||'Generale'] = bySez[r.sezione||'Generale'] || []).push(r); });
-  const blocks = Object.entries(bySez).map(([sez,items])=>`
-    <div class="sheet p-3 mb-3">
-      <p class="eyebrow mb-2">${esc(sez)}</p>
-      <table class="data"><tbody>
-      ${items.map(r=>`<tr>
-        <td style="width:45%"><strong>${esc(r.chiave)}</strong></td>
-        <td>${esc(r.valore)}</td>
-        <td class="text-nowrap" style="width:1%">
-          <button class="icon-btn" onclick="editRowById('InfoDest','${jsArg(r.id)}')">✎</button>
-          <button class="icon-btn" onclick="delRow('InfoDest','${jsArg(r.id)}')">🗑</button>
-        </td></tr>`).join('')}
-      </tbody></table>
-    </div>`).join('');
+  const known = SEZIONI_INFO.filter(s=>rows.some(r=>String(r.sezione||'Generale').trim()===s));
+  const extra = [...new Set(rows.map(r=>String(r.sezione||'Generale').trim())
+    .filter(s=>!SEZIONI_INFO.includes(s)))];
+  const order = known.concat(extra);
+
+  const blocks = order.map(sez=>{
+    const items = rows.filter(r=>String(r.sezione||'Generale').trim()===sez);
+    return `<div class="sheet p-2 p-md-3 mb-3">
+      <p class="eyebrow mb-1">${infIcon(sez)} ${esc(sez)}</p>
+      ${items.map(r=>`<div class="inf-row">
+        <div class="inf-key">${esc(r.chiave||'—')}</div>
+        <div class="inf-val${String(r.valore||'').trim()?'':' vuoto'}" id="iv_${esc(r.id)}"
+             onclick="infoEditVal('${jsArg(r.id)}')" title="clicca per modificare"
+             role="button" tabindex="0"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();infoEditVal('${jsArg(r.id)}')}"
+        >${String(r.valore||'').trim()?esc(r.valore):'da compilare'}</div>
+        <div class="text-nowrap">
+          ${isUrl(r.link)?`<a class="icon-btn" href="${esc(r.link)}" target="_blank" rel="noopener" title="Apri il link">🔗</a>`:''}
+          <button class="icon-btn" title="Modifica" onclick="editInfoById('${jsArg(r.id)}')">✎</button>
+          <button class="icon-btn" title="Elimina" onclick="delRow('InfoDest','${jsArg(r.id)}')">🗑</button>
+        </div></div>`).join('')}
+    </div>`;
+  }).join('');
+
   return `
-    <div class="d-flex justify-content-between align-items-center mb-2">
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
       <p class="eyebrow mb-0">informazioni utili sul posto</p>
-      <button class="btn btn-stamp btn-sm" onclick="editRow('InfoDest', null, '${jsArg(tid)}')">+ Aggiungi info</button>
+      <div class="d-flex gap-2">
+        <button class="btn btn-ghost btn-sm" onclick="infoTemplateModal('${jsArg(tid)}')">📋 Modelli</button>
+        <button class="btn btn-stamp btn-sm" onclick="editInfo(null,'${jsArg(tid)}')">+ Aggiungi</button>
+      </div>
     </div>
-    ${rows.length?blocks:`<div class="sheet empty"><div class="big">Nessuna info ancora</div></div>`}`;
+    <div class="sheet p-2 p-md-3 mb-3">
+      <div class="row g-2 align-items-end">
+        <div class="col-6 col-md-3"><label class="form-label">sezione</label>
+          <select class="form-select form-select-sm" id="inf_sez">
+            ${SEZIONI_INFO.map(s=>`<option value="${esc(s)}"${s===INF_LAST_SEZ?' selected':''}>${infIcon(s)} ${esc(s)}</option>`).join('')}
+          </select></div>
+        <div class="col-6 col-md-3"><label class="form-label">voce</label>
+          <input class="form-control form-control-sm" id="inf_key" placeholder="es. Valuta"
+            onkeydown="if(event.key==='Enter')document.getElementById('inf_val').focus()"></div>
+        <div class="col-9 col-md-5"><label class="form-label">valore</label>
+          <input class="form-control form-control-sm" id="inf_val" placeholder="es. Euro (€)"
+            onkeydown="if(event.key==='Enter')infoQuickAdd('${jsArg(tid)}')"></div>
+        <div class="col-3 col-md-1 d-grid">
+          <button class="btn btn-ink btn-sm" onclick="infoQuickAdd('${jsArg(tid)}')">+</button></div>
+      </div>
+    </div>
+    ${rows.length?blocks:`<div class="sheet empty"><div class="big">Nessuna info ancora</div>
+      <div>Parti dai <strong>Modelli</strong>: ti mettono le voci giuste da riempire.</div></div>`}`;
+}
+
+let INF_LAST_SEZ = 'Generale';
+
+async function infoQuickAdd(tid){
+  const sez = $('#inf_sez').value, k = $('#inf_key').value.trim(), v = $('#inf_val').value.trim();
+  if(!k){ toast('Scrivi almeno il nome della voce','error'); $('#inf_key').focus(); return; }
+  INF_LAST_SEZ = sez;
+  try{
+    const saved = await api('create',{sheet:'InfoDest',record:{viaggio_id:tid,sezione:sez,chiave:k,valore:v,link:''}});
+    applyLocal('InfoDest','create',saved);
+    renderSection('info', true);
+    const kb = $('#inf_key'); if(kb){ kb.value=''; $('#inf_val').value=''; kb.focus(); }
+  }catch(e){
+    if(e instanceof AuthError) sessionExpired(); else toast('Errore: '+e.message,'error');
+  }
+}
+
+// modifica in linea del valore: clic, scrivi, Invio
+function infoEditVal(id){
+  const box = document.getElementById('iv_'+id);
+  if(!box || box.querySelector('input')) return;
+  const rec = findRow('InfoDest', id) || {};
+  const old = String(rec.valore||'');
+  box.classList.remove('vuoto');
+  box.innerHTML = `<input value="${esc(old)}">`;
+  const inp = box.querySelector('input');
+  inp.focus(); inp.select();
+  let done = false;
+  const finish = async (save)=>{
+    if(done) return; done = true;
+    const val = inp.value.trim();
+    if(!save || val===old.trim()){ renderSection('info', true); return; }
+    try{
+      const out = { id, viaggio_id: rec.viaggio_id, sezione: rec.sezione, chiave: rec.chiave, valore: val, link: rec.link||'' };
+      await api('update',{sheet:'InfoDest',record:out});
+      applyLocal('InfoDest','update',out);
+      renderSection('info', true);
+    }catch(e){
+      if(e instanceof AuthError) sessionExpired(); else toast('Errore: '+e.message,'error');
+      renderSection('info', true);
+    }
+  };
+  inp.addEventListener('keydown', e=>{
+    if(e.key==='Enter'){ e.preventDefault(); finish(true); }
+    if(e.key==='Escape'){ e.preventDefault(); finish(false); }
+  });
+  inp.addEventListener('blur', ()=>finish(true));
+}
+
+function editInfoById(id){ editInfo(findRow('InfoDest', id), CURRENT_TRIP.id); }
+
+function editInfo(record, tid){
+  ensureModal();
+  const r = Object.assign({ viaggio_id:tid, sezione:INF_LAST_SEZ, chiave:'', valore:'', link:'' }, record||{});
+  $('#mTitle').textContent = r.id ? 'Modifica info' : 'Nuova info';
+  $('#mSave').textContent = 'Salva';
+  $('#mBody').innerHTML = `
+    <div class="row g-2">
+      <div class="col-12 col-md-5"><label class="form-label">sezione</label>
+        <select class="form-select" id="i_sezione">
+          ${SEZIONI_INFO.map(s=>`<option value="${esc(s)}"${r.sezione===s?' selected':''}>${infIcon(s)} ${esc(s)}</option>`).join('')}
+          ${(r.sezione && !SEZIONI_INFO.includes(r.sezione))?`<option value="${esc(r.sezione)}" selected>${esc(r.sezione)}</option>`:''}
+        </select></div>
+      <div class="col-12 col-md-7"><label class="form-label">voce</label>
+        <input class="form-control" id="i_chiave" value="${esc(r.chiave)}" placeholder="es. Prese elettriche"></div>
+      <div class="col-12"><label class="form-label">valore</label>
+        <textarea class="form-control" id="i_valore" rows="3" placeholder="es. Tipo C e F, 230V — servono adattatori dall'Italia">${esc(r.valore)}</textarea></div>
+      <div class="col-12"><label class="form-label">link di approfondimento</label>
+        <div class="input-group">
+          <span class="input-group-text" style="background:var(--paper-2);border-color:var(--line)">🔗</span>
+          <input class="form-control" id="i_link" type="url" inputmode="url" value="${esc(r.link)}" placeholder="https://…"></div></div>
+    </div>`;
+  $('#mSave').onclick = ()=> withBtnLoading($('#mSave'), 'Salvo…', async ()=>{
+    const out = { id:r.id, viaggio_id:r.viaggio_id };
+    out.sezione = $('#i_sezione').value;
+    out.chiave  = $('#i_chiave').value.trim();
+    out.valore  = $('#i_valore').value.trim();
+    out.link    = $('#i_link').value.trim();
+    if(!out.chiave){ toast('Serve il nome della voce','error'); return; }
+    INF_LAST_SEZ = out.sezione;
+    if(r.id){ await api('update',{sheet:'InfoDest',record:out}); applyLocal('InfoDest','update',out); }
+    else { const saved = await api('create',{sheet:'InfoDest',record:out}); applyLocal('InfoDest','create',saved); }
+    MODAL.hide(); toast('Salvato ✓','ok'); refreshView();
+  });
+  MODAL.show();
+}
+
+function infoTemplateModal(tid){
+  ensureModal();
+  const rows = CURRENT_DATA.InfoDest||[];
+  const has = (sez,k)=>rows.some(r=>String(r.sezione||'').trim()===sez &&
+    String(r.chiave||'').trim().toLowerCase()===k.toLowerCase());
+  $('#mTitle').textContent = 'Modelli di informazioni';
+  $('#mSave').textContent = 'Aggiungi le voci';
+  $('#mBody').innerHTML = `
+    <p style="font-size:.88rem;color:var(--ink-soft)">Inserisco le voci vuote, pronte da riempire.
+      Quelle che hai già le salto.</p>
+    <div class="row g-2">
+      ${Object.entries(INFO_TEMPLATES).map(([name,items],i)=>{
+        const nuovi = items.filter(([s,k])=>!has(s,k)).length;
+        return `<div class="col-12 col-md-6"><label class="tpl-card${nuovi?'':' disabled'}">
+          <input class="form-check-input tpl-one" type="checkbox" value="${i}" ${nuovi?'':'disabled'}>
+          <div><div style="font-weight:600">${esc(name)}</div>
+            <div class="mono" style="font-size:.7rem;color:var(--muted)">
+              ${nuovi?`${nuovi} voci da aggiungere`:'già tutte presenti'}</div></div>
+        </label></div>`;
+      }).join('')}
+    </div>`;
+  $('#mSave').onclick = ()=> withBtnLoading($('#mSave'), 'Aggiungo…', async ()=>{
+    const names = Object.keys(INFO_TEMPLATES);
+    const picked = [...document.querySelectorAll('.tpl-one')].filter(c=>c.checked && !c.disabled)
+      .map(c=>names[Number(c.value)]);
+    if(!picked.length){ toast('Scegli almeno un modello','error'); return; }
+    const seen = new Set();
+    const records = [];
+    picked.forEach(n=>INFO_TEMPLATES[n].forEach(([sez,k,v])=>{
+      const key = sez+'|'+k.toLowerCase();
+      if(has(sez,k) || seen.has(key)) return;
+      seen.add(key);
+      records.push({ viaggio_id:tid, sezione:sez, chiave:k, valore:v||'', link:'' });
+    }));
+    if(!records.length){ toast('Hai già tutte queste voci','ok'); MODAL.hide(); return; }
+    const saved = await api('create_many',{sheet:'InfoDest',records});
+    applyLocal('InfoDest','create_many',saved);
+    MODAL.hide(); toast(`${saved.length} voci aggiunte ✓`,'ok'); refreshView();
+  });
+  MODAL.show();
 }
 
 /* ============================================================
@@ -3025,8 +3568,8 @@ const FIELD_ORDER = {
   Spese:['data','descrizione','categoria','paganti','totale','prezzo_testa','note'],
   CoseDaFare:['data','ora','tipo','attivita','posizione','durata','persone','costo','prezzo_testa','prenotazione_req','quando','link','note','confermata'],
   CosaPortare:['categoria','cosa','qta','chi','priorita','spuntato','note'],
-  Contatti:['categoria','nome','telefono','link','indirizzo','note'],
-  InfoDest:['sezione','chiave','valore'],
+  Contatti:['categoria','nome','telefono','email','link','indirizzo','mappa_link','note'],
+  InfoDest:['sezione','chiave','valore','link'],
 };
 
 const BOOL_FIELDS = ['scelto','confermata','spuntato','prenotazione_req','bagaglio'];
@@ -3079,8 +3622,62 @@ const AIRPORTS = [
   'EWR — Newark','BOS — Boston','MIA — Miami','LAX — Los Angeles','YYZ — Toronto','MLA — Malta',
   'TIA — Tirana','SPU — Spalato','DBV — Dubrovnik','ZAG — Zagabria','LJU — Lubiana','SOF — Sofia',
   'OTP — Bucarest','BEG — Belgrado','TFS — Tenerife Sud','LPA — Gran Canaria','FUE — Fuerteventura',
-  'ACE — Lanzarote','FNC — Madeira','PDL — Azzorre','SSH — Sharm el-Sheikh','HRG — Hurghada'
+  'ACE — Lanzarote','FNC — Madeira','PDL — Azzorre','SSH — Sharm el-Sheikh','HRG — Hurghada',
+  'RVN — Rovaniemi','KTT — Kittilä','IVL — Ivalo','OUL — Oulu','KEM — Kemi-Tornio',
+  'TLL — Tallinn','RIX — Riga','VNO — Vilnius','GOT — Göteborg','BGO — Bergen','TRD — Trondheim',
+  'TOS — Tromsø','LPI — Linköping','AAL — Aalborg','BLL — Billund'
 ];
+
+/* Fuso orario di ogni aeroporto (nome IANA: il browser ci mette dentro
+   anche l'ora legale, quindi le durate restano giuste tutto l'anno).
+   Se un codice manca, l'app calcola senza fuso e lo dice invece di fingere. */
+const AIRPORT_TZ = (()=>{
+  const m = {};
+  const add = (tz, codes) => codes.split(' ').forEach(c=>{ m[c] = tz; });
+  add('Europe/Rome',       'MXP LIN BGY VRN VCE TSF BLQ FLR PSA TRN GOA FCO CIA NAP BRI BDS CTA PMO CAG OLB AHO');
+  add('Europe/Athens',     'ATH HER CHQ JTR JMK RHO CFU SKG');
+  add('Europe/Madrid',     'BCN MAD AGP PMI IBZ VLC');
+  add('Atlantic/Canary',   'TFS LPA FUE ACE');
+  add('Europe/Lisbon',     'LIS OPO FAO');
+  add('Atlantic/Madeira',  'FNC');
+  add('Atlantic/Azores',   'PDL');
+  add('Europe/Paris',      'CDG ORY NCE LYS MRS');
+  add('Europe/Amsterdam',  'AMS');
+  add('Europe/Brussels',   'BRU');
+  add('Europe/London',     'LHR LGW STN EDI');
+  add('Europe/Dublin',     'DUB');
+  add('Europe/Berlin',     'FRA MUC BER DUS HAM');
+  add('Europe/Zurich',     'ZRH GVA');
+  add('Europe/Vienna',     'VIE');
+  add('Europe/Prague',     'PRG');
+  add('Europe/Budapest',   'BUD');
+  add('Europe/Warsaw',     'WAW KRK');
+  add('Europe/Copenhagen', 'CPH AAL BLL');
+  add('Europe/Oslo',       'OSL BGO TRD TOS');
+  add('Europe/Stockholm',  'ARN GOT LPI');
+  add('Europe/Helsinki',   'HEL RVN KTT IVL OUL KEM');
+  add('Europe/Tallinn',    'TLL');
+  add('Europe/Riga',       'RIX');
+  add('Europe/Vilnius',    'VNO');
+  add('Atlantic/Reykjavik','KEF');
+  add('Europe/Istanbul',   'IST SAW');
+  add('Asia/Jerusalem',    'TLV');
+  add('Africa/Cairo',      'CAI SSH HRG');
+  add('Africa/Casablanca', 'CMN RAK');
+  add('Asia/Dubai',        'DXB');
+  add('Asia/Qatar',        'DOH');
+  add('America/New_York',  'JFK EWR BOS MIA');
+  add('America/Los_Angeles','LAX');
+  add('America/Toronto',   'YYZ');
+  add('Europe/Malta',      'MLA');
+  add('Europe/Tirane',     'TIA');
+  add('Europe/Zagreb',     'SPU DBV ZAG');
+  add('Europe/Ljubljana',  'LJU');
+  add('Europe/Sofia',      'SOF');
+  add('Europe/Bucharest',  'OTP');
+  add('Europe/Belgrade',   'BEG');
+  return m;
+})();
 
 const TIPI_ATTIVITA = [
   'Avventura','Benessere','Cibo','Cultura','Escursione','Evento','Gita','Locale','Mercato','Monumento',
@@ -3811,12 +4408,17 @@ function legArrISO(L){
   return L.plus1 ? isoAddDays(iso,1) : iso;
 }
 function legScaloMinsL(prev, next){
-  return minsBetween(dtOf(legArrISO(prev), prev.ora_arr), dtOf(next.data_part, next.ora_part));
+  return minsBetween(dtOf(legArrISO(prev), prev.ora_arr, prev.a),
+                     dtOf(next.data_part, next.ora_part, next.da));
+}
+function legDurationL(L){
+  return minsBetween(dtOf(L.data_part, L.ora_part, L.da), dtOf(legArrISO(L), L.ora_arr, L.a));
 }
 function dirDurationL(legs){
   if(!legs.length) return null;
   const L = legs[legs.length-1];
-  return minsBetween(dtOf(legs[0].data_part, legs[0].ora_part), dtOf(legArrISO(L), L.ora_arr));
+  return minsBetween(dtOf(legs[0].data_part, legs[0].ora_part, legs[0].da),
+                     dtOf(legArrISO(L), L.ora_arr, L.a));
 }
 // "MXP" resta maiuscolo, "Milano Malpensa" no
 function normCode(v){
@@ -4093,6 +4695,7 @@ function volLegCard(d,L,i,total){
         </div>
       </div>
     </div>
+    <div class="mono leg-dur" id="v_ld_${dk(d)}_${i}"></div>
   </div>`;
 }
 
@@ -4179,11 +4782,26 @@ function volSync(){
         }
       }
     });
+    legs.forEach((L,i)=>{
+      const el = $('#v_ld_'+dk(d)+'_'+i);
+      if(el){
+        const m = legDurationL(L);
+        const tzd = tzDiffMin(L.da, L.a, toISODate(L.data_part));
+        el.innerHTML = m!=null
+          ? `durata volo ${fmtDur(m)}${tzd?` · a ${esc(iataOf(L.a)||L.a)} l'orologio va spostato di <strong>${esc(fmtTzDiff(tzd))}</strong>`:''}`
+          : '';
+      }
+    });
     const dd = $('#v_dur_'+dk(d));
     if(dd){
-      const m = dirDurationL(legs.filter(l=>!isLegEmpty(l)));
-      const n = legs.filter(l=>!isLegEmpty(l)).length;
-      dd.textContent = m!=null ? `durata ${d.toLowerCase()}: ${fmtDur(m)} · ${n>1?(n-1)+' scalo':'diretto'}` : '';
+      const full = legs.filter(l=>!isLegEmpty(l));
+      const m = dirDurationL(full);
+      const n = full.length;
+      const ign = tzUnknown(full.map(l=>l.da).concat(full.length?[full[full.length-1].a]:[]));
+      dd.innerHTML = m!=null
+        ? `durata ${d.toLowerCase()}: <strong>${fmtDur(m)}</strong> · ${n>1?(n-1)+' scalo':'diretto'}`
+          + (ign.length?` <span style="color:var(--danger)">· fuso di ${esc(ign.join(', '))} sconosciuto: durata calcolata senza</span>`:'')
+        : '';
     }
   });
   // prezzi: il totale dell'opzione è biglietti + bagagli
@@ -4559,7 +5177,10 @@ function buildDossier(o){
 
   if(o.cont && (d.Contatti||[]).length){
     out.push(`<div class="pd-sec"><h2>☎️ Contatti utili</h2>${pdBox(
-      (d.Contatti||[]).map(c=>`<div class="pd-row"><span><strong>${esc(c.nome||'')}</strong>${c.categoria?` <span class="pd-note">${esc(c.categoria)}</span>`:''}${c.indirizzo?`<div class="pd-note">${esc(c.indirizzo)}</div>`:''}</span>
+      (d.Contatti||[]).slice().sort((a,b)=>{
+        const w = x => String(x.categoria||'').trim()==='Emergenza' ? 0 : 1;
+        return w(a)-w(b) || String(a.categoria||'').localeCompare(String(b.categoria||''),'it');
+      }).map(c=>`<div class="pd-row"><span><strong>${esc(c.nome||'')}</strong>${c.categoria?` <span class="pd-note">${esc(c.categoria)}</span>`:''}${c.indirizzo?`<div class="pd-note">${esc(c.indirizzo)}</div>`:''}${c.email?`<div class="pd-note">${esc(c.email)}</div>`:''}</span>
         <span class="pd-mono">${esc(c.telefono||'')}</span></div>`).join('')
     )}</div>`);
   }
@@ -4569,7 +5190,7 @@ function buildDossier(o){
     (d.InfoDest||[]).forEach(r=>{ (bySez[r.sezione||'Generale']=bySez[r.sezione||'Generale']||[]).push(r); });
     out.push(`<div class="pd-sec"><h2>ℹ️ Info destinazione</h2>${
       Object.entries(bySez).map(([s,items])=>pdBox(`<div class="pd-day">${esc(s)}</div>
-        ${items.map(r=>`<div class="pd-row"><span>${esc(r.chiave)}</span><span class="pd-note">${esc(r.valore)}</span></div>`).join('')}`)).join('')
+        ${items.filter(r=>String(r.valore||'').trim()).map(r=>`<div class="pd-row"><span>${esc(r.chiave)}</span><span class="pd-note">${esc(r.valore)}</span></div>`).join('')}`)).join('')
     }</div>`);
   }
 
