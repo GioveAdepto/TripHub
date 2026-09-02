@@ -67,6 +67,9 @@
     display:flex;align-items:center;gap:.5rem;
   }
   .topbar .mono{color:#b9c6d3;font-size:.72rem}
+  .role-badge{font-family:'JetBrains Mono',monospace;font-size:.6rem;letter-spacing:.1em;
+    text-transform:uppercase;background:rgba(255,255,255,.14);color:var(--paper);
+    border-radius:20px;padding:.1rem .5rem}
   /* --- Card / passport look --- */
   .sheet{
     background:#fbf8f0;border:1px solid var(--line);border-radius:14px;
@@ -138,6 +141,12 @@
   .chip.pri-cons{background:#e0a422;color:#3a2c00}
   .chip.toggle{cursor:pointer;transition:transform .08s ease}
   .chip.toggle:hover{transform:scale(1.08);outline:1px solid var(--stamp)}
+  /* codici di prenotazione e di accesso */
+  .code-chip{display:inline-flex;align-items:center;gap:.35rem;font-family:'JetBrains Mono',monospace;
+    font-size:.74rem;letter-spacing:.06em;background:var(--paper-2);color:var(--ink);
+    border:1px dashed var(--line);border-radius:7px;padding:.1rem .45rem;cursor:pointer}
+  .code-chip:hover{border-color:var(--stamp);border-style:solid;color:var(--stamp)}
+  .code-chip .k{color:var(--muted);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase}
   /* --- Buttons --- */
   .btn-stamp{background:var(--stamp);border:none;color:#fff;font-weight:600}
   .btn-stamp:hover{background:var(--stamp-dk);color:#fff}
@@ -154,6 +163,7 @@
   /* --- Budget --- */
   .budget-total{font-family:'Fraunces',serif;font-weight:700;font-size:2rem;color:var(--ink)}
   .budget-line{display:flex;justify-content:space-between;padding:.5rem 0;border-bottom:1px dashed var(--line)}
+  .budget-line .sub{color:var(--muted);font-size:.72rem}
   .per-person{color:var(--stamp);font-weight:600}
   /* --- Gate / login --- */
   .gate{max-width:420px;margin:8vh auto;}
@@ -177,7 +187,9 @@
     font-weight:600;font-size:.8rem;border-radius:7px;padding:.2rem .6rem;cursor:pointer;flex:none}
   .toast-mini .undo:hover{background:rgba(255,255,255,.3)}
 
-  /* --- COSA PORTARE --- */
+  /* ==========================================================
+     COSA PORTARE — lista di spunta
+     ========================================================== */
   .cp-head{display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
   .cp-ring{flex:none}
   .cp-count{font-family:'Fraunces',serif;font-weight:600;font-size:1.15rem;line-height:1.2}
@@ -185,36 +197,40 @@
   .cp-done-all{color:var(--ok);font-weight:600}
 
   .cp-cat{margin-bottom:.9rem}
-  .cp-cat-head{display:flex;align-items:center;gap:.6rem;width:100%;background:none;border:none;
-    text-align:left;padding:.55rem .3rem;cursor:pointer;border-bottom:1px solid var(--line)}
-  .cp-cat-head:hover .cp-cat-name{color:var(--stamp)}
+  .cp-cat-head{display:flex;align-items:center;gap:.6rem;width:100%;padding:.3rem .1rem;
+    border-bottom:1px solid var(--line)}
+  .cp-cat-toggle{display:flex;align-items:center;gap:.6rem;flex:1;min-width:0;background:none;
+    border:none;text-align:left;padding:.25rem .2rem;cursor:pointer;color:inherit}
+  .cp-cat-toggle:hover .cp-cat-name{color:var(--stamp)}
   .cp-cat-ico{font-size:1.1rem;flex:none;width:1.6rem;text-align:center}
   .cp-cat-name{font-family:'Fraunces',serif;font-weight:600;font-size:1rem;flex:1;min-width:0}
   .cp-cat-n{font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--muted);flex:none}
   .cp-caret{color:var(--muted);font-size:.7rem;flex:none;transition:transform .15s}
   .cp-cat.closed .cp-caret{transform:rotate(-90deg)}
   .cp-cat.closed .cp-body{display:none}
-  .cp-bar{height:3px;border-radius:3px;background:var(--paper-2);overflow:hidden;margin-bottom:.15rem}
+  .cp-cat-acts{flex:none;display:flex;gap:.1rem}
+  .cp-bar{height:3px;border-radius:3px;background:var(--paper-2);overflow:hidden;margin:.25rem 0 .15rem}
   .cp-bar i{display:block;height:100%;background:var(--stamp);border-radius:3px;transition:width .25s ease}
   .cp-bar.full i{background:var(--ok)}
 
-  .cp-row{display:flex;align-items:flex-start;gap:.65rem;padding:.5rem .3rem;
-    border-bottom:1px solid rgba(212,201,178,.5);transition:opacity .15s}
+  .cp-row{display:flex;align-items:flex-start;gap:.65rem;padding:.55rem .35rem;cursor:pointer;
+    border-bottom:1px solid rgba(212,201,178,.5);transition:opacity .15s,background .12s;
+    border-radius:8px;-webkit-tap-highlight-color:transparent;user-select:none}
   .cp-row:last-child{border-bottom:none}
   .cp-row.pri-ess{box-shadow:inset 3px 0 0 -1px #c9432e}
   .cp-row.pri-cons{box-shadow:inset 3px 0 0 -1px #e0a422}
   .cp-row.done{opacity:.5}
   .cp-row.done .cp-name{text-decoration:line-through}
-  @media (hover:hover){ .cp-row:hover{background:rgba(209,98,42,.04)} }
+  .cp-row:active{background:rgba(209,98,42,.12)}
+  @media (hover:hover){ .cp-row:hover{background:rgba(209,98,42,.06)} }
 
-  .cp-check{flex:none;width:24px;height:24px;border-radius:50%;border:2px solid var(--line);
-    background:var(--card-2);cursor:pointer;padding:0;position:relative;margin-top:1px;
-    transition:background .12s,border-color .12s,transform .08s}
-  .cp-check:hover{border-color:var(--stamp)}
-  .cp-check:active{transform:scale(.9)}
+  .cp-check{flex:none;width:26px;height:26px;border-radius:50%;border:2px solid var(--line);
+    background:var(--card-2);padding:0;position:relative;margin-top:1px;pointer-events:none;
+    transition:background .12s,border-color .12s}
+  .cp-row:hover .cp-check{border-color:var(--stamp)}
   .cp-check[aria-checked="true"]{background:var(--ok);border-color:var(--ok)}
   .cp-check[aria-checked="true"]::after{content:'✓';position:absolute;inset:0;color:#fff;
-    font-size:.8rem;line-height:20px;text-align:center;font-weight:700}
+    font-size:.85rem;line-height:22px;text-align:center;font-weight:700}
 
   .cp-main{flex:1;min-width:0}
   .cp-name{font-size:.95rem;font-weight:500;line-height:1.35}
@@ -228,25 +244,32 @@
 
   .cp-add{display:flex;gap:.4rem;padding:.45rem .3rem .1rem}
   .cp-add input{border:1px dashed var(--line);background:transparent;border-radius:8px;
-    padding:.3rem .6rem;font-size:.85rem;flex:1;min-width:0;color:var(--ink)}
+    padding:.35rem .6rem;font-size:.85rem;flex:1;min-width:0;color:var(--ink)}
   .cp-add input:focus{outline:none;border-color:var(--stamp);border-style:solid;background:var(--card-2)}
   .cp-add input::placeholder{color:var(--muted);opacity:.8}
+
+  .cp-addbar{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center}
+  .cp-addbar .form-select{max-width:190px}
+  .cp-addbar .grow{flex:1;min-width:170px}
+  .cp-hint{font-family:'JetBrains Mono',monospace;font-size:.66rem;color:var(--muted);margin-top:.35rem}
 
   .cp-filters{display:flex;gap:.3rem;flex-wrap:wrap;align-items:center}
   .cp-fil{border:1px solid var(--line);background:var(--card-2);border-radius:20px;
     font-size:.75rem;padding:.15rem .7rem;color:var(--ink-soft);cursor:pointer}
   .cp-fil:hover{border-color:var(--stamp);color:var(--stamp)}
   .cp-fil.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+  .cp-search{max-width:200px}
+  .tpl-card{border:1px solid var(--line);border-radius:10px;padding:.6rem .7rem;cursor:pointer;
+    background:var(--card-2);height:100%}
+  .tpl-card:hover{border-color:var(--stamp)}
+  .tpl-card.on{border-color:var(--ok);background:#f1f6f2}
+  .tpl-name{font-weight:600;font-size:.9rem}
+  .tpl-list{font-size:.72rem;color:var(--muted);line-height:1.35}
   @media(max-width:640px){
-    .cp-check{width:28px;height:28px}
-    .cp-check[aria-checked="true"]::after{line-height:24px;font-size:.9rem}
+    .cp-check{width:30px;height:30px}
+    .cp-check[aria-checked="true"]::after{line-height:26px;font-size:.95rem}
     .cp-acts{opacity:1}
-  }
-  @media print{
-    .cp-add,.cp-filters,.cp-acts{display:none !important}
-    .cp-row{opacity:1 !important;break-inside:avoid}
-    .cp-check{border:1.5px solid #000;background:#fff}
-    .cp-check[aria-checked="true"]::after{color:#000}
+    .cp-search{max-width:100%}
   }
 
   /* --- SCHELETRI DI CARICAMENTO (velocità percepita) --- */
@@ -279,12 +302,33 @@
       radial-gradient(farthest-side at 100% 50%,rgba(23,50,77,.14),transparent) right center/10px 100% no-repeat;
     background-attachment:local,local,scroll,scroll}
 
+  /* ==========================================================
+     DOSSIER DI VIAGGIO — il documento che finisce in PDF
+     Vive nascosto nella pagina e compare solo in stampa.
+     ========================================================== */
+  #printDoc{display:none}
+  .pd-cover{border-bottom:3px solid #17324d;padding-bottom:8px;margin-bottom:14px}
+  .pd-title{font-family:'Fraunces',serif;font-size:26pt;margin:0;line-height:1.1}
+  .pd-sub{font-family:'JetBrains Mono',monospace;font-size:10pt;color:#444;margin-top:4px}
+  .pd-sec{margin:0 0 14px}
+  .pd-sec h2{font-family:'Fraunces',serif;font-size:13pt;margin:0 0 6px;
+    border-bottom:1px solid #999;padding-bottom:3px}
+  .pd-box{border:1px solid #bbb;border-radius:6px;padding:7px 9px;margin-bottom:7px}
+  .pd-k{font-family:'JetBrains Mono',monospace;font-size:8.5pt;color:#555;text-transform:uppercase;letter-spacing:.08em}
+  .pd-row{display:flex;justify-content:space-between;gap:10px;padding:2px 0;border-bottom:1px dotted #ccc}
+  .pd-row:last-child{border-bottom:none}
+  .pd-mono{font-family:'JetBrains Mono',monospace;font-size:9.5pt}
+  .pd-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .pd-note{font-size:8.5pt;color:#555}
+  .pd-day{font-weight:600;margin-top:6px}
+  .pd-cols{column-count:2;column-gap:16px}
+
   /* --- STAMPA: il piano di viaggio su carta --- */
   @media print{
-    @page{margin:14mm}
+    @page{margin:12mm}
     body{background:#fff !important;background-image:none !important;color:#000}
     .topbar,.navtabs-wrap,.toast-mini,.netbar,.btn,.icon-btn,.quick-chip,.link-btn,
-    .modal,.modal-backdrop,.load-overlay,.skip-link{display:none !important}
+    .modal,.modal-backdrop,.load-overlay,.skip-link,.code-chip{display:none !important}
     #app{padding:0 !important;max-width:100% !important}
     .sheet,.trip-card,.alg-card,.volo-card{box-shadow:none !important;border:1px solid #bbb !important;
       break-inside:avoid;page-break-inside:avoid}
@@ -292,6 +336,12 @@
     a[href^="http"]::after{content:" (" attr(href) ")";font-size:.7em;color:#555;word-break:break-all}
     .chip{border:1px solid #999}
     h1{font-size:20pt}
+    /* modalità dossier: in pagina resta solo il documento */
+    body.printing > *:not(#printDoc){display:none !important}
+    body.printing #printDoc{display:block !important;font-size:10.5pt;color:#000}
+    body.printing #printDoc a::after{content:'' !important}
+    .pd-sec,.pd-box{break-inside:avoid;page-break-inside:avoid}
+    .pd-break{break-before:page;page-break-before:always}
   }
   /* overlay caricamento globale */
   .load-overlay{position:fixed;inset:0;background:rgba(242,237,225,.7);backdrop-filter:blur(2px);
@@ -333,6 +383,7 @@
     font-size:.72rem;padding:.1rem .6rem;color:var(--ink-soft);cursor:pointer}
   .quick-chip:hover{border-color:var(--stamp);color:var(--stamp);border-style:solid}
   .derived{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--ink-soft);min-height:1rem}
+  .price-split{font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--muted)}
   .dir-block{margin-bottom:.6rem}
   .dir-block:last-of-type{margin-bottom:0}
   .dir-head{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;flex-wrap:wrap;
@@ -378,16 +429,12 @@
         </g>
       </svg> TripHub</a>
     <div class="d-flex align-items-center gap-2">
+      <span class="role-badge" id="roleBadge" style="display:none"></span>
       <span class="mono d-none d-sm-inline" id="syncState" role="status" aria-live="polite">pronto</span>
-      <span class="mono d-none d-md-inline" id="buildTag" style="opacity:.45" title="versione">v3.3</span>
+      <span class="mono d-none d-md-inline" id="buildTag" style="opacity:.45" title="versione">v4.0</span>
       <div class="dropdown">
         <button class="btn btn-sm btn-ghost dropdown-toggle" data-bs-toggle="dropdown" aria-label="Altre azioni">⋯</button>
-        <ul class="dropdown-menu dropdown-menu-end" style="background:#fbf8f0;border-color:var(--line)">
-          <li><button class="dropdown-item" onclick="doExport()">⬇︎ Esporta backup (JSON)</button></li>
-          <li><button class="dropdown-item" onclick="document.getElementById('importFile').click()">⬆︎ Importa backup…</button></li>
-          <li><hr class="dropdown-divider"></li>
-          <li><button class="dropdown-item text-danger" onclick="logout()">Esci</button></li>
-        </ul>
+        <ul class="dropdown-menu dropdown-menu-end" id="topMenu" style="background:#fbf8f0;border-color:var(--line)"></ul>
       </div>
       <input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="doImport(this)">
     </div>
@@ -396,6 +443,7 @@
 
 <!-- ============ APP ROOT ============ -->
 <main id="app" class="container py-4"></main>
+<div id="printDoc" aria-hidden="true"></div>
 <div class="toast-mini" id="toast" role="status" aria-live="polite"></div>
 <div class="netbar" id="netbar">Sei offline — le modifiche non vengono salvate finché non torna la rete</div>
 
@@ -409,9 +457,14 @@ const API_URL = "https://script.google.com/macros/s/AKfycbxN6Xe9meHwq4GsQtkaHPgt
    STATE
    ============================================================ */
 let TOKEN = sessionStorage.getItem('triphub_token') || '';
+let ROLE  = sessionStorage.getItem('triphub_role')  || '';   // 'admin' | 'trip' | ''
+let MY_TRIPS = [];                                           // id dei viaggi consentiti (solo ruolo 'trip')
 let CURRENT_TRIP = null;
 let CURRENT_DATA = null;
+let AUTO_OPENED = false;         // per non rimbalzare sul viaggio unico dopo "torna ai viaggi"
 const SORT = {};                 // ordinamento per tab: { sheet: {col, dir} }
+
+const isAdmin = () => ROLE === 'admin';
 
 /* ============================================================
    API LAYER
@@ -444,6 +497,8 @@ async function api(action, payload = {}) {
   setSync('pronto');
   if (!data.ok) {
     if (data.error === 'unauthorized') throw new AuthError('unauthorized');
+    if (String(data.error).indexOf('forbidden') === 0)
+      throw new Error('non hai i permessi per questa operazione con il codice attuale');
     throw new Error(data.error || 'errore sconosciuto');
   }
   return data.data;
@@ -451,7 +506,7 @@ async function api(action, payload = {}) {
 
 function sessionExpired(){
   toast('Sessione scaduta — rientra con il codice');
-  renderGate('La sessione è scaduta. Reinserisci il codice del gruppo.');
+  renderGate('La sessione è scaduta. Reinserisci il codice.');
 }
 
 /* ============================================================
@@ -522,8 +577,6 @@ function currentSection(){
 }
 
 // Ridisegna la vista corrente usando i dati in memoria (nessuna chiamata rete).
-// keepScroll: ridisegnare una sezione lunga riporterebbe la pagina in cima,
-// che dopo ogni spunta è fastidioso.
 function refreshView(){
   if(CURRENT_TRIP && /^#\/viaggio\//.test(location.hash)){
     renderSection(currentSection(), true);
@@ -567,6 +620,30 @@ function toast(msg, type, action){
   t.className = 'toast-mini show' + (type==='error'?' err':type==='ok'?' ok':'');
   clearTimeout(t._timer);
   t._timer = setTimeout(()=>t.classList.remove('show'), ms);
+}
+
+// copia negli appunti con conferma visiva (usata per PNR, codici, link)
+function copyText(txt, msg){
+  const done = ()=>toast(msg||'Copiato ✓','ok');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(done).catch(()=>fallbackCopy(txt, done));
+  } else fallbackCopy(txt, done);
+}
+function fallbackCopy(txt, done){
+  const ta = document.createElement('textarea');
+  ta.value = txt; ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); done(); }catch(_){ toast('Impossibile copiare','error'); }
+  ta.remove();
+}
+
+// chip con codice (prenotazione, accesso): un tocco = copiato
+function codeChip(label, value, title){
+  if(!String(value||'').trim()) return '';
+  return `<span class="code-chip" title="${esc(title||'copia')}" role="button" tabindex="0"
+    onclick="copyText('${jsArg(value)}','${jsArg(label)} copiato ✓')"
+    onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();copyText('${jsArg(value)}','${jsArg(label)} copiato ✓')}"
+    ><span class="k">${esc(label)}</span> ${esc(value)} ⧉</span>`;
 }
 
 /* ---------- SCHELETRI: struttura finta mentre arrivano i dati ---------- */
@@ -681,6 +758,8 @@ async function askConfirm(msg, danger){
 
 /* ============================================================
    AUTH GATE
+   Un solo campo, due significati: il codice amministratore apre
+   tutto, il codice di un viaggio apre solo quel viaggio.
    ============================================================ */
 function renderGate(err){
   $('#topbar').style.display = 'none';
@@ -706,12 +785,13 @@ function renderGate(err){
       </div>
       <div class="sheet">
         <p class="eyebrow mb-1">Accesso</p>
-        <h2 style="font-size:1.3rem;margin-bottom:1rem">Inserisci il codice del gruppo</h2>
+        <h2 style="font-size:1.3rem;margin-bottom:1rem">Inserisci il tuo codice</h2>
         ${err ? `<div class="alert alert-danger py-2 small">${esc(err)}</div>` : ''}
         <label class="form-label">Codice</label>
-        <input id="tokenInput" type="password" class="form-control mb-3" placeholder="il codice condiviso" value="${esc(TOKEN)}" autocomplete="current-password">
+        <input id="tokenInput" type="password" class="form-control mb-3" placeholder="codice del viaggio" value="${esc(TOKEN)}" autocomplete="current-password">
         <button class="btn btn-stamp w-100" id="loginBtn" onclick="doLogin()">Entra</button>
-        <p class="mono text-center mt-3 mb-0" style="font-size:.66rem;color:var(--muted)">il codice resta solo su questo dispositivo</p>
+        <p class="mono text-center mt-3 mb-0" style="font-size:.66rem;color:var(--muted)">
+          ogni viaggio ha il suo codice · resta solo su questo dispositivo</p>
       </div>
     </div>`;
   const inp = $('#tokenInput');
@@ -719,24 +799,54 @@ function renderGate(err){
   inp.focus();
 }
 
+function applyRole(info){
+  ROLE = info && info.role ? info.role : '';
+  MY_TRIPS = (info && info.viaggi) ? info.viaggi.map(String) : [];
+  sessionStorage.setItem('triphub_role', ROLE);
+  const b = $('#roleBadge');
+  if(b){
+    b.style.display = ROLE ? '' : 'none';
+    b.textContent = isAdmin() ? 'admin' : 'viaggio';
+    b.title = isAdmin() ? 'codice amministratore: accesso completo'
+                        : 'codice di viaggio: vedi solo i viaggi collegati a questo codice';
+  }
+  buildTopMenu();
+}
+
+function buildTopMenu(){
+  const ul = $('#topMenu');
+  if(!ul) return;
+  const admin = isAdmin();
+  ul.innerHTML = `
+    ${admin?`<li><button class="dropdown-item" onclick="openRubrica()">👤 Rubrica viaggiatori</button></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><button class="dropdown-item" onclick="doExport()">⬇︎ Esporta backup (JSON)</button></li>
+    <li><button class="dropdown-item" onclick="document.getElementById('importFile').click()">⬆︎ Importa backup…</button></li>
+    <li><hr class="dropdown-divider"></li>`:''}
+    <li><button class="dropdown-item text-danger" onclick="logout()">Esci</button></li>`;
+}
+
 async function doLogin(){
   TOKEN = $('#tokenInput').value.trim();
   if(!TOKEN){ return renderGate('Serve il codice.'); }
   try {
-    await withBtnLoading($('#loginBtn'), 'Verifico…', ()=>api('list', { sheet:'Viaggi' }));
+    const info = await withBtnLoading($('#loginBtn'), 'Verifico…', ()=>api('auth'));
     sessionStorage.setItem('triphub_token', TOKEN);
+    applyRole(info);
+    AUTO_OPENED = false;
     location.hash = '#/';
-    boot();
+    route();
   } catch(e){
     TOKEN = '';
-    if(!(e instanceof AuthError) && !(e instanceof NetworkError)) renderGate('Codice non valido.');
-    else if(e instanceof AuthError) renderGate('Codice non valido.');
+    if(!(e instanceof NetworkError)) renderGate('Codice non valido.');
     // NetworkError: withBtnLoading ha già mostrato il toast, resta sul gate
   }
 }
 
 function logout(){
-  sessionStorage.removeItem('triphub_token'); TOKEN='';
+  sessionStorage.removeItem('triphub_token');
+  sessionStorage.removeItem('triphub_role');
+  TOKEN=''; ROLE=''; MY_TRIPS=[]; RUBRICA=null;
   CURRENT_TRIP = null; CURRENT_DATA = null;
   TRIP_CACHE.clear(); invalidateTrips();
   location.hash = '#/'; renderGate();
@@ -780,7 +890,7 @@ function tripStato(t){
                                                   hint: b===oggi ? 'ultimo giorno' : `finisce il ${toITDate(b)}` };
   if(a && a > oggi){
     const g = nightsBetween(oggi, a);
-    const hint = g===1 ? 'domani' : (g<=120 ? `tra ${g} giorni` : '');
+    const hint = g===1 ? 'domani' : (g<=400 ? `tra ${g} giorni` : '');
     return { txt:'in programma', cls:'', hint };
   }
   if(a && a === oggi)                    return { txt:'in corso', cls:'now', hint:'si parte oggi' };
@@ -801,6 +911,8 @@ function tripSort(a,b){
 
 /* ============================================================
    VIEW: HOME (lista viaggi + ricerca)
+   Con un codice di viaggio si vede SOLO ciò che quel codice apre:
+   il filtro è fatto dal server, qui non arriva nemmeno il resto.
    ============================================================ */
 async function viewHome(){
   $('#topbar').style.display = 'block';
@@ -809,6 +921,7 @@ async function viewHome(){
 
   // se abbiamo già l'elenco lo mostriamo subito, poi lo rivalidiamo in sottofondo
   if(TRIPS_CACHE){
+    if(autoOpenSingle(TRIPS_CACHE)) return;
     paintHome(TRIPS_CACHE);
     api('list', { sheet:'Viaggi' }).then(fresh=>{
       if(JSON.stringify(fresh)!==JSON.stringify(TRIPS_CACHE) && location.hash.replace('#','')==='/' ){
@@ -826,7 +939,18 @@ async function viewHome(){
     return renderError('Non riesco a caricare i viaggi', e.message, viewHome);
   }
   cacheTrips(trips);
+  if(autoOpenSingle(trips)) return;
   paintHome(trips);
+}
+
+// Chi entra con il codice di un solo viaggio non ha motivo di vedere una lista
+// da un elemento: lo portiamo dentro direttamente (ma solo la prima volta,
+// altrimenti "torna ai viaggi" rimbalzerebbe indietro).
+function autoOpenSingle(trips){
+  if(isAdmin() || AUTO_OPENED || !trips || trips.length!==1) return false;
+  AUTO_OPENED = true;
+  location.hash = '#/viaggio/'+trips[0].id;
+  return true;
 }
 
 function paintHome(trips){
@@ -849,6 +973,7 @@ function paintHome(trips){
           ${t.data_inizio?toITDate(t.data_inizio):'?'} → ${t.data_fine?toITDate(t.data_fine):'?'} · ${esc(t.n_persone||'?')} pers.
         </div>
         ${st.hint?`<div class="mono mt-1" style="font-size:.7rem;color:var(--stamp);font-weight:500">${esc(st.hint)}</div>`:''}
+        ${(isAdmin()&&t.codice)?`<div class="mt-2">${codeChip('codice', t.codice, 'codice di accesso del viaggio')}</div>`:''}
       </div>
     </div>`;
   }).join('');
@@ -866,14 +991,15 @@ function paintHome(trips){
       </div>
       <div class="d-flex align-items-center gap-2 flex-wrap">
         ${search}
-        <button class="btn btn-stamp" onclick="editTrip()">+ Nuovo viaggio</button>
+        ${isAdmin()?`<button class="btn btn-stamp" onclick="editTrip()">+ Nuovo viaggio</button>`:''}
       </div>
     </div>
     ${trips.length ? `<div class="row g-3" id="tripGrid">${cards}</div>
       <div class="empty" id="noTripMatch" style="display:none"><div class="big">Nessun viaggio trovato</div></div>`
       : `<div class="sheet empty"><div class="big">Nessun viaggio ancora</div>
-         <div>Crea la prima rotta e inizia a organizzare.</div>
-         <button class="btn btn-stamp mt-3" onclick="editTrip()">+ Nuovo viaggio</button></div>`}
+         ${isAdmin()?`<div>Crea la prima rotta e inizia a organizzare.</div>
+         <button class="btn btn-stamp mt-3" onclick="editTrip()">+ Nuovo viaggio</button>`
+         :`<div>Il codice che hai usato non è collegato a nessun viaggio attivo.</div>`}</div>`}
   `;
 }
 
@@ -932,10 +1058,12 @@ async function viewTrip(id, section){
   try { all = await fetchTrip(id); }
   catch(e){
     if(e instanceof AuthError) return renderGate('La sessione è scaduta. Reinserisci il codice.');
-    return renderError('Non riesco a caricare il viaggio', e.message, ()=>viewTrip(id, section));
+    return renderError('Non riesco ad aprire il viaggio', e.message, ()=>viewTrip(id, section));
   }
   if(!(all.Viaggi||[])[0]){
-    $('#app').innerHTML = `<div class="sheet empty"><div class="big">Viaggio non trovato</div><a href="#/">← torna ai viaggi</a></div>`;
+    $('#app').innerHTML = `<div class="sheet empty"><div class="big">Viaggio non trovato</div>
+      <div>Potrebbe non essere accessibile con il codice che stai usando.</div>
+      <a href="#/">← torna ai viaggi</a></div>`;
     return;
   }
   mountTrip(all, section);
@@ -944,16 +1072,18 @@ async function viewTrip(id, section){
 function mountTrip(all, section){
   const trip = (all.Viaggi||[])[0];
   // reset delle viste locali se è cambiato viaggio
-  if(!CURRENT_TRIP || CURRENT_TRIP.id !== trip.id){ CDF_MONTH = null; CDF_VIEW = 'lista'; VOLI_VIEW = 'schede'; ALG_VIEW = 'schede';
-    CP_FILTER = 'tutti'; CP_WHO = null; CP_CLOSED = {}; }
+  if(!CURRENT_TRIP || CURRENT_TRIP.id !== trip.id){
+    CDF_MONTH = null; CDF_VIEW = 'lista'; VOLI_VIEW = 'schede'; ALG_VIEW = 'schede';
+    CURRENT_TRIP = trip;
+    cpReset();
+  }
   CURRENT_TRIP = trip; CURRENT_DATA = all;
   TRIP_CACHE.set(String(trip.id), all);
   document.title = (trip.destinazione||trip.nome||'Viaggio') + ' — TripHub';
   renderTripShell(section);
 }
 
-/* Contatori e avvisi sulle linguette: da qui si capisce a colpo d'occhio
-   quanto c'è dentro ogni sezione e cosa manca ancora. */
+/* Contatori e avvisi sulle linguette */
 function tabBadge(k, d){
   const len = a => (a||[]).length;
   if(k==='partecipanti') return { n: len(d.Partecipanti) };
@@ -996,13 +1126,30 @@ function updateTabBadges(){
   if(box && CURRENT_TRIP) box.innerHTML = tabsHtml(currentSection());
 }
 
+// giorni che mancano alla partenza (o al rientro se siamo già in viaggio)
+function tripCountdown(t){
+  const oggi = todayISO();
+  const a = toISODate(t.data_inizio), b = toISODate(t.data_fine);
+  if(a && a > oggi){
+    const g = nightsBetween(oggi, a);
+    return g===1 ? '⏳ si parte domani' : `⏳ ${g} giorni alla partenza`;
+  }
+  if(a && b && a<=oggi && oggi<=b){
+    const g = nightsBetween(oggi, b);
+    return g===0 ? '🎒 ultimo giorno' : `🌴 in viaggio · ancora ${g} giorn${g===1?'o':'i'}`;
+  }
+  return '';
+}
+
 // Disegna intestazione + tab + sezione, dai dati in memoria (nessuna rete)
 function renderTripShell(section){
   const trip = CURRENT_TRIP, id = trip.id;
   const st = tripStato(trip);
   const tabs = tabsHtml(section);
+  const cd = tripCountdown(trip);
+  const solo = !isAdmin() && !!TRIPS_CACHE && TRIPS_CACHE.length<=1;
   $('#app').innerHTML = `
-    <a href="#/" class="mono" style="font-size:.75rem;text-decoration:none;color:var(--muted)">← tutti i viaggi</a>
+    ${solo?'':`<a href="#/" class="mono" style="font-size:.75rem;text-decoration:none;color:var(--muted)">← tutti i viaggi</a>`}
     <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mt-2 mb-3">
       <div>
         <p class="eyebrow mb-1">${esc(trip.paese||'')}</p>
@@ -1012,11 +1159,17 @@ function renderTripShell(section){
             ${trip.data_inizio?toITDate(trip.data_inizio):'?'} → ${trip.data_fine?toITDate(trip.data_fine):'?'} ✎</button>
           <span class="chip${st.cls==='done'?' pick':''}">${esc(st.txt)}</span>
           ${tripDatesChip(CURRENT_DATA)}
+          ${cd?`<span class="chip" style="background:#fdf1ea;color:var(--stamp)">${esc(cd)}</span>`:''}
         </div>
+        ${isAdmin()&&trip.codice?`<div class="mt-2 d-flex align-items-center gap-2 flex-wrap">
+          ${codeChip('accesso', trip.codice, 'codice per far entrare i partecipanti')}
+          <button class="quick-chip" onclick="inviteTrip()">✉︎ invita</button>
+        </div>`:''}
       </div>
-      <div class="d-flex gap-2">
+      <div class="d-flex gap-2 flex-wrap">
+        <button class="btn btn-ghost btn-sm" onclick="printDossier()" title="crea un PDF del viaggio">🖨 PDF</button>
         <button class="btn btn-ghost btn-sm" onclick="editTrip(CURRENT_TRIP)">Modifica viaggio</button>
-        <button class="btn btn-ghost btn-sm" style="color:var(--danger);border-color:#e0b3a8" onclick="delTrip()">Elimina</button>
+        ${isAdmin()?`<button class="btn btn-ghost btn-sm" style="color:var(--danger);border-color:#e0b3a8" onclick="delTrip()">Elimina</button>`:''}
       </div>
     </div>
     <div class="navtabs-wrap mb-3"><nav class="navtabs" id="navtabs" aria-label="Sezioni del viaggio">${tabs}</nav></div>
@@ -1025,13 +1178,23 @@ function renderTripShell(section){
   renderSection(section);
 }
 
+// Testo pronto da mandare su WhatsApp con link + codice del viaggio
+function inviteTrip(){
+  if(!CURRENT_TRIP || !CURRENT_TRIP.codice) return;
+  const url = location.origin + location.pathname;
+  const txt = `Ciao! Ecco il piano di "${CURRENT_TRIP.destinazione||CURRENT_TRIP.nome}" su TripHub:\n`
+    + `${url}\nCodice di accesso: ${CURRENT_TRIP.codice}`;
+  if(navigator.share){
+    navigator.share({ title:'TripHub', text:txt }).catch(()=>copyText(txt,'Invito copiato ✓'));
+  } else copyText(txt, 'Invito copiato ✓');
+}
+
 function setActiveTab(section){
   document.querySelectorAll('.navtabs a').forEach(a=>{
     const on = a.getAttribute('data-tab')===section;
     a.classList.toggle('active', on);
     if(on){
       a.setAttribute('aria-current','page');
-      // porta la linguetta attiva dentro la vista sulla barra scorrevole del telefono
       if(a.scrollIntoView) try{ a.scrollIntoView({block:'nearest',inline:'nearest'}); }catch(_){}
     }
     else a.removeAttribute('aria-current');
@@ -1123,7 +1286,7 @@ async function alignTripDates(start, end){
   const prev = { data_inizio: CURRENT_TRIP.data_inizio, data_fine: CURRENT_TRIP.data_fine };
   const out  = { id: CURRENT_TRIP.id, data_inizio: start, data_fine: end };
   Object.assign(CURRENT_TRIP, out);
-  if(CURRENT_DATA?.Viaggi?.[0]) Object.assign(CURRENT_DATA.Viaggi[0], out);
+  if(CURRENT_DATA && CURRENT_DATA.Viaggi && CURRENT_DATA.Viaggi[0]) Object.assign(CURRENT_DATA.Viaggi[0], out);
   renderTripShell(currentSection());
   try{
     await api('update', { sheet:'Viaggi', record: out });
@@ -1131,7 +1294,7 @@ async function alignTripDates(start, end){
     toast('Date del viaggio aggiornate ✓','ok');
   }catch(e){
     Object.assign(CURRENT_TRIP, prev);
-    if(CURRENT_DATA?.Viaggi?.[0]) Object.assign(CURRENT_DATA.Viaggi[0], prev);
+    if(CURRENT_DATA && CURRENT_DATA.Viaggi && CURRENT_DATA.Viaggi[0]) Object.assign(CURRENT_DATA.Viaggi[0], prev);
     renderTripShell(currentSection());
     if(e instanceof AuthError) sessionExpired(); else toast('Errore: '+e.message,'error');
   }
@@ -1142,7 +1305,7 @@ function pName(p){ return [p.nome, p.cognome].filter(Boolean).join(' ').trim() |
 function partList(d){ return (d.Partecipanti||[]).slice().sort((a,b)=>pName(a).localeCompare(pName(b),'it')); }
 function tripPeople(d){
   const n = (d.Partecipanti||[]).length;
-  return n>0 ? n : (num(d.Viaggi?.[0]?.n_persone) || 1);
+  return n>0 ? n : (num(d.Viaggi && d.Viaggi[0] && d.Viaggi[0].n_persone) || 1);
 }
 function payerNames(paganti, allNames){
   const s = String(paganti||'').trim();
@@ -1155,14 +1318,21 @@ function payerCount(paganti, totalPeople, allNames){
   return n>0 ? n : totalPeople;
 }
 
-/* ---------- RIEPILOGO + BUDGET (calcolato) ---------- */
+/* ---------- RIEPILOGO + BUDGET (calcolato) ----------
+   Nota v4: il costo di un volo è ora "biglietto + bagagli".
+   Il budget somma sempre i due addendi, così i totali restano
+   corretti anche sui voli inseriti prima di questa versione
+   (dove costo_bagaglio è semplicemente vuoto).                */
 function computeBudget(d){
   const alloggio = (d.Alloggi||[]).filter(a=>truthy(a.scelto)).reduce((s,a)=>s+num(a.totale),0);
-  const voli     = (d.Voli||[]).filter(v=>truthy(v.scelto)).reduce((s,v)=>s+num(v.totale),0);
-  const spese    = (d.Spese||[]).reduce((s,x)=>s+num(x.totale),0);
+  const voliRows = (d.Voli||[]).filter(v=>truthy(v.scelto));
+  const voliBiglietti = voliRows.reduce((s,v)=>s+num(v.totale),0);
+  const voliBagagli   = voliRows.reduce((s,v)=>s+num(v.costo_bagaglio),0);
+  const voli  = voliBiglietti + voliBagagli;
+  const spese = (d.Spese||[]).reduce((s,x)=>s+num(x.totale),0);
   const tot = alloggio + voli + spese;
   const pers = tripPeople(d);
-  return { alloggio, voli, spese, tot, pers, perPersona: tot/pers };
+  return { alloggio, voli, voliBiglietti, voliBagagli, spese, tot, pers, perPersona: tot/pers };
 }
 
 function computeBalances(d){
@@ -1177,7 +1347,7 @@ function computeBalances(d){
   });
   (d.Voli||[]).filter(v=>truthy(v.scelto)).forEach(v=>{
     const names = payerNames(v.paganti, allNames);
-    const q = num(v.totale)/(names.length||nAll);
+    const q = (num(v.totale)+num(v.costo_bagaglio))/(names.length||nAll);
     (names.length?names:allNames).forEach(n=>{ if(n in bal) bal[n]+=q; });
   });
   (d.Spese||[]).forEach(x=>{
@@ -1204,14 +1374,16 @@ function secRiepilogo(d){
     .slice().sort((x,y)=>String(toISODate(x.checkin)).localeCompare(String(toISODate(y.checkin))))
     .map(a=>{
       const n = algNights(a);
+      const href = mapsHref(a);
       return `<div class="mb-2">
         <div style="font-weight:600">${esc(a.struttura||'Alloggio')} ${starsView(a.valutazione)}</div>
         <div class="mono" style="font-size:.78rem;color:var(--ink-soft)">
           ${toITDate(a.checkin)}${a.ora_checkin?' '+esc(toHM(a.ora_checkin)):''} → ${toITDate(a.checkout)}${a.ora_checkout?' '+esc(toHM(a.ora_checkout)):''}${n?` · ${n} nott${n===1?'e':'i'}`:''}
         </div>
-        ${a.indirizzo?`<div style="font-size:.8rem;color:var(--muted)">${esc(a.indirizzo)}
-          <a class="link-btn ms-1" href="${esc(mapsUrl(a.indirizzo))}" target="_blank" rel="noopener">📍</a></div>`:''}
+        ${(a.indirizzo||href)?`<div style="font-size:.8rem;color:var(--muted)">${esc(a.indirizzo||'')}
+          ${href?`<a class="link-btn ms-1" href="${esc(href)}" target="_blank" rel="noopener">📍 mappa</a>`:''}</div>`:''}
         <div class="mono" style="font-size:.8rem">${eur(a.totale)}${num(a.prezzo_testa)?` · ${eur(a.prezzo_testa)} a testa`:''}</div>
+        ${a.pnr?`<div class="mt-1">${codeChip('prenotazione', a.pnr)}</div>`:''}
       </div>`;
     }).join('')
     : `<div class="mono" style="font-size:.8rem;color:var(--muted)">Nessun alloggio scelto — usa "Scegli" su un'opzione in Alloggi.</div>`)
@@ -1220,12 +1392,14 @@ function secRiepilogo(d){
 
   const voliBox = chosenKeys.length ? chosenKeys.map(k=>{
     const legs = groups[k];
-    const tot = groupTotal(legs);
+    const tot = groupTotal(legs), bag = groupBag(legs);
+    const pnr = groupPnr(legs);
     return `<div class="mb-2">
       <div class="d-flex justify-content-between align-items-baseline">
         <span style="font-weight:600">Opzione ${esc(groupOpz(legs))} · ${esc(groupKind(legs))}</span>
         <span class="mono" style="font-size:.8rem">${tot?eur(tot):''}</span>
       </div>
+      ${bag?`<div class="price-split text-end">di cui ${eur(bag)} di bagagli</div>`:''}
       ${groupDirs(legs).map(dd=>{
         const ls = legsOfDir(legs, dd);
         const dur = fmtDur(dirDuration(ls));
@@ -1233,6 +1407,7 @@ function secRiepilogo(d){
           ${dd==='Ritorno'?'🛬':'🛫'} ${esc(routeStr(ls))} · ${toITDate(ls[0].data_part)} ${esc(toHM(ls[0].ora_part))}${dur?' · '+dur:''}${ls.length>1?` · ${ls.length-1} scalo`:''}
         </div>`;
       }).join('')}
+      ${pnr?`<div class="mt-1">${codeChip('prenotazione', pnr)}</div>`:''}
     </div>`;
   }).join('')
     : `<div class="mono" style="font-size:.8rem;color:var(--muted)">Nessun volo scelto.</div>`;
@@ -1244,7 +1419,7 @@ function secRiepilogo(d){
       <p class="eyebrow mb-2">Quota per persona · quanto mette ciascuno</p>
       ${balances.map(x=>`<div class="budget-line"><span>${esc(x.nome)}</span><span class="mono per-person">${eur(x.quota)}</span></div>`).join('')}
       <p class="mono mt-2 mb-0" style="font-size:.66rem;color:var(--muted)">
-        alloggio diviso tra tutti · voli e spese divisi tra i paganti indicati
+        alloggio diviso tra tutti · voli (biglietto + bagagli) e spese divisi tra i paganti indicati
       </p>
     </div>` : `
     <div class="sheet p-4 mb-3">
@@ -1258,11 +1433,14 @@ function secRiepilogo(d){
   <div class="row g-3 mb-1">
     <div class="col-12 col-lg-7">
       <div class="sheet p-4 h-100">
-        <p class="eyebrow mb-1">Budget stimato · opzioni scelte</p>
+        <div class="d-flex justify-content-between align-items-start">
+          <p class="eyebrow mb-1">Budget stimato · opzioni scelte</p>
+          <button class="btn btn-ghost btn-sm" onclick="printDossier()">🖨 PDF del viaggio</button>
+        </div>
         <div class="budget-total mb-1">${eur(b.tot)}</div>
         <div class="per-person mb-3">${eur(b.perPersona)} a testa · ${b.pers} persone</div>
         <div class="budget-line"><span>Alloggio</span><span class="mono">${eur(b.alloggio)}</span></div>
-        <div class="budget-line"><span>Voli</span><span class="mono">${eur(b.voli)}</span></div>
+        <div class="budget-line"><span>Voli${b.voliBagagli?`<span class="sub"> · biglietti ${eur(b.voliBiglietti)} + bagagli ${eur(b.voliBagagli)}</span>`:''}</span><span class="mono">${eur(b.voli)}</span></div>
         <div class="budget-line"><span>Spese extra</span><span class="mono">${eur(b.spese)}</span></div>
       </div>
     </div>
@@ -1301,7 +1479,7 @@ function maskDoc(v){
 
 function secPartecipanti(rows, tid){
   rows = (rows||[]).slice().sort((a,b)=>pName(a).localeCompare(pName(b),'it'));
-  const fine = CURRENT_TRIP?.data_fine;
+  const fine = CURRENT_TRIP && CURRENT_TRIP.data_fine;
   const cards = rows.map(p=>{
     const scade = docScade(p.scadenza_doc, fine);
     return `
@@ -1313,8 +1491,9 @@ function secPartecipanti(rows, tid){
             ${p.data_nascita?`<div class="mono" style="font-size:.75rem;color:var(--ink-soft)">${toITDate(p.data_nascita)}${p.luogo_nascita?' · '+esc(p.luogo_nascita):''}</div>`:''}
           </div>
           <div class="text-nowrap">
-            <button class="icon-btn" onclick="editRowById('Partecipanti','${jsArg(p.id)}')">✎</button>
-            <button class="icon-btn" onclick="delRow('Partecipanti','${jsArg(p.id)}')">🗑</button>
+            ${isAdmin()?`<button class="icon-btn" title="Salva in rubrica" onclick="savePersonToRubrica('${jsArg(p.id)}')">★</button>`:''}
+            <button class="icon-btn" title="Modifica" onclick="editRowById('Partecipanti','${jsArg(p.id)}')">✎</button>
+            <button class="icon-btn" title="Elimina" onclick="delRow('Partecipanti','${jsArg(p.id)}')">🗑</button>
           </div>
         </div>
         <div class="mt-2" style="font-size:.82rem">
@@ -1330,7 +1509,7 @@ function secPartecipanti(rows, tid){
             <span class="mono" style="font-size:.72rem" data-doc="${esc(p.cod_fiscale)}">${esc(maskDoc(p.cod_fiscale))}</span>
             <button class="link-btn" type="button" onclick="revealDoc(this)">mostra</button></div>`:''}
           ${(p.telefono||p.email)?`<div style="font-size:.78rem;color:var(--ink-soft);margin-top:.3rem">
-            ${p.telefono?esc(p.telefono):''}${p.telefono&&p.email?' · ':''}${p.email?esc(p.email):''}</div>`:''}
+            ${p.telefono?`<a href="tel:${esc(String(p.telefono).replace(/\s/g,''))}">${esc(p.telefono)}</a>`:''}${p.telefono&&p.email?' · ':''}${p.email?`<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>`:''}</div>`:''}
           ${p.note?`<div style="font-size:.76rem;color:var(--muted);margin-top:.3rem">${esc(p.note)}</div>`:''}
         </div>
       </div>
@@ -1346,12 +1525,15 @@ function secPartecipanti(rows, tid){
   return `
     <div class="sheet p-3 mb-3" style="border-color:#d9cfa8;background:#fbf6e3">
       🔒 <strong>Dati sensibili.</strong> Questa sezione contiene documenti personali. I numeri sono mascherati
-      di default; chiunque abbia il codice del gruppo può comunque vederli. Condividi il codice solo con i partecipanti.
+      di default; chi ha il codice di questo viaggio può comunque vederli. Condividilo solo con i partecipanti.
     </div>
     ${alertScad}
-    <div class="d-flex justify-content-between align-items-center mb-2">
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
       <p class="eyebrow mb-0">${rows.length} partecipant${rows.length===1?'e':'i'}</p>
-      <button class="btn btn-stamp btn-sm" onclick="editRow('Partecipanti', null, '${jsArg(tid)}')">+ Aggiungi persona</button>
+      <div class="d-flex gap-2">
+        ${isAdmin()?`<button class="btn btn-ghost btn-sm" onclick="openRubrica(true)">★ Dalla rubrica</button>`:''}
+        <button class="btn btn-stamp btn-sm" onclick="editRow('Partecipanti', null, '${jsArg(tid)}')">+ Aggiungi persona</button>
+      </div>
     </div>
     ${rows.length ? `<div class="row g-3">${cards}</div>`
       : `<div class="sheet empty"><div class="big">Nessun partecipante</div>
@@ -1368,9 +1550,7 @@ function revealDoc(btn){
 
 /* ---------- TABELLE GENERICHE (con ordinamento e toggle rapidi) ---------- */
 const COLS = {
-  Alloggi:     ['struttura','checkin','checkout','notti','totale','prezzo_testa','prezzo_testa_notte','valutazione','link','scelto'],
   CoseDaFare:  ['data','tipo','attivita','posizione','durata','prenotazione_req','confermata'],
-  CosaPortare: ['categoria','cosa','qta','chi','priorita','spuntato'],
   Contatti:    ['categoria','nome','telefono','indirizzo','link'],
 };
 const LABELS = {
@@ -1382,6 +1562,8 @@ const LABELS = {
   data_nascita:'data di nascita', luogo_nascita:'luogo di nascita', tipo_doc:'tipo documento',
   num_doc:'n° documento', scadenza_doc:'scadenza documento', cod_fiscale:'codice fiscale',
   nazionalita:'nazionalità', paganti:'paganti', chi:'chi', n_persone:'n° persone',
+  costo_bagaglio:'costo bagagli', pnr:'n° prenotazione', mappa_link:'link mappa',
+  codice:'codice di accesso',
   stato:'stato — lascia vuoto per calcolarlo dalle date'
 };
 const lbl = k => LABELS[k] || k.replace(/_/g,' ');
@@ -1465,6 +1647,11 @@ function cell(sheet, col, val, rowId){
     if(s.includes('consig')) return `<span class="chip pri-cons">${esc(val)}</span>`;
     return esc(val);
   }
+  if(col==='telefono'){
+    const v = String(val||'').trim();
+    return v ? `<a href="tel:${esc(v.replace(/\s/g,''))}">${esc(v)}</a>` : '<span class="chip">–</span>';
+  }
+  if(col==='pnr') return codeChip('cod.', val) || '<span class="chip">–</span>';
   if(CUR_FIELDS.includes(col)) return `<span class="mono">${eur(val)}</span>`;
   if(DATE_FIELDS.includes(col)) return `<span class="mono">${toITDate(val)}</span>`;
   if(TIME_FIELDS.includes(col)) return `<span class="mono">${esc(toHM(val))}</span>`;
@@ -1473,10 +1660,6 @@ function cell(sheet, col, val, rowId){
   return esc(val);
 }
 
-/* Toggle rapido di un booleano.
-   Su una lista lunga (la spesa "cosa portare" può avere 60 voci) ridisegnare
-   tutta la sezione a ogni spunta costa e fa sfarfallare la pagina: qui si
-   ridipinge solo il chip cliccato, e si aggiornano i contatori dei tab. */
 function paintBoolChip(el, sheet, col, on){
   if(!el) return;
   el.className = 'chip toggle' + (on ? ' pick' : '');
@@ -1493,7 +1676,6 @@ async function toggleBool(sheet, id, field, ev){
   const next = truthy(prev) ? '' : 'Sì';
   r[field] = next;
 
-  // "scelto" cambia budget e riepiloghi: lì serve il ridisegno completo
   const heavy = (field === 'scelto');
   if(heavy) refreshView(); else { paintBoolChip(el, sheet, field, truthy(next)); updateTabBadges(); }
 
@@ -1518,10 +1700,9 @@ function linkCell(url){
 }
 
 function copyLink(btn, url){
-  navigator.clipboard.writeText(url).then(()=>{
-    const t = btn.textContent; btn.textContent='✓'; toast('Link copiato','ok');
-    setTimeout(()=>btn.textContent=t, 1200);
-  }).catch(()=>toast('Impossibile copiare','error'));
+  copyText(url, 'Link copiato ✓');
+  const t = btn.textContent; btn.textContent='✓';
+  setTimeout(()=>btn.textContent=t, 1200);
 }
 
 /* ---------- SPESE (tabella + totale, ordinabile) ---------- */
@@ -1532,6 +1713,7 @@ function secSpese(d, tid){
   const tot = rows.reduce((s,x)=>s+num(x.totale),0);
   const pers = tripPeople(d);
   const allNames = partList(d).map(pName);
+  const b = computeBudget(d);
   const body = rows.map(r=>{
     const nPay = payerCount(r.paganti, pers, allNames);
     const aTesta = num(r.prezzo_testa) || (nPay ? round2(num(r.totale)/nPay) : 0);
@@ -1548,9 +1730,20 @@ function secSpese(d, tid){
         <button class="icon-btn" onclick="delRow('Spese','${jsArg(r.id)}')">🗑</button>
       </td></tr>`;
   }).join('');
-  const head = ['data','descrizione','categoria','paganti','totale'].map(c=>thSortable('Spese',c)).join('')
-    + '<th>a testa</th><th></th>';
+  const head = SPESE_COLS.map(c=>thSortable('Spese',c)).join('') + '<th>a testa</th><th></th>';
   return `
+    <div class="row g-3 mb-3">
+      <div class="col-12 col-md-4"><div class="sheet p-3 h-100">
+        <p class="eyebrow mb-1">Totale viaggio</p>
+        <div class="budget-total">${eur(b.tot)}</div>
+        <div class="per-person">${eur(b.perPersona)} a testa</div></div></div>
+      <div class="col-12 col-md-8"><div class="sheet p-3 h-100">
+        <p class="eyebrow mb-2">Composizione</p>
+        <div class="budget-line"><span>🏠 Alloggio</span><span class="mono">${eur(b.alloggio)}</span></div>
+        <div class="budget-line"><span>✈️ Voli${b.voliBagagli?`<span class="sub"> · bagagli ${eur(b.voliBagagli)}</span>`:''}</span><span class="mono">${eur(b.voli)}</span></div>
+        <div class="budget-line"><span>🧾 Spese extra</span><span class="mono">${eur(b.spese)}</span></div>
+      </div></div>
+    </div>
     <div class="d-flex justify-content-between align-items-center mb-2">
       <p class="eyebrow mb-0">spese extra oltre a voli/alloggio</p>
       <button class="btn btn-stamp btn-sm" onclick="editRow('Spese', null, '${jsArg(tid)}')">+ Aggiungi spesa</button>
@@ -1597,7 +1790,7 @@ function rangesOverlap(a1,a2,b1,b2){
 }
 function algNights(a){ return Math.round(num(a.notti)) || nightsBetween(a.checkin,a.checkout); }
 function algOutOfRange(a){
-  const s=toISODate(CURRENT_TRIP?.data_inizio), e=toISODate(CURRENT_TRIP?.data_fine);
+  const s=toISODate(CURRENT_TRIP && CURRENT_TRIP.data_inizio), e=toISODate(CURRENT_TRIP && CURRENT_TRIP.data_fine);
   const ci=toISODate(a.checkin), co=toISODate(a.checkout);
   if(!s||!e||!ci||!co) return false;
   return ci<s || co>e;
@@ -1631,6 +1824,18 @@ function starsView(v){
   return `<span class="stars-view">${'★'.repeat(n)}<span class="off">${'★'.repeat(5-n)}</span></span>`;
 }
 function mapsUrl(q){ return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(String(q||'')); }
+function isUrl(v){ return /^https?:\/\//i.test(String(v||'').trim()); }
+
+/* Il pulsante mappa accetta due mondi:
+   - un indirizzo scritto a mano  → costruiamo la ricerca su Google Maps
+   - il link del tasto "Condividi" di Maps (anche maps.app.goo.gl) → lo apriamo così com'è,
+     che è l'unico modo di puntare esattamente al posto giusto quando la via è ambigua. */
+function mapsHref(a){
+  const l = String((a && a.mappa_link) || '').trim();
+  if(isUrl(l)) return l;
+  const q = l || (a && a.indirizzo) || (a && a.struttura) || '';
+  return q ? mapsUrl(q) : '';
+}
 
 const ALG_COLS = ['struttura','checkin','checkout','notti','totale','prezzo_testa','prezzo_testa_notte','valutazione'];
 
@@ -1675,6 +1880,7 @@ function alloggioCard(a){
   const n = algNights(a);
   const tot = num(a.totale), pt = num(a.prezzo_testa), ptn = num(a.prezzo_testa_notte);
   const pers = Math.round(num(a.persone));
+  const href = mapsHref(a);
   return `<div class="col-12 col-lg-6">
     <div class="sheet p-3 h-100 alg-card${pick?' picked':''}">
       <div class="d-flex justify-content-between align-items-start mb-1">
@@ -1693,9 +1899,10 @@ function alloggioCard(a){
         ${toITDate(a.checkin)}${a.ora_checkin?' '+esc(toHM(a.ora_checkin)):''} → ${toITDate(a.checkout)}${a.ora_checkout?' '+esc(toHM(a.ora_checkout)):''}${n?` · ${n} nott${n===1?'e':'i'}`:''}${pers?` · ${pers} pers.`:''}
       </div>
       ${algOutOfRange(a)?`<div class="mono" style="font-size:.7rem;color:var(--stamp)">⚠️ date fuori dal periodo del viaggio</div>`:''}
-      ${a.indirizzo?`<div style="font-size:.8rem;color:var(--muted);margin-top:.3rem">${esc(a.indirizzo)}
-        <a class="link-btn ms-1" href="${esc(mapsUrl(a.indirizzo))}" target="_blank" rel="noopener">📍 mappa</a></div>`:''}
+      ${(a.indirizzo||href)?`<div style="font-size:.8rem;color:var(--muted);margin-top:.3rem">${esc(a.indirizzo||'')}
+        ${href?`<a class="link-btn ms-1" href="${esc(href)}" target="_blank" rel="noopener">📍 mappa</a>`:''}</div>`:''}
       ${a.posizione?`<div style="font-size:.78rem;color:var(--muted)">${esc(a.posizione)}</div>`:''}
+      ${a.pnr?`<div class="mt-2">${codeChip('prenotazione', a.pnr)}</div>`:''}
       ${a.note?`<div style="font-size:.76rem;color:var(--muted);margin-top:.25rem">${esc(a.note)}</div>`:''}
       <div class="d-flex justify-content-between align-items-end mt-2 pt-2" style="border-top:1px solid var(--line)">
         <div>
@@ -1738,7 +1945,6 @@ function alloggiTable(rows){
 }
 
 /* ---------- ALLOGGI: azioni rapide ---------- */
-// scegliendo un alloggio si deselezionano solo quelli che si sovrappongono nelle date
 function algCompeting(a, rows){
   return (rows||[]).filter(r=>String(r.id)!==String(a.id)
     && truthy(r.scelto) && rangesOverlap(a.checkin,a.checkout,r.checkin,r.checkout));
@@ -1765,15 +1971,15 @@ async function chooseAlloggio(id, on){
 
 const ALG_COPY_FIELDS = ['viaggio_id','struttura','checkin','ora_checkin','checkout','ora_checkout',
   'notti','persone','prezzo_notte','extra','totale','prezzo_testa','prezzo_testa_notte',
-  'link','indirizzo','posizione','valutazione','note'];
+  'link','indirizzo','mappa_link','posizione','valutazione','note'];
 
 async function dupAlloggio(id){
   const a = findRow('Alloggi', id);
   if(!a) return;
   const rec = {};
-  ALG_COPY_FIELDS.forEach(f=>{ rec[f] = a[f] ?? ''; });
+  ALG_COPY_FIELDS.forEach(f=>{ rec[f] = a[f] != null ? a[f] : ''; });
   rec.struttura = (a.struttura||'Alloggio') + ' (copia)';
-  rec.scelto = '';
+  rec.scelto = ''; rec.pnr = '';
   try{
     const saved = await api('create', { sheet:'Alloggi', record:rec });
     applyLocal('Alloggi','create', saved);
@@ -1786,10 +1992,12 @@ async function dupAlloggio(id){
    VOLI — modello dati
    gruppo_id  = OPZIONE COMPLETA (andata + ritorno insieme)
    direzione  = Andata | Ritorno       tratta = scalo n° dentro la direzione
-   totale     = valorizzato SOLO sulla prima tratta di una direzione.
-                Il totale dell'opzione è la SOMMA dei totali del gruppo:
-                così "prezzo unico A/R" e "biglietti separati" funzionano
-                senza casi speciali.
+   totale     = prezzo del BIGLIETTO, valorizzato SOLO sulla prima
+                tratta di una direzione.
+   costo_bagaglio = supplemento bagagli, stessa regola.
+   Il costo di un'opzione è quindi: somma dei biglietti + somma dei
+   bagagli di tutte le sue tratte. Tenere i due addendi separati
+   serve perché molti siti mostrano prima il volo e poi il bagaglio.
    ============================================================ */
 const DIRS = ['Andata','Ritorno'];
 const dk     = d => (String(d||'').toLowerCase().indexOf('rit')===0 ? 'R' : 'A');
@@ -1798,7 +2006,7 @@ const dirOf  = r => isRit(r.direzione) ? 'Ritorno' : 'Andata';
 
 function voliGroups(rows){
   const g = {};
-  (rows||[]).forEach(r=>{ const k = r.gruppo_id || r.id; (g[k] ??= []).push(r); });
+  (rows||[]).forEach(r=>{ const k = r.gruppo_id || r.id; (g[k] = g[k] || []).push(r); });
   Object.values(g).forEach(arr=>arr.sort((a,b)=>{
     const d = (isRit(a.direzione)?1:0) - (isRit(b.direzione)?1:0);
     return d!==0 ? d : num(a.tratta)-num(b.tratta);
@@ -1807,10 +2015,16 @@ function voliGroups(rows){
 }
 function legsOfDir(legs, dir){ return (legs||[]).filter(l=>dirOf(l)===dir); }
 function groupDirs(legs){ return DIRS.filter(d=>legsOfDir(legs,d).length>0); }
-function groupTotal(legs){ return (legs||[]).reduce((s,l)=>s+num(l.totale),0); }
+function groupBiglietti(legs){ return (legs||[]).reduce((s,l)=>s+num(l.totale),0); }
+function groupBag(legs){ return (legs||[]).reduce((s,l)=>s+num(l.costo_bagaglio),0); }
+function groupTotal(legs){ return groupBiglietti(legs) + groupBag(legs); }
 function groupPTesta(legs){ return (legs||[]).reduce((s,l)=>s+num(l.prezzo_testa),0); }
 function groupChosen(legs){ return (legs||[]).some(l=>truthy(l.scelto)); }
-function groupOpz(legs){ return Math.round(num(legs?.[0]?.opzione))||1; }
+function groupOpz(legs){ return Math.round(num(legs && legs[0] && legs[0].opzione))||1; }
+function groupPnr(legs){
+  const r = (legs||[]).find(l=>String(l.pnr||'').trim());
+  return r ? String(r.pnr).trim() : '';
+}
 function groupKind(legs){
   const ds = groupDirs(legs);
   if(ds.length===2) return 'A/R';
@@ -1821,7 +2035,7 @@ function routeStr(legs){
   return legs.map(l=>String(l.da||'?')).concat(String(legs[legs.length-1].a||'?')).join(' → ');
 }
 function nextOpz(){
-  const groups = voliGroups(CURRENT_DATA?.Voli||[]);
+  const groups = voliGroups((CURRENT_DATA && CURRENT_DATA.Voli)||[]);
   const max = Object.values(groups).reduce((m,g)=>Math.max(m, groupOpz(g)), 0);
   return max+1;
 }
@@ -1927,21 +2141,22 @@ function dirSummary(d, legs){
 function voloCard(key, legs, groups){
   const pick = groupChosen(legs);
   const kind = groupKind(legs);
-  const tot = groupTotal(legs), pt = groupPTesta(legs);
+  const tot = groupTotal(legs), bigl = groupBiglietti(legs), bag = groupBag(legs), pt = groupPTesta(legs);
+  const pnr = groupPnr(legs);
   const mono = groupDirs(legs).length===1;
   const canMerge = mono && Object.keys(groups).some(k2=>{
     if(String(k2)===String(key)) return false;
     const g2 = groups[k2];
     return groupDirs(g2).length===1 && groupDirs(g2)[0]!==groupDirs(legs)[0];
   });
-  const bag = legs.some(l=>truthy(l.bagaglio));
+  const bagIncl = legs.some(l=>truthy(l.bagaglio));
   return `<div class="col-12 col-lg-6">
     <div class="sheet p-3 h-100 volo-card${pick?' picked':''}">
       <div class="d-flex justify-content-between align-items-start mb-2">
         <div class="d-flex align-items-center gap-1 flex-wrap">
           <span class="chip">opz. ${esc(groupOpz(legs))}</span>
           <span class="chip${kind==='A/R'?'':' pri-cons'}">${esc(kind)}</span>
-          ${bag?'<span class="chip">🧳</span>':''}
+          ${bagIncl?'<span class="chip" title="bagaglio in stiva incluso nel biglietto">🧳 incluso</span>':''}
           ${pick?'<span class="chip pick">✓ scelto</span>':''}
         </div>
         <div class="text-nowrap">
@@ -1951,11 +2166,13 @@ function voloCard(key, legs, groups){
           <button class="icon-btn" title="Elimina" onclick="delVolo('${jsArg(key)}')">🗑</button>
         </div>
       </div>
+      ${pnr?`<div class="mb-2">${codeChip('prenotazione', pnr)}</div>`:''}
       ${groupDirs(legs).map(d=>dirSummary(d, legsOfDir(legs,d))).join('')}
       <div class="d-flex justify-content-between align-items-center mt-2 pt-2" style="border-top:1px solid var(--line)">
         <div>
           <span class="mono" style="font-size:.95rem;font-weight:600">${tot?eur(tot):'—'}</span>
           ${pt?`<span class="per-person ms-2" style="font-size:.8rem">${eur(pt)} a testa</span>`:''}
+          ${bag?`<div class="price-split">${eur(bigl)} volo + ${eur(bag)} bagagli</div>`:''}
         </div>
         <button class="btn btn-sm ${pick?'btn-ghost':'btn-stamp'}"
           onclick="chooseVolo('${jsArg(key)}',${pick?'false':'true'})">${pick?'✓ scelto':'Scegli'}</button>
@@ -1974,8 +2191,11 @@ function voliTable(groups, keys){
       <td><span class="chip">${esc(groupOpz(legs))}</span></td>
       <td>${cellDir(legsOfDir(legs,'Andata'))}</td>
       <td>${cellDir(legsOfDir(legs,'Ritorno'))}</td>
-      <td class="mono">${groupTotal(legs)?eur(groupTotal(legs)):'—'}</td>
+      <td class="mono">${groupBiglietti(legs)?eur(groupBiglietti(legs)):'—'}</td>
+      <td class="mono">${groupBag(legs)?eur(groupBag(legs)):'—'}</td>
+      <td class="mono"><strong>${groupTotal(legs)?eur(groupTotal(legs)):'—'}</strong></td>
       <td class="mono per-person">${groupPTesta(legs)?eur(groupPTesta(legs)):'—'}</td>
+      <td>${codeChip('cod.', groupPnr(legs))||'<span class="chip">–</span>'}</td>
       <td><button class="btn btn-sm ${pick?'btn-ghost':'btn-stamp'}"
         onclick="chooseVolo('${jsArg(k)}',${pick?'false':'true'})">${pick?'✓':'scegli'}</button></td>
       <td class="text-nowrap">
@@ -1984,7 +2204,7 @@ function voliTable(groups, keys){
     </tr>`;
   }).join('');
   return `<div class="sheet p-2 p-md-3 scroll-x"><table class="data">
-    <thead><tr><th>opz.</th><th>andata</th><th>ritorno</th><th>totale</th><th>a testa</th><th>scelta</th><th></th></tr></thead>
+    <thead><tr><th>opz.</th><th>andata</th><th>ritorno</th><th>volo</th><th>bagagli</th><th>totale</th><th>a testa</th><th>prenot.</th><th>scelta</th><th></th></tr></thead>
     <tbody>${body}</tbody></table></div>`;
 }
 
@@ -2013,7 +2233,7 @@ async function chooseVolo(key, on){
 }
 
 async function delVolo(key){
-  const legs = voliGroups(CURRENT_DATA?.Voli||[])[key];
+  const legs = voliGroups((CURRENT_DATA && CURRENT_DATA.Voli)||[])[key];
   if(!legs) return;
   if(!await askConfirm('Eliminare questa opzione di volo (tutte le sue tratte)?', true)) return;
   const snapshot = legs.map(l=>Object.assign({}, l));
@@ -2032,16 +2252,17 @@ async function delVolo(key){
 }
 
 const VOLO_COPY_FIELDS = ['viaggio_id','direzione','tratta','persone','paganti','compagnia','n_volo',
-  'da','a','data_part','ora_part','data_arr','ora_arr','scalo','totale','prezzo_testa','bagaglio','note'];
+  'da','a','data_part','ora_part','data_arr','ora_arr','scalo','totale','costo_bagaglio',
+  'prezzo_testa','bagaglio','note'];
 
 async function dupVolo(key){
-  const legs = voliGroups(CURRENT_DATA?.Voli||[])[key];
+  const legs = voliGroups((CURRENT_DATA && CURRENT_DATA.Voli)||[])[key];
   if(!legs) return;
   const gid = genGroupId(), opz = nextOpz();
   const records = legs.map(r=>{
     const o = {};
-    VOLO_COPY_FIELDS.forEach(f=>{ o[f] = r[f] ?? ''; });
-    o.gruppo_id = gid; o.opzione = opz; o.scelto = '';
+    VOLO_COPY_FIELDS.forEach(f=>{ o[f] = r[f] != null ? r[f] : ''; });
+    o.gruppo_id = gid; o.opzione = opz; o.scelto = ''; o.pnr = '';
     return o;
   });
   try{
@@ -2052,9 +2273,9 @@ async function dupVolo(key){
   }catch(e){ if(e instanceof AuthError) sessionExpired(); else toast('Errore: '+e.message,'error'); }
 }
 
-// Unisce due opzioni mono-direzione (utile per i voli inseriti prima di questa versione)
+// Unisce due opzioni mono-direzione (utile per i voli inseriti prima della v3)
 async function abbinaVolo(key){
-  const groups = voliGroups(CURRENT_DATA?.Voli||[]);
+  const groups = voliGroups((CURRENT_DATA && CURRENT_DATA.Voli)||[]);
   const legs = groups[key];
   if(!legs) return;
   const myDir = groupDirs(legs)[0];
@@ -2124,11 +2345,11 @@ function cdfMonthShift(delta){
 function cdfList(rows, tid){
   const withDate = rows.filter(r=>toISODate(r.data)).sort((a,b)=>{
     const d = toISODate(a.data).localeCompare(toISODate(b.data));
-    return d!==0 ? d : (toHM(a.ora)||'99:99').localeCompare(toHM(b.ora)||'99:99');   // dentro il giorno: per ora
+    return d!==0 ? d : (toHM(a.ora)||'99:99').localeCompare(toHM(b.ora)||'99:99');
   });
   const noDate   = rows.filter(r=>!toISODate(r.data));
   const groups = {};
-  withDate.forEach(r=>{ const k=toISODate(r.data); (groups[k] ??= []).push(r); });
+  withDate.forEach(r=>{ const k=toISODate(r.data); (groups[k] = groups[k] || []).push(r); });
   const dayBlocks = Object.keys(groups).map(k=>`
     <div class="mb-3">
       <p class="eyebrow mb-2">${toITDateLong(k)}</p>
@@ -2158,6 +2379,7 @@ function cdfItem(r){
       ${r.note?`<div style="font-size:.78rem;color:var(--muted);margin-top:.15rem">${esc(r.note)}</div>`:''}
     </div>
     <div class="text-nowrap" style="flex:none">
+      ${r.posizione?`<a class="link-btn" href="${esc(isUrl(r.posizione)?r.posizione:mapsUrl(r.posizione))}" target="_blank" rel="noopener" title="Apri nella mappa">📍</a>`:''}
       ${r.link?linkCell(r.link):''}
       <button class="icon-btn" onclick="editRowById('CoseDaFare','${jsArg(r.id)}')">✎</button>
       <button class="icon-btn" onclick="delRow('CoseDaFare','${jsArg(r.id)}')">🗑</button>
@@ -2174,9 +2396,9 @@ function cdfCalendar(rows, tid){
   const monthName = CDF_MONTH.toLocaleDateString('it-IT', {month:'long', year:'numeric'});
 
   const byDay = {};
-  rows.forEach(r=>{ const k=toISODate(r.data); if(k) (byDay[k] ??= []).push(r); });
+  rows.forEach(r=>{ const k=toISODate(r.data); if(k) (byDay[k] = byDay[k] || []).push(r); });
 
-  const vStart = toISODate(CURRENT_TRIP?.data_inizio), vEnd = toISODate(CURRENT_TRIP?.data_fine);
+  const vStart = toISODate(CURRENT_TRIP && CURRENT_TRIP.data_inizio), vEnd = toISODate(CURRENT_TRIP && CURRENT_TRIP.data_fine);
 
   const dow = ['lun','mar','mer','gio','ven','sab','dom']
     .map(d=>`<div class="cal-dow">${d}</div>`).join('');
@@ -2214,18 +2436,26 @@ function cdfQuickAdd(iso, tid){
   editRow('CoseDaFare', { viaggio_id: tid, data: iso }, tid);
 }
 
-
 /* ============================================================
-   COSA PORTARE
-   Lista di spunta, non tabella: raggruppata per categoria, con
-   avanzamento sempre visibile e aggiunta rapida in linea.
-   Spuntando NON si riordina la lista sotto il dito: il riordino
-   (fatti in fondo) avviene al rientro nella sezione.
+   COSA PORTARE — ripensata
+   Cosa è cambiato rispetto a prima, e perché:
+   · TUTTA la riga spunta la voce. Prima bisognava centrare un
+     cerchietto di 24px con il pollice, in piedi, davanti alla valigia.
+   · Barra di aggiunta unica in cima con la categoria a tendina:
+     non serve più scorrere fino al blocco giusto per scrivere.
+   · MODELLI pronti (mare, montagna, documenti, bimbi…): una lista
+     decente in tre secondi invece che venti voci battute a mano.
+   · Ricerca istantanea e azioni di categoria (spunta tutte / azzera).
+   · Filtro, ricerca e categorie chiuse restano memorizzati sul
+     dispositivo: riapri la sezione e ritrovi la tua vista.
+   · Sintassi rapida:  2x telo mare @Marco !essenziale
    ============================================================ */
 let CP_FILTER = 'tutti';       // 'tutti' | 'dafare' | 'fatti'
 let CP_WHO    = null;          // null = non ancora letto da localStorage
 let CP_CLOSED = {};            // categoria -> chiusa
-let CP_CATS   = [];            // categorie nell'ordine mostrato (per i pulsanti)
+let CP_CATS   = [];            // categorie nell'ordine mostrato
+let CP_Q      = '';            // testo cercato
+let CP_NEWCAT = '';            // categoria selezionata nella barra di aggiunta
 
 const CP_ICON = {
   'Abbigliamento':'👕','Accessori':'🎒','Attrezzatura':'🧰','Bagaglio':'🧳','Bambini':'🧸',
@@ -2235,7 +2465,19 @@ const CP_ICON = {
 };
 function cpIcon(c){ return CP_ICON[String(c||'').trim()] || '📦'; }
 
-/* la persona scelta resta su questo dispositivo: ognuno vede la propria lista */
+/* preferenze di vista: restano su questo dispositivo, per viaggio */
+function cpPrefKey(){ return 'triphub_cp_' + (CURRENT_TRIP ? CURRENT_TRIP.id : ''); }
+function cpReset(){
+  CP_FILTER='tutti'; CP_WHO=null; CP_CLOSED={}; CP_Q=''; CP_NEWCAT='';
+  try{
+    const raw = localStorage.getItem(cpPrefKey());
+    if(raw){ const p = JSON.parse(raw); CP_FILTER = p.filter||'tutti'; CP_CLOSED = p.closed||{}; }
+  }catch(_){}
+}
+function cpSavePrefs(){
+  try{ localStorage.setItem(cpPrefKey(), JSON.stringify({filter:CP_FILTER, closed:CP_CLOSED})); }catch(_){}
+}
+
 function cpWhoKey(){ return 'triphub_who_' + (CURRENT_TRIP ? CURRENT_TRIP.id : ''); }
 function cpWho(){
   if(CP_WHO === null){
@@ -2248,14 +2490,37 @@ function cpSetWho(v){
   try { v ? localStorage.setItem(cpWhoKey(), v) : localStorage.removeItem(cpWhoKey()); } catch(_){}
   renderSection('cosaportare');
 }
-function cpSetFilter(f){ CP_FILTER = f; renderSection('cosaportare'); }
+function cpSetFilter(f){ CP_FILTER = f; cpSavePrefs(); renderSection('cosaportare'); }
 function cpToggleCat(i){
   const c = CP_CATS[i]; if(c==null) return;
   CP_CLOSED[c] = !CP_CLOSED[c];
+  cpSavePrefs();
   const el = $('#cp_cat_'+i);
   if(el) el.classList.toggle('closed', !!CP_CLOSED[c]);
   const h = $('#cp_head_'+i);
   if(h) h.setAttribute('aria-expanded', CP_CLOSED[c] ? 'false' : 'true');
+}
+
+// ricerca senza ridisegno: nasconde le righe e le categorie rimaste vuote
+function cpSearch(q){
+  CP_Q = String(q||'').toLowerCase().trim();
+  let anyGlobal = 0;
+  CP_CATS.forEach((cat,i)=>{
+    const box = $('#cp_cat_'+i);
+    if(!box) return;
+    let vis = 0;
+    box.querySelectorAll('.cp-row').forEach(row=>{
+      const hit = !CP_Q || (row.getAttribute('data-s')||'').includes(CP_Q);
+      row.style.display = hit ? '' : 'none';
+      if(hit) vis++;
+    });
+    box.style.display = (CP_Q && !vis) ? 'none' : '';
+    if(vis) anyGlobal++;
+    if(CP_Q) box.classList.remove('closed');
+    else box.classList.toggle('closed', !!CP_CLOSED[cat]);
+  });
+  const none = $('#cp_nores');
+  if(none) none.style.display = (CP_Q && !anyGlobal) ? 'block' : 'none';
 }
 
 // una voce è "mia" se non ha destinatario, se è di tutti, o se mi nomina
@@ -2291,6 +2556,13 @@ function cpRing(done, tot){
   </svg>`;
 }
 
+function cpKnownCats(rows){
+  const seen = {};
+  (rows||[]).forEach(r=>{ const c=String(r.categoria||'Varie').trim()||'Varie'; seen[c]=true; });
+  CATEGORIE_PORTARE.forEach(c=>seen[c]=true);
+  return Object.keys(seen).sort((a,b)=>a.localeCompare(b,'it'));
+}
+
 function secCosaPortare(rows, tid){
   rows = rows || [];
   const me = cpWho();
@@ -2310,6 +2582,24 @@ function secCosaPortare(rows, tid){
       ${people.map(n=>`<option value="${esc(n)}"${n===me?' selected':''}>Solo di ${esc(n)}</option>`).join('')}
     </select>` : '';
 
+  const cats = cpKnownCats(rows);
+  const addBar = `
+    <div class="sheet p-2 p-md-3 mb-3">
+      <div class="cp-addbar">
+        <select class="form-select form-select-sm" id="cp_newcat" aria-label="Categoria">
+          ${cats.map(c=>`<option value="${esc(c)}"${c===CP_NEWCAT?' selected':''}>${cpIcon(c)} ${esc(c)}</option>`).join('')}
+        </select>
+        <input class="form-control form-control-sm grow" id="cp_newitem"
+          placeholder="cosa serve?  es: 2x telo mare, crema solare @Marco !essenziale"
+          aria-label="Nuova voce"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();cpAddGlobal('${jsArg(tid)}')}">
+        <button class="btn btn-stamp btn-sm" onclick="cpAddGlobal('${jsArg(tid)}')">+ Aggiungi</button>
+        <button class="btn btn-ghost btn-sm" onclick="cpTemplateModal('${jsArg(tid)}')">✨ Modelli</button>
+      </div>
+      <div class="cp-hint">separa con la virgola per più voci · <strong>2x</strong> quantità ·
+        <strong>@nome</strong> a chi tocca · <strong>!essenziale</strong> priorità</div>
+    </div>`;
+
   const header = `
     <div class="sheet p-3 p-md-4 mb-3">
       <div class="cp-head">
@@ -2324,33 +2614,37 @@ function secCosaPortare(rows, tid){
         </div>
         <div class="d-flex gap-2 flex-wrap align-items-center">
           ${whoSel}
-          <button class="btn btn-stamp btn-sm" onclick="editRow('CosaPortare', null, '${jsArg(tid)}')">+ Aggiungi</button>
         </div>
       </div>
-      ${tot ? `<div class="cp-filters mt-3">
-        <button class="cp-fil${CP_FILTER==='tutti'?' on':''}" onclick="cpSetFilter('tutti')">Tutte · ${tot}</button>
-        <button class="cp-fil${CP_FILTER==='dafare'?' on':''}" onclick="cpSetFilter('dafare')">Da preparare · ${tot-done}</button>
-        <button class="cp-fil${CP_FILTER==='fatti'?' on':''}" onclick="cpSetFilter('fatti')">Fatte · ${done}</button>
+      ${tot ? `<div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mt-3">
+        <div class="cp-filters">
+          <button class="cp-fil${CP_FILTER==='tutti'?' on':''}" onclick="cpSetFilter('tutti')">Tutte · ${tot}</button>
+          <button class="cp-fil${CP_FILTER==='dafare'?' on':''}" onclick="cpSetFilter('dafare')">Da preparare · ${tot-done}</button>
+          <button class="cp-fil${CP_FILTER==='fatti'?' on':''}" onclick="cpSetFilter('fatti')">Fatte · ${done}</button>
+        </div>
+        <input class="form-control form-control-sm cp-search" type="search" placeholder="🔎 cerca nella lista"
+          aria-label="Cerca" value="${esc(CP_Q)}" oninput="cpSearch(this.value)">
       </div>` : ''}
     </div>`;
 
   if(!rows.length){
-    return header + `<div class="sheet empty"><div class="big">Nessuna voce ancora</div>
-      <div>Scrivi cosa serve nelle caselle qui sotto, categoria per categoria.</div>
-      <div class="mt-3">${cpSeedBox(tid)}</div></div>`;
+    CP_CATS = [];
+    return header + addBar + `<div class="sheet empty"><div class="big">La valigia è vuota</div>
+      <div>Scrivi qui sopra cosa serve, oppure parti da un modello già pronto.</div>
+      <button class="btn btn-stamp mt-3" onclick="cpTemplateModal('${jsArg(tid)}')">✨ Parti da un modello</button></div>`;
   }
 
   // raggruppa per categoria; i conteggi restano su TUTTE le voci della persona,
   // così i numeri non ballano quando cambi filtro
   const byCat = {};
-  visible.forEach(r=>{ const k = String(r.categoria||'Varie').trim() || 'Varie'; (byCat[k] ??= []).push(r); });
+  visible.forEach(r=>{ const k = String(r.categoria||'Varie').trim() || 'Varie'; (byCat[k] = byCat[k] || []).push(r); });
   const allByCat = {};
-  mine.forEach(r=>{ const k = String(r.categoria||'Varie').trim() || 'Varie'; (allByCat[k] ??= []).push(r); });
+  mine.forEach(r=>{ const k = String(r.categoria||'Varie').trim() || 'Varie'; (allByCat[k] = allByCat[k] || []).push(r); });
 
   CP_CATS = Object.keys(byCat).sort((a,b)=>a.localeCompare(b,'it'));
 
   if(!CP_CATS.length){
-    return header + `<div class="sheet empty"><div class="big">${
+    return header + addBar + `<div class="sheet empty"><div class="big">${
       CP_FILTER==='fatti' ? 'Niente di spuntato, per ora' : 'Tutto pronto ✓'}</div>
       <div>Cambia filtro per vedere il resto della lista.</div></div>`;
   }
@@ -2365,18 +2659,24 @@ function secCosaPortare(rows, tid){
       || String(a.cosa||'').localeCompare(String(b.cosa||''),'it'));
     const closed = !!CP_CLOSED[cat];
     return `<div class="sheet p-2 p-md-3 cp-cat${closed?' closed':''}" id="cp_cat_${i}">
-      <button class="cp-cat-head" id="cp_head_${i}" onclick="cpToggleCat(${i})"
-        aria-expanded="${closed?'false':'true'}" aria-controls="cp_body_${i}">
-        <span class="cp-cat-ico">${cpIcon(cat)}</span>
-        <span class="cp-cat-name">${esc(cat)}</span>
-        <span class="cp-cat-n" id="cp_catn_${i}">${dn}/${all.length}</span>
-        <span class="cp-caret">▾</span>
-      </button>
+      <div class="cp-cat-head">
+        <button class="cp-cat-toggle" id="cp_head_${i}" onclick="cpToggleCat(${i})"
+          aria-expanded="${closed?'false':'true'}" aria-controls="cp_body_${i}">
+          <span class="cp-cat-ico">${cpIcon(cat)}</span>
+          <span class="cp-cat-name">${esc(cat)}</span>
+          <span class="cp-cat-n" id="cp_catn_${i}">${dn}/${all.length}</span>
+          <span class="cp-caret">▾</span>
+        </button>
+        <div class="cp-cat-acts">
+          <button class="icon-btn" title="Spunta tutta la categoria" onclick="cpBulk(${i},true)">✓</button>
+          <button class="icon-btn" title="Azzera la categoria" onclick="cpBulk(${i},false)">↺</button>
+        </div>
+      </div>
       <div class="cp-bar${pct===100?' full':''}" id="cp_bar_${i}"><i style="width:${pct}%"></i></div>
       <div class="cp-body" id="cp_body_${i}">
         ${items.map(r=>cpRow(r)).join('')}
         <div class="cp-add">
-          <input type="text" id="cp_add_${i}" placeholder="+ aggiungi a ${esc(cat.toLowerCase())}…  (2x telo, ciabatte)"
+          <input type="text" id="cp_add_${i}" placeholder="+ aggiungi a ${esc(cat.toLowerCase())}…"
             aria-label="Aggiungi voce a ${esc(cat)}"
             onkeydown="if(event.key==='Enter'){event.preventDefault();cpQuickAdd(${i},'${jsArg(tid)}')}">
         </div>
@@ -2384,7 +2684,10 @@ function secCosaPortare(rows, tid){
     </div>`;
   }).join('');
 
-  return header + blocks;
+  const nores = `<div class="sheet empty" id="cp_nores" style="display:none">
+    <div class="big">Nessuna voce trovata</div></div>`;
+
+  return header + addBar + blocks + nores;
 }
 
 function cpRow(r){
@@ -2395,15 +2698,18 @@ function cpRow(r){
     ? chi.split(',').map(x=>`<span class="cp-who">${esc(x.trim())}</span>`).join('') : '';
   const pri = String(r.priorita||'').trim();
   const priTag = pri ? `<span class="chip ${cpPriRank(r)===0?'pri-ess':cpPriRank(r)===1?'pri-cons':''}">${esc(pri)}</span>` : '';
-  return `<div class="cp-row${on?' done':''}${cpPriClass(r)}" id="cp_row_${jsArg(r.id)}">
-    <button class="cp-check" role="checkbox" aria-checked="${on}" id="cp_chk_${jsArg(r.id)}"
-      aria-label="${esc(r.cosa||'voce')}" onclick="cpToggle('${jsArg(r.id)}')"></button>
+  const searchKey = [r.cosa,r.note,chi,pri].map(x=>String(x||'').toLowerCase()).join(' ');
+  return `<div class="cp-row${on?' done':''}${cpPriClass(r)}" id="cp_row_${jsArg(r.id)}"
+      data-s="${esc(searchKey)}" role="checkbox" aria-checked="${on}" tabindex="0"
+      onclick="cpToggle('${jsArg(r.id)}')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();cpToggle('${jsArg(r.id)}')}">
+    <span class="cp-check" aria-hidden="true" id="cp_chk_${jsArg(r.id)}" aria-checked="${on}"></span>
     <div class="cp-main">
       <div class="cp-name">${esc(r.cosa||'(senza nome)')}${qta>1?`<span class="cp-qta">×${qta}</span>`:''}</div>
       ${(chiTag||priTag)?`<div class="cp-tags">${priTag}${chiTag}</div>`:''}
       ${r.note?`<div class="cp-note">${esc(r.note)}</div>`:''}
     </div>
-    <div class="cp-acts">
+    <div class="cp-acts" onclick="event.stopPropagation()">
       <button class="icon-btn" title="Modifica" aria-label="Modifica ${esc(r.cosa||'voce')}"
         onclick="editRowById('CosaPortare','${jsArg(r.id)}')">✎</button>
       <button class="icon-btn" title="Elimina" aria-label="Elimina ${esc(r.cosa||'voce')}"
@@ -2436,7 +2742,7 @@ function cpPaintRow(r){
   const on = truthy(r.spuntato);
   const row = document.getElementById('cp_row_'+r.id);
   const chk = document.getElementById('cp_chk_'+r.id);
-  if(row) row.classList.toggle('done', on);
+  if(row){ row.classList.toggle('done', on); row.setAttribute('aria-checked', on?'true':'false'); }
   if(chk) chk.setAttribute('aria-checked', on ? 'true' : 'false');
 }
 
@@ -2476,12 +2782,79 @@ function cpPaintCounts(){
   });
 }
 
-/* Aggiunta rapida: "2x telo mare, ciabatte, crema" crea tre voci in un colpo. */
+/* Spunta/azzera un'intera categoria con una sola chiamata */
+async function cpBulk(i, on){
+  const cat = CP_CATS[i];
+  if(!cat) return;
+  const me = cpWho();
+  const items = (CURRENT_DATA.CosaPortare||[]).filter(r=>
+    cpMine(r,me) && (String(r.categoria||'Varie').trim()||'Varie')===cat && truthy(r.spuntato)!==!!on);
+  if(!items.length) return;
+  const before = items.map(r=>r.spuntato);
+  items.forEach(r=>{ r.spuntato = on ? 'Sì' : ''; cpPaintRow(r); });
+  cpPaintCounts(); updateTabBadges();
+  try{
+    await api('set_flags', { sheet:'CosaPortare', field:'spuntato',
+      values: items.map(r=>({id:r.id, value: on?'Sì':''})) });
+    toast(on?`"${cat}" tutto pronto ✓`:`"${cat}" azzerata`,'ok');
+  }catch(e){
+    items.forEach((r,k)=>{ r.spuntato = before[k]; cpPaintRow(r); });
+    cpPaintCounts(); updateTabBadges();
+    if(e instanceof AuthError) sessionExpired(); else toast('Errore: '+e.message,'error');
+  }
+}
+
+/* Aggiunta rapida.
+   "2x telo mare @Marco !essenziale, crema" crea due voci ben formate. */
+function cpNormPri(s){
+  const x = String(s||'').toLowerCase();
+  if(x.startsWith('ess')) return 'Essenziale';
+  if(x.startsWith('con')) return 'Consigliato';
+  if(x.startsWith('opz')) return 'Opzionale';
+  return '';
+}
+function cpResolvePerson(tok){
+  const people = partList(CURRENT_DATA).map(pName);
+  const t = String(tok||'').toLowerCase();
+  const hit = people.find(n=>n.toLowerCase()===t)
+           || people.find(n=>n.toLowerCase().split(' ')[0]===t)
+           || people.find(n=>n.toLowerCase().startsWith(t));
+  return hit || tok;
+}
 function cpParseLine(txt){
-  return String(txt||'').split(',').map(x=>x.trim()).filter(Boolean).map(part=>{
+  return String(txt||'').split(/[,\n;]/).map(x=>x.trim()).filter(Boolean).map(part=>{
+    let pri = '', chi = [];
+    part = part.replace(/!([\wàèéìòù]+)/gi, (m,g)=>{ pri = cpNormPri(g) || pri; return ' '; });
+    part = part.replace(/@([\wÀ-ÿ'’.-]+)/g, (m,g)=>{ chi.push(cpResolvePerson(g)); return ' '; });
+    part = part.replace(/\s+/g,' ').trim();
     const m = part.match(/^(\d{1,3})\s*[x×]\s*(.+)$/i);
-    return m ? { cosa:m[2].trim(), qta:Number(m[1]) } : { cosa:part, qta:'' };
-  });
+    return {
+      cosa: m ? m[2].trim() : part,
+      qta:  m ? Number(m[1]) : '',
+      priorita: pri,
+      chi: chi.join(', ')
+    };
+  }).filter(x=>x.cosa);
+}
+
+async function cpAddItems(tid, cat, parsed, restore){
+  const me = cpWho();
+  const records = parsed.map(x=>({
+    viaggio_id: tid, categoria: cat, cosa: x.cosa, qta: x.qta,
+    chi: x.chi || me || '', priorita: x.priorita || '', spuntato: '', note: ''
+  }));
+  try{
+    const saved = await api('create_many', { sheet:'CosaPortare', records });
+    applyLocal('CosaPortare','create_many', saved);
+    renderSection('cosaportare', true);
+    updateTabBadges();
+    toast(saved.length>1 ? `${saved.length} voci aggiunte ✓` : 'Aggiunto ✓','ok');
+    return saved;
+  }catch(e){
+    if(restore) restore();
+    if(e instanceof AuthError) sessionExpired(); else toast('Errore: '+e.message,'error');
+    return null;
+  }
 }
 
 async function cpQuickAdd(i, tid){
@@ -2490,45 +2863,136 @@ async function cpQuickAdd(i, tid){
   const parsed = cpParseLine(box.value);
   if(!parsed.length) return;
   const cat = CP_CATS[i] || 'Varie';
-  const me = cpWho();
+  const txt = box.value;
   box.value = ''; box.disabled = true;
-  const records = parsed.map(x=>({
-    viaggio_id: tid, categoria: cat, cosa: x.cosa,
-    qta: x.qta, chi: me || '', priorita: '', spuntato: '', note: ''
-  }));
-  try{
-    const saved = await api('create_many', { sheet:'CosaPortare', records });
-    applyLocal('CosaPortare','create_many', saved);
-    renderSection('cosaportare', true);
-    updateTabBadges();
-    const again = document.getElementById('cp_add_'+i);
-    if(again){ again.focus(); }               // resta pronto per la voce successiva
-    toast(saved.length>1 ? `${saved.length} voci aggiunte ✓` : 'Aggiunto ✓','ok');
-  }catch(e){
-    box.disabled = false; box.value = parsed.map(x=>(x.qta?x.qta+'x ':'')+x.cosa).join(', ');
-    if(e instanceof AuthError) sessionExpired(); else toast('Errore: '+e.message,'error');
-  }
+  await cpAddItems(tid, cat, parsed, ()=>{ box.disabled=false; box.value = txt; });
+  const again = document.getElementById('cp_add_'+i);
+  if(again) again.focus();       // resta pronto per la voce successiva
 }
 
-/* Prima lista: quattro categorie di partenza con un campo per ciascuna. */
-function cpSeedBox(tid){
-  const base = ['Documenti','Abbigliamento','Igiene','Elettronica'];
-  CP_CATS = base;
-  return `<div class="row g-2 text-start" style="max-width:520px;margin:0 auto">
-    ${base.map((c,i)=>`<div class="col-12 col-sm-6">
-      <label class="form-label">${cpIcon(c)} ${esc(c)}</label>
-      <input class="form-control form-control-sm" id="cp_add_${i}"
-        placeholder="passaporto, 2x maglietta…"
-        onkeydown="if(event.key==='Enter'){event.preventDefault();cpQuickAdd(${i},'${jsArg(tid)}')}">
-    </div>`).join('')}
-  </div>`;
+async function cpAddGlobal(tid){
+  const inp = document.getElementById('cp_newitem');
+  const sel = document.getElementById('cp_newcat');
+  if(!inp || !sel) return;
+  const parsed = cpParseLine(inp.value);
+  if(!parsed.length) return;
+  CP_NEWCAT = sel.value || 'Varie';
+  const txt = inp.value;
+  inp.value = ''; inp.disabled = true;
+  await cpAddItems(tid, CP_NEWCAT, parsed, ()=>{ inp.disabled=false; inp.value=txt; });
+  const again = document.getElementById('cp_newitem');
+  if(again) again.focus();
+}
+
+/* ---------- MODELLI DI VALIGIA ----------
+   Liste di partenza pensate per il tipo di viaggio: si selezionano
+   e si aggiungono in blocco, saltando le voci già presenti.        */
+const CP_TEMPLATES = {
+  'Documenti & soldi': [
+    ['Documenti',"Carta d'identità",'Essenziale'], ['Documenti','Passaporto','Essenziale'],
+    ['Documenti','Tessera sanitaria','Essenziale'], ['Documenti','Patente',''],
+    ['Documenti','Assicurazione viaggio',''], ['Documenti','Contanti','Consigliato'],
+    ['Documenti','Carta di credito','Essenziale'], ['Documenti','Copie dei documenti','Consigliato']
+  ],
+  'Valigia base': [
+    ['Abbigliamento','Magliette','Essenziale'], ['Abbigliamento','Pantaloni',''],
+    ['Abbigliamento','Biancheria intima','Essenziale'], ['Abbigliamento','Calzini',''],
+    ['Abbigliamento','Pigiama',''], ['Abbigliamento','Felpa o maglione',''],
+    ['Abbigliamento','Giacca leggera',''], ['Scarpe','Scarpe comode','Essenziale'],
+    ['Bagaglio','Sacchetto per il bucato','']
+  ],
+  'Igiene': [
+    ['Igiene','Spazzolino','Essenziale'], ['Igiene','Dentifricio','Essenziale'],
+    ['Igiene','Bagnoschiuma',''], ['Igiene','Shampoo',''], ['Igiene','Deodorante',''],
+    ['Igiene','Spazzola o pettine',''], ['Igiene','Rasoio',''], ['Igiene','Salviette umidificate','']
+  ],
+  'Elettronica': [
+    ['Elettronica','Caricabatterie telefono','Essenziale'], ['Elettronica','Powerbank','Consigliato'],
+    ['Elettronica','Adattatore di corrente',''], ['Elettronica','Cuffie',''],
+    ['Elettronica','Cavo USB',''], ['Elettronica','Macchina fotografica','']
+  ],
+  'Farmacia': [
+    ['Farmacia','Medicine personali','Essenziale'], ['Farmacia','Cerotti',''],
+    ['Farmacia','Antidolorifico',''], ['Farmacia','Antistaminico',''],
+    ['Farmacia','Disinfettante',''], ['Farmacia','Contro il mal d\'auto','']
+  ],
+  'Mare': [
+    ['Mare','Costume','Essenziale'], ['Mare','Telo mare','Essenziale'],
+    ['Mare','Crema solare','Essenziale'], ['Mare','Doposole',''],
+    ['Mare','Ciabatte',''], ['Mare','Occhiali da sole',''], ['Mare','Cappello',''],
+    ['Mare','Maschera e boccaglio',''], ['Mare','Borsa da spiaggia','']
+  ],
+  'Montagna & trekking': [
+    ['Montagna','Scarponi da trekking','Essenziale'], ['Montagna','Zaino da giornata','Essenziale'],
+    ['Montagna','Borraccia','Essenziale'], ['Montagna','K-way',''], ['Montagna','Pile',''],
+    ['Montagna','Bastoncini',''], ['Montagna','Torcia frontale',''], ['Montagna','Crema solare','']
+  ],
+  'Inverno': [
+    ['Abbigliamento','Cappotto','Essenziale'], ['Abbigliamento','Sciarpa',''],
+    ['Abbigliamento','Guanti',''], ['Abbigliamento','Berretto',''],
+    ['Abbigliamento','Maglia termica',''], ['Scarpe','Scarpe impermeabili','']
+  ],
+  'Bambini': [
+    ['Bambini','Pannolini','Essenziale'], ['Bambini','Salviette','Essenziale'],
+    ['Bambini','Cambio completo',''], ['Bambini','Giochi',''],
+    ['Bambini','Passeggino',''], ['Bambini','Biberon',''], ['Bambini','Ciuccio','']
+  ],
+  'In aereo (bagaglio a mano)': [
+    ['Viaggio','Carte d\'imbarco','Essenziale'], ['Viaggio','Liquidi sotto i 100ml','Essenziale'],
+    ['Viaggio','Cuscino da viaggio',''], ['Viaggio','Tappi per le orecchie',''],
+    ['Viaggio','Snack',''], ['Viaggio','Borraccia vuota','']
+  ]
+};
+
+function cpTemplateModal(tid){
+  ensureModal();
+  const names = Object.keys(CP_TEMPLATES);
+  $('#mTitle').textContent = 'Modelli di valigia';
+  $('#mBody').innerHTML = `
+    <p style="font-size:.88rem;color:var(--ink-soft)">
+      Scegli i pacchetti che ti servono: aggiungo le voci mancanti, senza toccare quelle che hai già.</p>
+    <div class="row g-2" id="tplBox">
+      ${names.map((n,i)=>`<div class="col-12 col-md-6">
+        <label class="tpl-card d-block" for="tpl_${i}">
+          <div class="form-check mb-1">
+            <input class="form-check-input tpl-one" type="checkbox" id="tpl_${i}" value="${esc(n)}">
+            <span class="tpl-name">${esc(n)}</span>
+          </div>
+          <div class="tpl-list">${esc(CP_TEMPLATES[n].slice(0,5).map(x=>x[1]).join(', '))}${CP_TEMPLATES[n].length>5?'…':''}</div>
+        </label></div>`).join('')}
+    </div>`;
+  $('#mSave').textContent = 'Aggiungi alla lista';
+  $('#mSave').onclick = ()=> withBtnLoading($('#mSave'), 'Aggiungo…', async ()=>{
+    const picked = [...document.querySelectorAll('.tpl-one')].filter(c=>c.checked).map(c=>c.value);
+    if(!picked.length){ toast('Seleziona almeno un modello','error'); return; }
+    const have = {};
+    (CURRENT_DATA.CosaPortare||[]).forEach(r=>{
+      have[(String(r.categoria||'')+'|'+String(r.cosa||'')).toLowerCase().trim()] = true;
+    });
+    const me = cpWho();
+    const records = [];
+    picked.forEach(n=>CP_TEMPLATES[n].forEach(([cat,cosa,pri])=>{
+      const k = (cat+'|'+cosa).toLowerCase().trim();
+      if(have[k]) return;
+      have[k] = true;
+      records.push({ viaggio_id: tid, categoria: cat, cosa, qta:'', chi: me||'',
+        priorita: pri||'', spuntato:'', note:'' });
+    }));
+    if(!records.length){ MODAL.hide(); toast('Avevi già tutto ✓','ok'); return; }
+    const saved = await api('create_many', { sheet:'CosaPortare', records });
+    applyLocal('CosaPortare','create_many', saved);
+    MODAL.hide();
+    toast(`${saved.length} voci aggiunte ✓`,'ok');
+    refreshView();
+  });
+  MODAL.show();
 }
 
 /* ---------- INFO DESTINAZIONE (chiave/valore) ---------- */
 function secInfo(d, tid){
   const rows = d.InfoDest||[];
   const bySez = {};
-  rows.forEach(r=>{ (bySez[r.sezione||'Generale'] ??= []).push(r); });
+  rows.forEach(r=>{ (bySez[r.sezione||'Generale'] = bySez[r.sezione||'Generale'] || []).push(r); });
   const blocks = Object.entries(bySez).map(([sez,items])=>`
     <div class="sheet p-3 mb-3">
       <p class="eyebrow mb-2">${esc(sez)}</p>
@@ -2554,9 +3018,10 @@ function secInfo(d, tid){
    EDIT MODAL (generico, form da schema)
    ============================================================ */
 const FIELD_ORDER = {
-  Viaggi:['nome','destinazione','paese','data_inizio','data_fine','n_persone','stato','note'],
+  Viaggi:['nome','destinazione','paese','data_inizio','data_fine','n_persone','stato','codice','note'],
   Partecipanti:['nome','cognome','data_nascita','luogo_nascita','tipo_doc','num_doc','scadenza_doc','nazionalita','cod_fiscale','telefono','email','note'],
-  Alloggi:['struttura','checkin','ora_checkin','checkout','ora_checkout','notti','persone','totale','prezzo_notte','prezzo_testa','prezzo_testa_notte','extra','link','indirizzo','posizione','valutazione','scelto','note'],
+  Rubrica:['nome','cognome','data_nascita','luogo_nascita','tipo_doc','num_doc','scadenza_doc','nazionalita','cod_fiscale','telefono','email','note'],
+  Alloggi:['struttura','checkin','ora_checkin','checkout','ora_checkout','notti','persone','totale','prezzo_notte','prezzo_testa','prezzo_testa_notte','extra','link','indirizzo','mappa_link','posizione','pnr','valutazione','scelto','note'],
   Spese:['data','descrizione','categoria','paganti','totale','prezzo_testa','note'],
   CoseDaFare:['data','ora','tipo','attivita','posizione','durata','persone','costo','prezzo_testa','prenotazione_req','quando','link','note','confermata'],
   CosaPortare:['categoria','cosa','qta','chi','priorita','spuntato','note'],
@@ -2566,10 +3031,10 @@ const FIELD_ORDER = {
 
 const BOOL_FIELDS = ['scelto','confermata','spuntato','prenotazione_req','bagaglio'];
 const AREA_FIELDS = ['note'];
-const NUM_FIELDS = ['totale','prezzo_notte','prezzo_testa','prezzo_testa_notte','extra','costo','notti','persone','qta','valutazione','n_persone','tratta','opzione'];
+const NUM_FIELDS = ['totale','prezzo_notte','prezzo_testa','prezzo_testa_notte','extra','costo','notti','persone','qta','valutazione','n_persone','tratta','opzione','costo_bagaglio'];
 const INT_FIELDS = ['persone','notti','qta','n_persone','tratta','opzione','valutazione'];
-const CUR_FIELDS = ['totale','prezzo_notte','prezzo_testa','prezzo_testa_notte','extra','costo'];
-const LINK_FIELDS = ['link'];
+const CUR_FIELDS = ['totale','prezzo_notte','prezzo_testa','prezzo_testa_notte','extra','costo','costo_bagaglio'];
+const LINK_FIELDS = ['link','mappa_link'];
 const DATE_FIELDS = ['data_inizio','data_fine','checkin','checkout','data_part','data_arr','data','data_nascita','scadenza_doc'];
 const TIME_FIELDS = ['ora_part','ora_arr','ora','ora_checkin','ora_checkout'];
 const SENSITIVE_FIELDS = ['num_doc','cod_fiscale'];
@@ -2629,9 +3094,7 @@ const CATEGORIE_PORTARE = [
 ].sort((a,b)=>a.localeCompare(b,'it'));
 
 const TIPI_DOC = ["Carta d'identità",'Passaporto','Patente'];
-
 const STATI_VIAGGIO = ['Idea','Proposta','Annullato'];
-
 const PRIORITA = ['Essenziale','Consigliato','Opzionale'];
 
 const SELECT_LISTS = {
@@ -2706,21 +3169,8 @@ function recalc(sheet, changed){
   const g = id => { const el = $('#f_'+id); return el ? parseNum(el.value) : ''; };
   const set = (id,val) => { const el = $('#f_'+id); if(el && document.activeElement!==el) el.value = fmtNumIT(val); };
   const persone = g('persone') || g('n_persone') || 0;
-  const notti   = g('notti') || 0;
 
-  if(sheet==='Alloggi'){
-    const tot=g('totale'), pt=g('prezzo_testa'), ptn=g('prezzo_testa_notte'), pn=g('prezzo_notte');
-    let total = tot;
-    if(changed==='prezzo_testa' && pt!=='' && persone)          total = round2(pt*persone);
-    else if(changed==='prezzo_testa_notte' && ptn!=='' && persone && notti) total = round2(ptn*persone*notti);
-    else if(changed==='prezzo_notte' && pn!=='' && notti)        total = round2(pn*notti);
-    if(total!=='' && total!=null && !isNaN(total)){
-      if(changed!=='totale') set('totale', total);
-      if(changed!=='prezzo_testa'        && persone)         set('prezzo_testa', round2(total/persone));
-      if(changed!=='prezzo_testa_notte'  && persone && notti) set('prezzo_testa_notte', round2(total/persone/notti));
-      if(changed!=='prezzo_notte'        && notti)           set('prezzo_notte', round2(total/notti));
-    }
-  } else if(sheet==='CoseDaFare'){
+  if(sheet==='CoseDaFare'){
     const cost=g('costo'), pt=g('prezzo_testa');
     let total = cost;
     if(changed==='prezzo_testa' && pt!=='' && persone) total = round2(pt*persone);
@@ -2739,7 +3189,7 @@ function recalc(sheet, changed){
   }
 }
 
-const CALC_TRIGGERS = ['totale','costo','prezzo_testa','prezzo_testa_notte','prezzo_notte','persone','notti','n_persone'];
+const CALC_TRIGGERS = ['totale','costo','prezzo_testa','persone','n_persone'];
 
 /* --- gestione selezione paganti / chi --- */
 function togglePayAll(chk, field){
@@ -2822,7 +3272,9 @@ function ensureModal(){
 
 // Apre l'editor cercando il record in memoria per id (niente JSON negli onclick)
 function editRowById(sheet, id){
-  const r = findRow(sheet, id);
+  const r = (sheet==='Rubrica')
+    ? (RUBRICA||[]).find(x=>String(x.id)===String(id))
+    : findRow(sheet, id);
   if(r) editRow(sheet, r);
 }
 
@@ -2831,11 +3283,13 @@ function editRow(sheet, record, tid){
   if(sheet==='Alloggi') return editAlloggio(record, tid);
   ensureModal();
   const isNew = !record || !record.id;
-  const rec = record || { viaggio_id: tid };
-  const fields = FIELD_ORDER[sheet] || [];
-  $('#mTitle').textContent = (isNew?'Nuovo · ':'Modifica · ') + sheet;
+  const rec = record || (sheet==='Rubrica' ? {} : { viaggio_id: tid });
+  let fields = (FIELD_ORDER[sheet] || []).slice();
+  if(sheet==='Viaggi' && !isAdmin()) fields = fields.filter(f=>f!=='codice');
+  $('#mTitle').textContent = (isNew?'Nuovo · ':'Modifica · ') + (sheet==='Rubrica'?'Rubrica':sheet);
+  $('#mSave').textContent = 'Salva';
   $('#mBody').innerHTML = fields.map(f=>{
-    const v = rec[f] ?? '';
+    const v = rec[f] != null ? rec[f] : '';
     if(BOOL_FIELDS.includes(f)){
       return `<div class="form-check mb-2">
         <input class="form-check-input" type="checkbox" id="f_${f}" ${truthy(v)?'checked':''}>
@@ -2844,6 +3298,15 @@ function editRow(sheet, record, tid){
     if(AREA_FIELDS.includes(f)){
       return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
         <textarea class="form-control" id="f_${f}" rows="2">${esc(v)}</textarea></div>`;
+    }
+    if(f==='codice'){
+      return `<div class="mb-2"><label class="form-label">codice di accesso
+        <span style="font-weight:400;color:var(--muted);font-size:.7rem">— con questo si entra SOLO in questo viaggio</span></label>
+        <div class="input-group">
+          <span class="input-group-text" style="background:var(--paper-2);border-color:var(--line)">🔑</span>
+          <input class="form-control mono" id="f_codice" value="${esc(v)}" placeholder="lascia vuoto: lo genero io">
+          <button class="btn btn-ghost" type="button" onclick="genCodeInto()">genera</button>
+        </div></div>`;
     }
     if(DATE_FIELDS.includes(f)){
       return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
@@ -2904,8 +3367,6 @@ function editRow(sheet, record, tid){
     }
     if(CUR_FIELDS.includes(f)){
       const hint = f==='prezzo_testa' ? 'auto dal totale'
-                 : f==='prezzo_testa_notte' ? 'auto (÷ persone ÷ notti)'
-                 : f==='prezzo_notte' ? 'auto (÷ notti)'
                  : f==='totale' ? 'oppure compila "a testa"' : '';
       return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}${hint?` <span style="font-weight:400;color:var(--muted);font-size:.7rem">— ${hint}</span>`:''}</label>
         <div class="input-group">
@@ -2919,7 +3380,14 @@ function editRow(sheet, record, tid){
     }
     return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
       <input class="form-control" id="f_${f}" type="text" value="${esc(v)}"></div>`;
-  }).join('') + airlineDatalist();
+  }).join('')
+  + (sheet==='Partecipanti' && isAdmin() ? `
+    <div class="form-check mt-2 pt-2" style="border-top:1px solid var(--line)">
+      <input class="form-check-input" type="checkbox" id="f_saveRubrica" ${isNew?'checked':''}>
+      <label class="form-check-label" for="f_saveRubrica">★ salva anche in rubrica
+        <span style="color:var(--muted);font-size:.75rem">— per riusarlo nei prossimi viaggi</span></label>
+    </div>` : '')
+  + airlineDatalist();
 
   CALC_TRIGGERS.forEach(t=>{
     const el = $('#f_'+t);
@@ -2938,7 +3406,8 @@ function editRow(sheet, record, tid){
   }
 
   $('#mSave').onclick = ()=> withBtnLoading($('#mSave'), 'Salvo…', async ()=>{
-    const out = { id: rec.id, viaggio_id: rec.viaggio_id };
+    const out = { id: rec.id };
+    if(sheet!=='Rubrica') out.viaggio_id = rec.viaggio_id;
     fields.forEach(f=>{
       if(f==='paganti' || f==='chi'){ out[f] = readPayValue(f); return; }
       const el = $('#f_'+f); if(!el) return;
@@ -2947,46 +3416,63 @@ function editRow(sheet, record, tid){
       else if(NUM_FIELDS.includes(f))    out[f] = parseNum(el.value);
       else                               out[f] = el.value.trim();
     });
+    let savedRow = out;
     if(rec.id){
       await api('update',{sheet, record:out});
-      applyLocal(sheet, 'update', out);
+      if(sheet==='Rubrica'){ const i=(RUBRICA||[]).findIndex(x=>String(x.id)===String(out.id)); if(i>=0) Object.assign(RUBRICA[i], out); }
+      else applyLocal(sheet, 'update', out);
     } else {
       const saved = await api('create',{sheet, record:out});
-      applyLocal(sheet, 'create', saved);
+      savedRow = saved;
+      if(sheet==='Rubrica'){ RUBRICA = (RUBRICA||[]).concat([saved]); }
+      else applyLocal(sheet, 'create', saved);
+    }
+    const rb = $('#f_saveRubrica');
+    if(sheet==='Partecipanti' && rb && rb.checked){
+      try{ await rubricaUpsert(savedRow); }catch(_){}
     }
     MODAL.hide(); toast('Salvato ✓','ok');
-    refreshView();
+    if(sheet==='Rubrica') openRubrica(RUBRICA_PICK); else refreshView();
   });
 
   MODAL.show();
+}
+
+// genera un codice leggibile lato client (stessa logica del backend)
+function genCodeInto(){
+  const alpha='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s=''; for(let i=0;i<8;i++) s+=alpha.charAt(Math.floor(Math.random()*alpha.length));
+  const el = $('#f_codice');
+  if(el) el.value = s;
 }
 
 /* Modifica/crea viaggio (usa lo stesso modal) */
 function editTrip(trip){
   editRow('Viaggi', trip, null);
   $('#mSave').onclick = ()=> withBtnLoading($('#mSave'), 'Salvo…', async ()=>{
-    const fields = FIELD_ORDER.Viaggi;
-    const out = { id: trip?.id };
+    let fields = FIELD_ORDER.Viaggi.slice();
+    if(!isAdmin()) fields = fields.filter(f=>f!=='codice');
+    const out = { id: trip && trip.id };
     fields.forEach(f=>{
       const el=$('#f_'+f); if(!el) return;
       if(INT_FIELDS.includes(f))     out[f] = el.value!=='' ? Math.round(parseNum(el.value)) : '';
       else if(NUM_FIELDS.includes(f))out[f] = parseNum(el.value);
       else                           out[f] = el.value.trim();
     });
-    if(trip?.id){
+    if(trip && trip.id){
       await api('update',{sheet:'Viaggi',record:out});
       invalidateTrips();
       MODAL.hide(); toast('Salvato ✓','ok');
       if(CURRENT_TRIP && trip.id===CURRENT_TRIP.id){
-        // aggiorna in memoria e ridisegna intestazione + sezione, senza rifetch
         Object.assign(CURRENT_TRIP, out);
-        if(CURRENT_DATA?.Viaggi?.[0]) Object.assign(CURRENT_DATA.Viaggi[0], out);
+        if(CURRENT_DATA && CURRENT_DATA.Viaggi && CURRENT_DATA.Viaggi[0]) Object.assign(CURRENT_DATA.Viaggi[0], out);
         renderTripShell(currentSection());
       } else viewHome();
     } else {
       const saved = await api('create',{sheet:'Viaggi',record:out});
       invalidateTrips();
-      MODAL.hide(); toast('Viaggio creato ✓','ok');
+      MODAL.hide();
+      toast('Viaggio creato ✓ codice: '+(saved.codice||''),'ok');
       location.hash = '#/viaggio/'+saved.id;    // apri subito il nuovo viaggio
     }
   });
@@ -3012,16 +3498,21 @@ async function delTrip(){
   }
 }
 
-/* Eliminazione con possibilità di annullare.
-   Il backend riusa l'id che gli passiamo, quindi il ripristino rimette la riga
-   identica a prima: niente riferimenti rotti altrove. */
+/* Eliminazione con possibilità di annullare. */
 async function delRow(sheet, id){
   if(!await askConfirm('Eliminare questa voce?', true)) return;
-  const snapshot = Object.assign({}, findRow(sheet, id) || {});
+  const snapshot = Object.assign({}, (sheet==='Rubrica'
+    ? (RUBRICA||[]).find(x=>String(x.id)===String(id))
+    : findRow(sheet, id)) || {});
   try{
     await api('delete',{sheet,id});
-    applyLocal(sheet, 'delete', id);
-    refreshView();
+    if(sheet==='Rubrica'){
+      RUBRICA = (RUBRICA||[]).filter(x=>String(x.id)!==String(id));
+      openRubrica(RUBRICA_PICK);
+    } else {
+      applyLocal(sheet, 'delete', id);
+      refreshView();
+    }
     toast('Eliminato', 'ok', snapshot.id ? { label:'Annulla', fn:()=>undoDelRow(sheet, snapshot) } : null);
   }
   catch(e){ if(e instanceof AuthError) sessionExpired(); else toast('Errore: '+e.message,'error'); }
@@ -3030,8 +3521,8 @@ async function delRow(sheet, id){
 async function undoDelRow(sheet, rec){
   try{
     const saved = await api('create', { sheet, record: rec });
-    applyLocal(sheet, 'create', saved);
-    refreshView();
+    if(sheet==='Rubrica'){ RUBRICA = (RUBRICA||[]).concat([saved]); openRubrica(RUBRICA_PICK); }
+    else { applyLocal(sheet, 'create', saved); refreshView(); }
     toast('Ripristinato ✓','ok');
   }catch(e){
     if(e instanceof AuthError) sessionExpired();
@@ -3051,7 +3542,7 @@ function editAlloggio(record, tid){
   const r = Object.assign({
     viaggio_id: tid || t.id, struttura:'', checkin:'', ora_checkin:'', checkout:'', ora_checkout:'',
     notti:'', persone:'', totale:'', extra:'', prezzo_notte:'', prezzo_testa:'', prezzo_testa_notte:'',
-    link:'', indirizzo:'', posizione:'', valutazione:'', scelto:'', note:''
+    link:'', indirizzo:'', mappa_link:'', pnr:'', posizione:'', valutazione:'', scelto:'', note:''
   }, record || {});
   if(isNew){
     if(!r.checkin)  r.checkin  = toISODate(t.data_inizio);
@@ -3069,6 +3560,7 @@ function editAlloggio(record, tid){
       </div></div>`;
 
   $('#mTitle').textContent = isNew ? 'Nuovo alloggio' : 'Modifica alloggio';
+  $('#mSave').textContent = 'Salva';
   $('#mBody').innerHTML = `
     <div class="row g-2 mb-2">
       <div class="col-12 col-md-8"><label class="form-label">struttura</label>
@@ -3078,11 +3570,13 @@ function editAlloggio(record, tid){
           ${[1,2,3,4,5].map(i=>`<button type="button" class="star-btn${i<=Math.round(num(r.valutazione))?' on':''}" data-star="${i}">★</button>`).join('')}
           <button type="button" class="star-clear" data-star="0" title="azzera">×</button>
         </div></div>
-      <div class="col-12"><label class="form-label">link</label>
+      <div class="col-12 col-md-8"><label class="form-label">link annuncio</label>
         <div class="input-group">
           <span class="input-group-text" style="background:var(--paper-2);border-color:var(--line)">🔗</span>
           <input class="form-control" id="a_link" type="url" inputmode="url" value="${esc(r.link)}" placeholder="https://…">
         </div></div>
+      <div class="col-12 col-md-4"><label class="form-label">n° prenotazione</label>
+        <input class="form-control mono" id="a_pnr" value="${esc(r.pnr)}" placeholder="es. HMB-4821"></div>
     </div>
 
     <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
@@ -3116,11 +3610,22 @@ function editAlloggio(record, tid){
     </div>
     <div class="derived mb-3 mt-1" id="a_summary"></div>
 
+    <p class="eyebrow mb-1">Dove si trova</p>
     <div class="row g-2 mb-2">
       <div class="col-12 col-md-7"><label class="form-label">indirizzo</label>
         <input class="form-control" id="a_indirizzo" value="${esc(r.indirizzo)}" placeholder="via, città"></div>
       <div class="col-12 col-md-5"><label class="form-label">posizione</label>
         <input class="form-control" id="a_posizione" value="${esc(r.posizione)}" placeholder="es. 5 min dal centro"></div>
+      <div class="col-12"><label class="form-label">link mappa
+          <span style="font-weight:400;color:var(--muted);font-size:.7rem">— incolla qui il "Condividi" di Google Maps</span></label>
+        <div class="input-group">
+          <span class="input-group-text" style="background:var(--paper-2);border-color:var(--line)">📍</span>
+          <input class="form-control" id="a_mappa_link" type="url" inputmode="url"
+            value="${esc(r.mappa_link)}" placeholder="https://maps.app.goo.gl/…">
+          <button class="btn btn-ghost" type="button" id="a_mapTest">prova</button>
+        </div>
+        <div class="mono" id="a_mapHint" style="font-size:.68rem;color:var(--muted);margin-top:.2rem"></div>
+      </div>
       <div class="col-12"><label class="form-label">note</label>
         <textarea class="form-control" id="a_note" rows="2">${esc(r.note)}</textarea></div>
     </div>
@@ -3136,6 +3641,23 @@ function editAlloggio(record, tid){
   ['totale','extra','prezzo_notte','prezzo_testa','notti','persone'].forEach(f=>{
     $('#a_'+f).addEventListener('input', ()=>algRecalc(f));
   });
+  // Se incolli un link di Maps nella casella dell'indirizzo lo sposto da solo:
+  // è l'errore più naturale del mondo e finirebbe in una ricerca senza senso.
+  $('#a_indirizzo').addEventListener('input', ()=>{
+    const v = $('#a_indirizzo').value.trim();
+    if(isUrl(v)){
+      $('#a_mappa_link').value = v;
+      $('#a_indirizzo').value = '';
+      toast('Link spostato nel campo mappa ✓','ok');
+      algMapHint();
+    }
+  });
+  $('#a_mappa_link').addEventListener('input', algMapHint);
+  $('#a_mapTest').onclick = ()=>{
+    const href = mapsHref({ mappa_link: $('#a_mappa_link').value, indirizzo: $('#a_indirizzo').value, struttura: $('#a_struttura').value });
+    if(href) window.open(href, '_blank', 'noopener');
+    else toast('Scrivi un indirizzo o incolla un link','error');
+  };
   $('#a_allTrip').onclick = ()=>{
     $('#a_checkin').value  = toISODate(t.data_inizio)||'';
     $('#a_checkout').value = toISODate(t.data_fine)||'';
@@ -3149,10 +3671,12 @@ function editAlloggio(record, tid){
     box.querySelectorAll('.star-btn').forEach((s,i)=>s.classList.toggle('on', i < v));
   });
   algDatesChanged();
+  algMapHint();
 
   $('#mSave').onclick = ()=> withBtnLoading($('#mSave'), 'Salvo…', async ()=>{
     const out = { id: r.id, viaggio_id: r.viaggio_id };
-    ['struttura','ora_checkin','ora_checkout','link','indirizzo','posizione','note'].forEach(f=>{ out[f] = $('#a_'+f).value.trim(); });
+    ['struttura','ora_checkin','ora_checkout','link','indirizzo','mappa_link','pnr','posizione','note']
+      .forEach(f=>{ out[f] = $('#a_'+f).value.trim(); });
     ['checkin','checkout'].forEach(f=>{ out[f] = $('#a_'+f).value; });
     ['notti','persone'].forEach(f=>{ out[f] = $('#a_'+f).value!=='' ? Math.round(parseNum($('#a_'+f).value)) : ''; });
     ['totale','extra','prezzo_notte','prezzo_testa','prezzo_testa_notte'].forEach(f=>{ out[f] = parseNum($('#a_'+f).value); });
@@ -3190,6 +3714,16 @@ function editAlloggio(record, tid){
   });
 
   MODAL.show();
+}
+
+function algMapHint(){
+  const h = $('#a_mapHint'); if(!h) return;
+  const link = $('#a_mappa_link') ? $('#a_mappa_link').value.trim() : '';
+  const ind  = $('#a_indirizzo') ? $('#a_indirizzo').value.trim() : '';
+  if(isUrl(link)) h.textContent = '→ il pulsante 📍 aprirà esattamente questo punto';
+  else if(link)   h.textContent = '⚠️ non sembra un link: verrà usato come testo da cercare';
+  else if(ind)    h.textContent = '→ senza link, il pulsante 📍 cercherà l\'indirizzo su Maps';
+  else            h.textContent = '';
 }
 
 function algDatesChanged(){
@@ -3242,6 +3776,8 @@ function algSummary(){
 
 /* ============================================================
    FORM VOLI — una scheda = una OPZIONE (andata + ritorno)
+   Il prezzo è diviso in BIGLIETTO e BAGAGLI perché è così che
+   lo trovi sui comparatori: prima la tariffa, poi il supplemento.
    ============================================================ */
 function airlineDatalist(){
   return `<datalist id="airlines">${AIRLINES.map(a=>`<option value="${esc(a)}">`).join('')}</datalist>`;
@@ -3250,7 +3786,6 @@ function airportDatalist(){
   return `<datalist id="airports">${AIRPORTS.map(a=>`<option value="${esc(a.slice(0,3))}">${esc(a)}</option>`).join('')}</datalist>`;
 }
 function genGroupId(){ return 'g' + Math.random().toString(36).slice(2,10); }
-function truthyEq(a,b){ return String(a||'').toLowerCase()===String(b).toLowerCase(); }
 
 let VOL = null;                       // stato del form volo aperto
 const lk = (d,i,f) => `l_${dk(d)}_${i}_${f}`;
@@ -3290,7 +3825,7 @@ function normCode(v){
 }
 
 function editVoloById(key){
-  const legs = voliGroups(CURRENT_DATA?.Voli||[])[key];
+  const legs = voliGroups((CURRENT_DATA && CURRENT_DATA.Voli)||[])[key];
   if(legs) editVolo(legs, CURRENT_TRIP.id);
 }
 
@@ -3303,11 +3838,13 @@ function editVolo(group, tid){
   const legsByDir = {Andata:[], Ritorno:[]};
   (rows||[]).forEach(r=>legsByDir[dirOf(r)].push(legFromRow(r)));
   const totByDir = {Andata:'', Ritorno:''};
+  const bagCByDir = {Andata:'', Ritorno:''};
   const bagByDir = {Andata:false, Ritorno:false};
   DIRS.forEach(d=>{
     const rs = (rows||[]).filter(r=>dirOf(r)===d);
-    totByDir[d] = rs.length && num(rs[0].totale) ? num(rs[0].totale) : '';
-    bagByDir[d] = rs.some(r=>truthy(r.bagaglio));
+    totByDir[d]  = rs.length && num(rs[0].totale) ? num(rs[0].totale) : '';
+    bagCByDir[d] = rs.reduce((s,r)=>s+num(r.costo_bagaglio),0) || '';
+    bagByDir[d]  = rs.some(r=>truthy(r.bagaglio));
   });
   const dirsPresent = DIRS.filter(d=>legsByDir[d].length);
   if(!legsByDir.Andata.length)  legsByDir.Andata  = [emptyLeg()];
@@ -3320,27 +3857,33 @@ function editVolo(group, tid){
     ids       : (rows||[]).map(r=>r.id).filter(Boolean),
     opzione   : String(isNew ? nextOpz() : (Math.round(num(base.opzione))||1)),
     scelto    : truthy(base.scelto),
+    pnr       : rows ? groupPnr(rows) : '',
     ar        : isNew ? true : dirsPresent.length===2,
     dir       : (!isNew && dirsPresent[0]==='Ritorno') ? 'Ritorno' : 'Andata',
     prezzoUnico: !(totByDir.Andata!=='' && totByDir.Ritorno!==''),
     totale    : (num(totByDir.Andata)+num(totByDir.Ritorno)) || '',
+    bagTot    : (num(bagCByDir.Andata)+num(bagCByDir.Ritorno)) || '',
     prezzo_testa: (rows||[]).reduce((s,r)=>s+num(r.prezzo_testa),0) || '',
     tot       : totByDir,
+    bagc      : bagCByDir,
     bag       : bagByDir,
     paganti   : base.paganti || '',
     legs      : legsByDir
   };
 
   $('#mTitle').textContent = isNew ? 'Nuovo volo' : ('Modifica volo · opz. ' + VOL.opzione);
+  $('#mSave').textContent = 'Salva';
   $('#mBody').innerHTML = `
     <div id="v_err"></div>
     <div class="row g-2 align-items-center mb-2">
-      <div class="col-4"><label class="form-label">opzione n°</label>
+      <div class="col-4 col-md-3"><label class="form-label">opzione n°</label>
         <input class="form-control" id="v_opzione" type="text" inputmode="numeric" value="${esc(VOL.opzione)}"></div>
-      <div class="col-4"><div class="form-check mt-3">
+      <div class="col-8 col-md-4"><label class="form-label">n° prenotazione</label>
+        <input class="form-control mono" id="v_pnr" value="${esc(VOL.pnr)}" placeholder="es. XK7T2P"></div>
+      <div class="col-6 col-md-3"><div class="form-check mt-md-3">
         <input class="form-check-input" type="checkbox" id="v_ar" ${VOL.ar?'checked':''} onchange="volToggleAR()">
         <label class="form-check-label" for="v_ar"><strong>andata e ritorno</strong></label></div></div>
-      <div class="col-4"><div class="form-check mt-3">
+      <div class="col-6 col-md-2"><div class="form-check mt-md-3">
         <input class="form-check-input" type="checkbox" id="v_scelto" ${VOL.scelto?'checked':''}>
         <label class="form-check-label" for="v_scelto">scelto</label></div></div>
     </div>
@@ -3355,16 +3898,21 @@ function editVolo(group, tid){
       <input class="form-check-input" type="checkbox" id="v_prezzoUnico" ${VOL.prezzoUnico?'checked':''} onchange="volTogglePU()">
       <label class="form-check-label" for="v_prezzoUnico">prezzo unico per andata + ritorno</label>
     </div>
-    <div class="row g-2 mb-3" id="v_priceBox" style="${(!VOL.ar||VOL.prezzoUnico)?'':'display:none'}">
-      <div class="col-6"><label class="form-label">totale</label>
+    <div class="row g-2" id="v_priceBox" style="${(!VOL.ar||VOL.prezzoUnico)?'':'display:none'}">
+      <div class="col-6 col-md-4"><label class="form-label">volo <span style="font-weight:400;color:var(--muted);font-size:.7rem">— biglietti</span></label>
         <div class="input-group">
           <span class="input-group-text" style="background:var(--paper-2);border-color:var(--line)">€</span>
           <input class="form-control" id="v_totale" type="text" inputmode="decimal" value="${VOL.totale!==''?esc(fmtNumIT(VOL.totale)):''}" placeholder="0,00"></div></div>
-      <div class="col-6"><label class="form-label">a testa <span style="font-weight:400;color:var(--muted);font-size:.7rem">— auto</span></label>
+      <div class="col-6 col-md-4"><label class="form-label">bagagli <span style="font-weight:400;color:var(--muted);font-size:.7rem">— supplemento</span></label>
+        <div class="input-group">
+          <span class="input-group-text" style="background:var(--paper-2);border-color:var(--line)">🧳</span>
+          <input class="form-control" id="v_bagtot" type="text" inputmode="decimal" value="${VOL.bagTot!==''?esc(fmtNumIT(VOL.bagTot)):''}" placeholder="0,00"></div></div>
+      <div class="col-12 col-md-4"><label class="form-label">a testa <span style="font-weight:400;color:var(--muted);font-size:.7rem">— auto</span></label>
         <div class="input-group">
           <span class="input-group-text" style="background:var(--paper-2);border-color:var(--line)">€</span>
           <input class="form-control" id="v_prezzo_testa" type="text" inputmode="decimal" value="${VOL.prezzo_testa!==''?esc(fmtNumIT(VOL.prezzo_testa)):''}" placeholder="0,00"></div></div>
     </div>
+    <div class="derived mb-3 mt-1" id="v_grand"></div>
     <div id="v_legs"></div>
     ${airlineDatalist()}${airportDatalist()}
   `;
@@ -3374,9 +3922,9 @@ function editVolo(group, tid){
   box.addEventListener('input', volSync);
   box.addEventListener('change', volSync);
   box.addEventListener('click', volLegsClick);
-  const tEl = $('#v_totale'), pEl = $('#v_prezzo_testa');
-  if(tEl) tEl.addEventListener('input', volSync);
-  if(pEl) pEl.addEventListener('input', volSync);
+  ['v_totale','v_bagtot','v_prezzo_testa'].forEach(id=>{
+    const el = $('#'+id); if(el) el.addEventListener('input', volSync);
+  });
 
   if(isNew) volMirror(true);
   volRenderLegs();
@@ -3433,9 +3981,15 @@ function volToggleAR(){
 
 function volTogglePU(){
   volReadForm();
-  if(VOL.prezzoUnico && VOL.totale===''){
-    const s = num(VOL.tot.Andata)+num(VOL.tot.Ritorno);
-    if(s){ VOL.totale = s; const t=$('#v_totale'); if(t) t.value = fmtNumIT(s); }
+  if(VOL.prezzoUnico){
+    if(VOL.totale===''){
+      const s = num(VOL.tot.Andata)+num(VOL.tot.Ritorno);
+      if(s){ VOL.totale = s; const t=$('#v_totale'); if(t) t.value = fmtNumIT(s); }
+    }
+    if(VOL.bagTot===''){
+      const s = num(VOL.bagc.Andata)+num(VOL.bagc.Ritorno);
+      if(s){ VOL.bagTot = s; const t=$('#v_bagtot'); if(t) t.value = fmtNumIT(s); }
+    }
   }
   $('#v_priceBox').style.display = VOL.prezzoUnico ? '' : 'none';
   volRenderLegs();
@@ -3481,10 +4035,15 @@ function volRenderLegs(){
 function volDirBlock(d){
   const legs = VOL.legs[d];
   const price = (VOL.ar && !VOL.prezzoUnico) ? `
-    <div class="input-group input-group-sm" style="max-width:180px">
+    <div class="input-group input-group-sm" style="max-width:150px">
       <span class="input-group-text" style="background:var(--paper-2);border-color:var(--line)">€</span>
       <input class="form-control" id="v_tot_${dk(d)}" type="text" inputmode="decimal"
-        value="${VOL.tot[d]!==''?esc(fmtNumIT(VOL.tot[d])):''}" placeholder="totale ${d.toLowerCase()}">
+        value="${VOL.tot[d]!==''?esc(fmtNumIT(VOL.tot[d])):''}" placeholder="volo">
+    </div>
+    <div class="input-group input-group-sm" style="max-width:140px">
+      <span class="input-group-text" style="background:var(--paper-2);border-color:var(--line)">🧳</span>
+      <input class="form-control" id="v_bagc_${dk(d)}" type="text" inputmode="decimal"
+        value="${VOL.bagc[d]!==''?esc(fmtNumIT(VOL.bagc[d])):''}" placeholder="bagagli">
     </div>` : '';
   return `<div class="dir-edit mb-3${d==='Ritorno'?' rit':''}">
     <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
@@ -3493,7 +4052,7 @@ function volDirBlock(d){
         ${price}
         <div class="form-check mb-0">
           <input class="form-check-input" type="checkbox" id="v_bag_${dk(d)}" ${VOL.bag[d]?'checked':''}>
-          <label class="form-check-label" for="v_bag_${dk(d)}" style="font-size:.8rem">🧳 bagaglio</label>
+          <label class="form-check-label" for="v_bag_${dk(d)}" style="font-size:.8rem">🧳 già incluso</label>
         </div>
         ${(d==='Ritorno'&&VOL.ar)?`<button class="btn btn-ghost btn-sm" type="button" data-mirror="1" title="Ricopia specchiando l'andata">⇄ specchia</button>`:''}
         <button class="btn btn-ghost btn-sm" type="button" data-add="${d}">+ scalo</button>
@@ -3542,18 +4101,21 @@ function volReadForm(){
   if(!VOL) return;
   const el = s => $('#'+s);
   if(el('v_opzione'))     VOL.opzione = el('v_opzione').value;
+  if(el('v_pnr'))         VOL.pnr = el('v_pnr').value.trim();
   if(el('v_ar'))          VOL.ar = el('v_ar').checked;
   if(el('v_scelto'))      VOL.scelto = el('v_scelto').checked;
   if(el('v_dir'))         VOL.dir = el('v_dir').value;
   if(el('v_prezzoUnico')) VOL.prezzoUnico = el('v_prezzoUnico').checked;
   if(!VOL.ar) VOL.prezzoUnico = true;
   if(el('v_totale'))       VOL.totale = parseNum(el('v_totale').value);
+  if(el('v_bagtot'))       VOL.bagTot = parseNum(el('v_bagtot').value);
   if(el('v_prezzo_testa')) VOL.prezzo_testa = parseNum(el('v_prezzo_testa').value);
   VOL.paganti = readPayValue('v_pag');
 
   DIRS.forEach(d=>{
-    const t = el('v_tot_'+dk(d)); if(t) VOL.tot[d] = parseNum(t.value);
-    const b = el('v_bag_'+dk(d)); if(b) VOL.bag[d] = b.checked;
+    const t = el('v_tot_'+dk(d));  if(t) VOL.tot[d]  = parseNum(t.value);
+    const c = el('v_bagc_'+dk(d)); if(c) VOL.bagc[d] = parseNum(c.value);
+    const b = el('v_bag_'+dk(d));  if(b) VOL.bag[d]  = b.checked;
     VOL.legs[d] = VOL.legs[d].map((L,i)=>{
       const g = f => { const e2 = el(lk(d,i,f)); return e2 ? (e2.type==='checkbox' ? e2.checked : e2.value) : null; };
       const out = Object.assign({}, L);
@@ -3624,17 +4186,25 @@ function volSync(){
       dd.textContent = m!=null ? `durata ${d.toLowerCase()}: ${fmtDur(m)} · ${n>1?(n-1)+' scalo':'diretto'}` : '';
     }
   });
-  // prezzi
+  // prezzi: il totale dell'opzione è biglietti + bagagli
   const n = payCountInForm('v_pag');
-  const tEl = $('#v_totale'), pEl = $('#v_prezzo_testa');
+  const tEl = $('#v_totale'), bEl = $('#v_bagtot'), pEl = $('#v_prezzo_testa');
+  const bigl = VOL.prezzoUnico ? num(VOL.totale) : (num(VOL.tot.Andata)+num(VOL.tot.Ritorno));
+  const bags = VOL.prezzoUnico ? num(VOL.bagTot) : (num(VOL.bagc.Andata)+num(VOL.bagc.Ritorno));
+  const grand = bigl + bags;
   if(VOL.prezzoUnico && tEl && pEl && n){
     if(document.activeElement===pEl){
       const pt = parseNum(pEl.value);
-      if(pt!=='') tEl.value = fmtNumIT(round2(pt*n));
-    } else {
-      const t = parseNum(tEl.value);
-      if(t!=='') pEl.value = fmtNumIT(round2(t/n));
+      if(pt!=='') tEl.value = fmtNumIT(round2(Math.max(0, pt*n - bags)));
+    } else if(grand){
+      pEl.value = fmtNumIT(round2(grand/n));
     }
+  }
+  const g = $('#v_grand');
+  if(g){
+    g.textContent = grand
+      ? `→ totale opzione ${eur(grand)}${bags?` (${eur(bigl)} volo + ${eur(bags)} bagagli)`:''}${n?` · ${eur(grand/n)} a testa`:''}`
+      : '';
   }
 }
 
@@ -3679,11 +4249,13 @@ async function volSave(){
   const n = payCountInForm('v_pag');
   const opz = Math.round(parseNum(VOL.opzione)) || 1;
   const scelto = VOL.scelto ? 'Sì' : '';
+  const pnr = String(VOL.pnr||'').trim();
 
-  // totale per direzione: con "prezzo unico" finisce tutto sulla prima direzione
-  const totals = {};
+  // biglietti e bagagli per direzione: con "prezzo unico" finisce tutto sulla prima
+  const totals = {}, bags = {};
   dirs.forEach((d,i)=>{
     totals[d] = VOL.prezzoUnico ? (i===0 ? (VOL.totale===''?'':VOL.totale) : '') : (VOL.tot[d]===''?'':VOL.tot[d]);
+    bags[d]   = VOL.prezzoUnico ? (i===0 ? (VOL.bagTot===''?'':VOL.bagTot) : '') : (VOL.bagc[d]===''?'':VOL.bagc[d]);
   });
 
   const records = [];
@@ -3691,6 +4263,8 @@ async function volSave(){
     const legs = VOL.legs[d].filter(l=>!isLegEmpty(l));
     legs.forEach((L,i)=>{
       const tot = i===0 ? totals[d] : '';
+      const bag = i===0 ? bags[d]   : '';
+      const somma = num(tot)+num(bag);
       records.push({
         viaggio_id: VOL.viaggio_id, gruppo_id: VOL.gruppo_id,
         opzione: opz, direzione: d, tratta: i+1,
@@ -3701,8 +4275,10 @@ async function volSave(){
         data_arr: legArrISO(L),     ora_arr: L.ora_arr||'',
         scalo: i>0 ? (fmtDur(legScaloMinsL(legs[i-1],L))||'') : '',
         totale: tot==='' ? '' : round2(tot),
-        prezzo_testa: (i===0 && tot!=='' && n) ? round2(tot/n) : '',
+        costo_bagaglio: bag==='' ? '' : round2(bag),
+        prezzo_testa: (i===0 && somma && n) ? round2(somma/n) : '',
         bagaglio: VOL.bag[d] ? 'Sì' : '',
+        pnr: pnr,
         scelto, note: ''
       });
     });
@@ -3735,7 +4311,300 @@ async function volSave(){
 }
 
 /* ============================================================
-   BACKUP / RESTORE
+   RUBRICA VIAGGIATORI
+   Anagrafica globale, indipendente dai viaggi: i dati di Marco
+   si scrivono una volta e si riusano in tutti i viaggi futuri.
+   Visibile solo con il codice amministratore, perché contiene
+   documenti di persone che magari a questo viaggio non vengono.
+   ============================================================ */
+let RUBRICA = null;
+let RUBRICA_PICK = false;
+const RUBRICA_FIELDS = ['nome','cognome','data_nascita','luogo_nascita','tipo_doc','num_doc',
+  'scadenza_doc','nazionalita','cod_fiscale','telefono','email','note'];
+
+async function loadRubrica(force){
+  if(RUBRICA && !force) return RUBRICA;
+  RUBRICA = await api('list', { sheet:'Rubrica' });
+  return RUBRICA;
+}
+
+function rubKey(r){ return ((r.nome||'')+' '+(r.cognome||'')).trim().toLowerCase(); }
+
+// Inserisce o aggiorna una persona in rubrica confrontando nome+cognome
+async function rubricaUpsert(rec){
+  await loadRubrica();
+  const out = {};
+  RUBRICA_FIELDS.forEach(f=>{ out[f] = rec[f] != null ? rec[f] : ''; });
+  const ex = RUBRICA.find(r=>rubKey(r)===rubKey(out));
+  if(ex){
+    out.id = ex.id;
+    await api('update', { sheet:'Rubrica', record: out });
+    Object.assign(ex, out);
+  } else {
+    const saved = await api('create', { sheet:'Rubrica', record: out });
+    RUBRICA.push(saved);
+  }
+}
+
+async function savePersonToRubrica(id){
+  const p = findRow('Partecipanti', id);
+  if(!p) return;
+  try{
+    await rubricaUpsert(p);
+    toast(`${pName(p)} salvato in rubrica ★`,'ok');
+  }catch(e){
+    if(e instanceof AuthError) sessionExpired(); else toast('Errore: '+e.message,'error');
+  }
+}
+
+async function openRubrica(pick){
+  if(!isAdmin()) return toast('La rubrica è riservata al codice amministratore','error');
+  RUBRICA_PICK = !!pick;
+  ensureModal();
+  // se stiamo arrivando dalla chiusura di un altro modal, lascia finire l'animazione
+  if(document.querySelector('.modal.show')) await new Promise(r=>setTimeout(r,300));
+  $('#mTitle').textContent = pick ? 'Aggiungi dalla rubrica' : 'Rubrica viaggiatori';
+  $('#mBody').innerHTML = spinner('carico la rubrica…');
+  $('#mSave').textContent = pick ? 'Aggiungi al viaggio' : '+ Nuova persona';
+  MODAL.show();
+
+  let rows;
+  try { rows = await loadRubrica(true); }
+  catch(e){ $('#mBody').innerHTML = `<div class="alert alert-danger py-2 small">${esc(e.message)}</div>`; return; }
+
+  rows = rows.slice().sort((a,b)=>pName(a).localeCompare(pName(b),'it'));
+  const inTrip = {};
+  (CURRENT_DATA && CURRENT_DATA.Partecipanti || []).forEach(p=>{ inTrip[rubKey(p)] = true; });
+
+  $('#mBody').innerHTML = rows.length ? `
+    ${pick?`<p style="font-size:.88rem;color:var(--ink-soft)">Seleziona chi viene anche a questo viaggio: copio nome, documento e contatti.</p>`:''}
+    <div class="sheet p-2">
+      ${rows.map((r,i)=>{
+        const già = inTrip[rubKey(r)];
+        return `<div class="d-flex align-items-center gap-2 py-2" style="border-bottom:1px solid var(--line)">
+          ${pick?`<input class="form-check-input rub-one" type="checkbox" id="rub_${i}" value="${esc(r.id)}" ${già?'disabled':''}>`:''}
+          <label class="flex-grow-1 mb-0" ${pick?`for="rub_${i}"`:''} style="min-width:0;cursor:${pick?'pointer':'default'}">
+            <div style="font-weight:600">${esc(pName(r))} ${già?'<span class="chip pick">già nel viaggio</span>':''}</div>
+            <div class="mono" style="font-size:.72rem;color:var(--muted)">
+              ${r.tipo_doc?esc(r.tipo_doc)+' ':''}${r.num_doc?esc(maskDoc(r.num_doc)):''}${r.scadenza_doc?' · scad. '+toITDate(r.scadenza_doc):''}${r.telefono?' · '+esc(r.telefono):''}</div>
+          </label>
+          <div class="text-nowrap">
+            <button class="icon-btn" title="Modifica" onclick="editRowById('Rubrica','${jsArg(r.id)}')">✎</button>
+            <button class="icon-btn" title="Elimina dalla rubrica" onclick="delRow('Rubrica','${jsArg(r.id)}')">🗑</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    ${pick?`<button class="btn btn-ghost btn-sm mt-2" onclick="editRow('Rubrica', null)">+ Nuova persona in rubrica</button>`:''}`
+    : `<div class="empty"><div class="big">Rubrica vuota</div>
+       <div>Salva un partecipante con il pulsante ★ e lo ritroverai qui nei prossimi viaggi.</div></div>`;
+
+  $('#mSave').onclick = pick
+    ? ()=> withBtnLoading($('#mSave'), 'Aggiungo…', addFromRubrica)
+    : ()=> editRow('Rubrica', null);
+}
+
+async function addFromRubrica(){
+  const ids = [...document.querySelectorAll('.rub-one')].filter(c=>c.checked).map(c=>c.value);
+  if(!ids.length){ toast('Seleziona almeno una persona','error'); return; }
+  const tid = CURRENT_TRIP.id;
+  const records = ids.map(id=>{
+    const r = (RUBRICA||[]).find(x=>String(x.id)===String(id)) || {};
+    const o = { viaggio_id: tid };
+    RUBRICA_FIELDS.forEach(f=>{ o[f] = r[f] != null ? r[f] : ''; });
+    return o;
+  });
+  const saved = await api('create_many', { sheet:'Partecipanti', records });
+  applyLocal('Partecipanti','create_many', saved);
+  MODAL.hide();
+  toast(`${saved.length} person${saved.length===1?'a aggiunta':'e aggiunte'} ✓`,'ok');
+  refreshView();
+}
+
+/* ============================================================
+   DOSSIER DI VIAGGIO (PDF)
+   Non serve una libreria: costruiamo un documento pulito nella
+   pagina e lasciamo che sia il browser a fare il PDF con
+   "Stampa → Salva come PDF". Funziona ovunque, anche da telefono,
+   e il file esce con i link cliccabili.
+   ============================================================ */
+function printDossier(){
+  ensureModal();
+  $('#mTitle').textContent = 'Dossier di viaggio (PDF)';
+  $('#mSave').textContent = '🖨 Crea il PDF';
+  $('#mBody').innerHTML = `
+    <p style="font-size:.9rem;color:var(--ink-soft)">
+      Preparo un documento con tutto l'essenziale. Poi il browser ti chiederà dove stamparlo:
+      scegli <strong>"Salva come PDF"</strong>.</p>
+    <div class="sheet p-3">
+      ${[['pd_voli','✈️ Voli scelti (con codici di prenotazione)',true],
+         ['pd_alloggi','🏠 Alloggi scelti e indirizzi',true],
+         ['pd_budget','💶 Budget e quote per persona',true],
+         ['pd_part','👥 Elenco partecipanti',true],
+         ['pd_doc','🪪 Numeri dei documenti (dati sensibili)',false],
+         ['pd_att','📅 Programma delle attività',true],
+         ['pd_cont','☎️ Contatti utili',true],
+         ['pd_info','ℹ️ Info destinazione',true],
+         ['pd_cp','🧳 Lista cosa portare',false]
+        ].map(([id,label,on])=>`<div class="form-check">
+          <input class="form-check-input" type="checkbox" id="${id}" ${on?'checked':''}>
+          <label class="form-check-label" for="${id}">${label}</label></div>`).join('')}
+    </div>`;
+  $('#mSave').onclick = ()=>{
+    const o = {};
+    ['pd_voli','pd_alloggi','pd_budget','pd_part','pd_doc','pd_att','pd_cont','pd_info','pd_cp']
+      .forEach(id=>{ const el=$('#'+id); o[id.slice(3)] = !!(el && el.checked); });
+    MODAL.hide();
+    setTimeout(()=>doPrintDossier(o), 350);
+  };
+  MODAL.show();
+}
+
+function pdBox(inner){ return `<div class="pd-box">${inner}</div>`; }
+
+function buildDossier(o){
+  const d = CURRENT_DATA, t = d.Viaggi[0];
+  const b = computeBudget(d);
+  const groups = voliGroups(d.Voli||[]);
+  const chosen = Object.keys(groups).filter(k=>groupChosen(groups[k]));
+  const alloggi = (d.Alloggi||[]).filter(a=>truthy(a.scelto))
+    .sort((x,y)=>String(toISODate(x.checkin)).localeCompare(String(toISODate(y.checkin))));
+  const people = partList(d);
+  const balances = computeBalances(d);
+  const out = [];
+
+  out.push(`<div class="pd-cover">
+    <h1 class="pd-title">${esc(t.destinazione||t.nome||'Viaggio')}</h1>
+    <div class="pd-sub">${esc(t.paese||'')} · ${t.data_inizio?toITDate(t.data_inizio):'?'} → ${t.data_fine?toITDate(t.data_fine):'?'}
+      · ${tripPeople(d)} persone · dossier del ${toITDate(todayISO())}</div>
+    ${t.note?`<div class="pd-note" style="margin-top:5px">${esc(t.note)}</div>`:''}
+  </div>`);
+
+  if(o.voli){
+    out.push(`<div class="pd-sec"><h2>✈️ Voli</h2>${
+      chosen.length ? chosen.map(k=>{
+        const legs = groups[k];
+        const pnr = groupPnr(legs), bag = groupBag(legs);
+        return pdBox(`
+          <div class="pd-row"><strong>Opzione ${esc(groupOpz(legs))} · ${esc(groupKind(legs))}</strong>
+            <span class="pd-mono">${eur(groupTotal(legs))}${bag?` (bagagli ${eur(bag)})`:''}</span></div>
+          ${pnr?`<div class="pd-row"><span class="pd-k">prenotazione</span><span class="pd-mono"><strong>${esc(pnr)}</strong></span></div>`:''}
+          ${groupDirs(legs).map(dd=>{
+            const ls = legsOfDir(legs, dd);
+            return `<div style="margin-top:4px"><div class="pd-day">${dd==='Ritorno'?'🛬':'🛫'} ${dd} — ${toITDateLong(ls[0].data_part)}</div>
+              ${ls.map((l,i)=>`<div class="pd-row"><span class="pd-mono">${esc(toHM(l.ora_part)||'--:--')} ${esc(l.da||'?')} → ${esc(l.a||'?')} ${esc(toHM(l.ora_arr)||'--:--')}${arrDayShift(l)?' (+1)':''}</span>
+                <span class="pd-note">${esc(l.compagnia||'')} ${esc(l.n_volo||'')}</span></div>
+                ${i<ls.length-1?`<div class="pd-note">↳ scalo a ${esc(ls[i+1].da||'?')}${(()=>{const m=rowScaloMins(l,ls[i+1]);return m!=null?' · '+fmtDur(m):'';})()}</div>`:''}`).join('')}
+              </div>`;
+          }).join('')}
+          ${legs.some(l=>truthy(l.bagaglio))?`<div class="pd-note">🧳 bagaglio in stiva incluso</div>`:''}`);
+      }).join('') : `<div class="pd-note">Nessun volo selezionato.</div>`
+    }</div>`);
+  }
+
+  if(o.alloggi){
+    out.push(`<div class="pd-sec"><h2>🏠 Alloggi</h2>${
+      alloggi.length ? alloggi.map(a=>{
+        const href = mapsHref(a);
+        return pdBox(`
+          <div class="pd-row"><strong>${esc(a.struttura||'Alloggio')}</strong>
+            <span class="pd-mono">${eur(a.totale)}</span></div>
+          <div class="pd-row"><span class="pd-mono">${toITDate(a.checkin)} ${esc(toHM(a.ora_checkin)||'')} → ${toITDate(a.checkout)} ${esc(toHM(a.ora_checkout)||'')}</span>
+            <span class="pd-note">${algNights(a)} notti</span></div>
+          ${a.indirizzo?`<div class="pd-note">📍 ${esc(a.indirizzo)}</div>`:''}
+          ${href?`<div class="pd-note"><a href="${esc(href)}">${esc(href.length>60?href.slice(0,60)+'…':href)}</a></div>`:''}
+          ${a.pnr?`<div class="pd-row"><span class="pd-k">prenotazione</span><span class="pd-mono"><strong>${esc(a.pnr)}</strong></span></div>`:''}
+          ${a.note?`<div class="pd-note">${esc(a.note)}</div>`:''}`);
+      }).join('') : `<div class="pd-note">Nessun alloggio selezionato.</div>`
+    }</div>`);
+  }
+
+  if(o.budget){
+    out.push(`<div class="pd-sec"><h2>💶 Budget</h2>${pdBox(`
+      <div class="pd-row"><span>Alloggio</span><span class="pd-mono">${eur(b.alloggio)}</span></div>
+      <div class="pd-row"><span>Voli${b.voliBagagli?` (di cui ${eur(b.voliBagagli)} bagagli)`:''}</span><span class="pd-mono">${eur(b.voli)}</span></div>
+      <div class="pd-row"><span>Spese extra</span><span class="pd-mono">${eur(b.spese)}</span></div>
+      <div class="pd-row"><strong>Totale</strong><span class="pd-mono"><strong>${eur(b.tot)}</strong></span></div>
+      <div class="pd-row"><span>A testa (${b.pers} persone)</span><span class="pd-mono">${eur(b.perPersona)}</span></div>`)}
+      ${balances && balances.length ? pdBox(`<div class="pd-k" style="margin-bottom:3px">quota per persona</div>
+        ${balances.map(x=>`<div class="pd-row"><span>${esc(x.nome)}</span><span class="pd-mono">${eur(x.quota)}</span></div>`).join('')}`) : ''}
+    </div>`);
+  }
+
+  if(o.part && people.length){
+    out.push(`<div class="pd-sec"><h2>👥 Partecipanti</h2>${pdBox(
+      people.map(p=>`<div class="pd-row"><span>${esc(pName(p))}${p.data_nascita?` <span class="pd-note">${toITDate(p.data_nascita)}</span>`:''}</span>
+        <span class="pd-mono">${o.doc && p.num_doc ? esc(p.tipo_doc||'doc')+' '+esc(p.num_doc)+(p.scadenza_doc?' · scad. '+toITDate(p.scadenza_doc):'') : esc(p.telefono||'')}</span></div>`).join('')
+    )}${o.doc?`<div class="pd-note">⚠️ Questo documento contiene numeri di documenti personali: conservalo con attenzione.</div>`:''}</div>`);
+  }
+
+  if(o.att){
+    const rows = (d.CoseDaFare||[]).slice();
+    const withDate = rows.filter(r=>toISODate(r.data)).sort((a,b)=>{
+      const c = toISODate(a.data).localeCompare(toISODate(b.data));
+      return c!==0?c:(toHM(a.ora)||'99:99').localeCompare(toHM(b.ora)||'99:99');
+    });
+    const noDate = rows.filter(r=>!toISODate(r.data));
+    const byDay = {};
+    withDate.forEach(r=>{ const k=toISODate(r.data); (byDay[k]=byDay[k]||[]).push(r); });
+    const item = r=>`<div class="pd-row"><span>${r.ora?`<span class="pd-mono">${esc(toHM(r.ora))}</span> `:''}${esc(r.attivita||'')}${truthy(r.prenotazione_req)&&!truthy(r.confermata)?' <span class="pd-note">(da prenotare)</span>':''}</span>
+        <span class="pd-note">${esc(r.posizione||'')}${num(r.costo)?' · '+eur(r.costo):''}</span></div>`;
+    if(withDate.length || noDate.length){
+      out.push(`<div class="pd-sec"><h2>📅 Programma</h2>
+        ${Object.keys(byDay).map(k=>pdBox(`<div class="pd-day">${toITDateLong(k)}</div>${byDay[k].map(item).join('')}`)).join('')}
+        ${noDate.length?pdBox(`<div class="pd-day">Da collocare</div>${noDate.map(item).join('')}`):''}
+      </div>`);
+    }
+  }
+
+  if(o.cont && (d.Contatti||[]).length){
+    out.push(`<div class="pd-sec"><h2>☎️ Contatti utili</h2>${pdBox(
+      (d.Contatti||[]).map(c=>`<div class="pd-row"><span><strong>${esc(c.nome||'')}</strong>${c.categoria?` <span class="pd-note">${esc(c.categoria)}</span>`:''}${c.indirizzo?`<div class="pd-note">${esc(c.indirizzo)}</div>`:''}</span>
+        <span class="pd-mono">${esc(c.telefono||'')}</span></div>`).join('')
+    )}</div>`);
+  }
+
+  if(o.info && (d.InfoDest||[]).length){
+    const bySez = {};
+    (d.InfoDest||[]).forEach(r=>{ (bySez[r.sezione||'Generale']=bySez[r.sezione||'Generale']||[]).push(r); });
+    out.push(`<div class="pd-sec"><h2>ℹ️ Info destinazione</h2>${
+      Object.entries(bySez).map(([s,items])=>pdBox(`<div class="pd-day">${esc(s)}</div>
+        ${items.map(r=>`<div class="pd-row"><span>${esc(r.chiave)}</span><span class="pd-note">${esc(r.valore)}</span></div>`).join('')}`)).join('')
+    }</div>`);
+  }
+
+  if(o.cp && (d.CosaPortare||[]).length){
+    const byCat = {};
+    (d.CosaPortare||[]).forEach(r=>{ const k=String(r.categoria||'Varie').trim()||'Varie'; (byCat[k]=byCat[k]||[]).push(r); });
+    out.push(`<div class="pd-sec pd-break"><h2>🧳 Cosa portare</h2><div class="pd-cols">${
+      Object.keys(byCat).sort((a,b)=>a.localeCompare(b,'it')).map(cat=>`<div class="pd-box">
+        <div class="pd-day">${esc(cat)}</div>
+        ${byCat[cat].map(r=>`<div>${truthy(r.spuntato)?'☑':'☐'} ${esc(r.cosa||'')}${Math.round(num(r.qta))>1?' ×'+Math.round(num(r.qta)):''}${r.chi&&String(r.chi).toLowerCase()!=='tutti'?` <span class="pd-note">(${esc(r.chi)})</span>`:''}</div>`).join('')}
+      </div>`).join('')
+    }</div></div>`);
+  }
+
+  out.push(`<div class="pd-note" style="margin-top:10px;border-top:1px solid #bbb;padding-top:5px">
+    Generato con TripHub · ${esc(t.destinazione||'')} · ${toITDate(todayISO())}</div>`);
+  return out.join('');
+}
+
+function doPrintDossier(o){
+  const el = document.getElementById('printDoc');
+  if(!el) return;
+  el.innerHTML = buildDossier(o);
+  document.body.classList.add('printing');
+  const cleanup = ()=>{
+    document.body.classList.remove('printing');
+    window.removeEventListener('afterprint', cleanup);
+  };
+  window.addEventListener('afterprint', cleanup);
+  setTimeout(()=>{ try{ window.print(); }catch(_){ toast('Il browser ha bloccato la stampa','error'); } }, 80);
+  setTimeout(cleanup, 60000);   // rete di sicurezza se afterprint non scatta
+}
+
+/* ============================================================
+   BACKUP / RESTORE (solo amministratore)
    ============================================================ */
 async function doExport(){
   toast('Preparo il backup…');
@@ -3774,11 +4643,11 @@ async function doImport(input){
   showOverlay('Importo il backup…');
   try{
     const report = await api('import', { payload, mode });
-    TRIP_CACHE.clear(); invalidateTrips();
+    TRIP_CACHE.clear(); invalidateTrips(); RUBRICA = null;
     hideOverlay();
     const tot = Object.values(report).reduce((s,n)=>s+(Number(n)||0),0);
     toast(`Import completato: ${tot} righe`,'ok');
-    reloadCurrent();               // dopo un import serve ricaricare tutto dal server
+    reloadCurrent();
   }catch(e){
     hideOverlay();
     if(e instanceof AuthError) sessionExpired();
@@ -3801,8 +4670,6 @@ function hideOverlay(){ const ov=$('#loadOverlay'); if(ov) ov.style.display='non
 
 /* ============================================================
    SCORCIATOIE DA TASTIERA
-   Restano zitte se stai scrivendo in un campo o se c'è una finestra
-   aperta, così non intralciano mai l'inserimento dati.
    ============================================================ */
 let WIRED = false;
 function initKeyboard(){
@@ -3821,7 +4688,6 @@ function initKeyboard(){
     if(e.key === 'Escape' && $('#tripSearch') && $('#tripSearch').value){
       $('#tripSearch').value=''; filterTrips(''); return;
     }
-    // 1-9 saltano fra le sezioni del viaggio aperto
     if(/^[1-9]$/.test(e.key) && CURRENT_TRIP && /^#\/viaggio\//.test(location.hash)){
       const sec = SECTIONS[Number(e.key)-1];
       if(sec){ e.preventDefault(); location.hash = `#/viaggio/${CURRENT_TRIP.id}/${sec[0]}`; }
@@ -3851,7 +4717,7 @@ function initNetwork(){
 /* ============================================================
    BOOT
    ============================================================ */
-function boot(){
+async function boot(){
   if(API_URL.includes('INCOLLA_QUI')){
     $('#app').innerHTML = `<div class="sheet p-4 m-4"><h2>⚙️ Configurazione mancante</h2>
       <p>Apri <code>index.html</code> e incolla l'URL della Web App in <code>API_URL</code>.</p></div>`;
@@ -3859,7 +4725,19 @@ function boot(){
   }
   initKeyboard();
   initNetwork();
-  if(!TOKEN) renderGate(); else route();
+  if(!TOKEN) return renderGate();
+  buildTopMenu();
+  // il ruolo può mancare (tab riaperta): lo richiediamo prima di disegnare,
+  // altrimenti mostreremmo pulsanti da amministratore a chi non lo è
+  if(!ROLE){
+    try { applyRole(await api('auth')); }
+    catch(e){
+      if(e instanceof NetworkError){ renderError('Nessuna connessione', e.message, boot); return; }
+      TOKEN=''; sessionStorage.removeItem('triphub_token');
+      return renderGate('Codice non più valido.');
+    }
+  } else applyRole({ role: ROLE, viaggi: MY_TRIPS });
+  route();
 }
 document.addEventListener('DOMContentLoaded', boot);
 </script>
