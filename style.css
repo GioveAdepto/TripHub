@@ -328,6 +328,12 @@ label.form-label{font-size:.78rem;font-weight:600;color:var(--ink-soft);margin-b
   text-align:center;font-size:.8rem;padding:.4rem calc(.6rem + env(safe-area-inset-bottom));
   transform:translateY(110%);transition:transform .25s ease}
 .netbar.show{transform:translateY(0)}
+/* barra della modalità demo: sta in alto per non litigare con netbar */
+.demobar{display:none;position:sticky;top:0;z-index:1034;
+  background:var(--stamp);color:#fff;text-align:center;
+  font-size:.78rem;padding:.35rem .8rem;line-height:1.35}
+.demobar.show{display:block}
+.demobar strong{color:#ffe6cf}
 
 /* --- ACCESSIBILITÀ --- */
 :focus-visible{outline:2px solid var(--stamp);outline-offset:2px;border-radius:4px}

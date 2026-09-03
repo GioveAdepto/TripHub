@@ -52,6 +52,8 @@
   </div>
 </div>
 
+<div class="demobar" id="demobar">🧪 <strong>Demo</strong> — dati inventati, puoi modificare tutto:
+  le modifiche restano nel browser e spariscono ricaricando la pagina</div>
 <!-- ============ APP ROOT ============ -->
 <main id="app" class="container py-4"></main>
 <div id="printDoc" aria-hidden="true"></div>
@@ -85,6 +87,7 @@ class NetworkError extends Error {}
 
 async function api(action, payload = {}) {
   setSync('sincronizzo…');
+  if (DEMO) return demoApi(action, payload);
   const body = JSON.stringify({ action, token: TOKEN, ...payload });
   const ctrl = new AbortController();
   const timer = setTimeout(()=>ctrl.abort(), 30000); // 30s timeout
@@ -113,6 +116,255 @@ async function api(action, payload = {}) {
     throw new Error(data.error || 'errore sconosciuto');
   }
   return data.data;
+}
+
+/* ============================================================
+   MODALITÀ DEMO
+   ------------------------------------------------------------
+   Tutta la rete passa da api(): basta intercettarla lì per avere
+   un'app completamente funzionante senza backend. Serve a due cose:
+     · far provare TripHub a chi apre il link, senza chiedergli un codice
+     · sviluppare e testare senza toccare il foglio vero
+
+   Si attiva con ?demo nell'URL, oppure da sola se API_URL non è stato
+   configurato. I dati stanno in memoria: si possono modificare a piacere
+   e tornano come prima ricaricando la pagina.
+   ============================================================ */
+const DEMO = /(^|[?&])demo(&|=|$)/.test(location.search) || !API_URL || API_URL.indexOf('INCOLLA_QUI') >= 0;
+let DEMO_DB = null;
+
+/* Le date sono relative a oggi, così la demo non "scade": il viaggio è
+   sempre fra un mese e il suggeritore ha sempre giorni su cui ragionare. */
+function demoSeed(){
+  const g   = n => isoAddDays(todayISO(), n);
+  const via = g(35), rit = g(40);
+  return {
+    Viaggi: [{ id:'v-demo', nome:'Madrid con i soliti', destinazione:'Madrid', paese:'Spagna',
+      data_inizio:via, data_fine:rit, n_persone:4, stato:'', codice:'DEMO2026',
+      note:'Viaggio di esempio: i dati sono inventati.' }],
+
+    Partecipanti: [
+      { id:'p1', viaggio_id:'v-demo', nome:'Giulia', cognome:'Ferri',   tipo_doc:"Carta d'identità", scadenza_doc:g(400), nazionalita:'Italiana', telefono:'+39 333 1234567' },
+      { id:'p2', viaggio_id:'v-demo', nome:'Marco',  cognome:'Bianchi', tipo_doc:'Passaporto',       scadenza_doc:g(20),  nazionalita:'Italiana', telefono:'+39 340 7654321' },
+      { id:'p3', viaggio_id:'v-demo', nome:'Sara',   cognome:'Neri',    tipo_doc:"Carta d'identità", scadenza_doc:g(900), nazionalita:'Italiana' },
+      { id:'p4', viaggio_id:'v-demo', nome:'Luca',   cognome:'Rossi',   tipo_doc:'Passaporto',       scadenza_doc:g(1200),nazionalita:'Italiana' }
+    ],
+
+    Voli: [
+      // opzione 1, scelta
+      { id:'f1', viaggio_id:'v-demo', gruppo_id:'g1', opzione:1, direzione:'Andata',  tratta:1, persone:4, paganti:'Tutti',
+        compagnia:'Ryanair', n_volo:'FR8523', da:'BGY — Bergamo Orio al Serio', a:'MAD — Madrid',
+        data_part:via, ora_part:'07:20', data_arr:via, ora_arr:'10:05',
+        totale:392, costo_bagaglio:80, prezzo_testa:118, bagaglio:'Sì', scelto:'Sì', pnr:'K7T2PQ' },
+      { id:'f2', viaggio_id:'v-demo', gruppo_id:'g1', opzione:1, direzione:'Ritorno', tratta:1, persone:4, paganti:'Tutti',
+        compagnia:'Ryanair', n_volo:'FR8524', da:'MAD — Madrid', a:'BGY — Bergamo Orio al Serio',
+        data_part:rit, ora_part:'20:40', data_arr:rit, ora_arr:'23:15', scelto:'Sì', pnr:'K7T2PQ' },
+      // opzione 2, scartata: serve a mostrare il confronto fra opzioni
+      { id:'f3', viaggio_id:'v-demo', gruppo_id:'g2', opzione:2, direzione:'Andata',  tratta:1, persone:4, paganti:'Tutti',
+        compagnia:'ITA Airways', n_volo:'AZ58', da:'MXP — Milano Malpensa', a:'MAD — Madrid',
+        data_part:via, ora_part:'12:30', data_arr:via, ora_arr:'15:00',
+        totale:664, prezzo_testa:166, bagaglio:'Sì', scelto:'' },
+      { id:'f4', viaggio_id:'v-demo', gruppo_id:'g2', opzione:2, direzione:'Ritorno', tratta:1, persone:4, paganti:'Tutti',
+        compagnia:'ITA Airways', n_volo:'AZ59', da:'MAD — Madrid', a:'MXP — Milano Malpensa',
+        data_part:rit, ora_part:'16:10', data_arr:rit, ora_arr:'18:35', scelto:'' }
+    ],
+
+    Alloggi: [
+      { id:'a1', viaggio_id:'v-demo', struttura:'Appartamento La Latina', checkin:via, ora_checkin:'15:00',
+        checkout:rit, ora_checkout:'11:00', notti:5, persone:4, totale:940, prezzo_notte:188,
+        prezzo_testa:235, prezzo_testa_notte:47, indirizzo:'Calle de Toledo 42, Madrid',
+        valutazione:5, scelto:'Sì', scadenza_pag:g(25), pnr:'HMB-4821',
+        note:'Si paga il saldo un mese prima. Due camere doppie.' },
+      { id:'a2', viaggio_id:'v-demo', struttura:'Hostel Chueca', checkin:via, checkout:rit,
+        notti:5, persone:4, totale:620, prezzo_notte:124, valutazione:3, scelto:'',
+        note:'Più economico ma camerata condivisa.' }
+    ],
+
+    // I costi stanno qui sopra. Qui sotto ci sono i soldi che si sono
+    // mossi davvero: l'alloggio, per esempio, non è ancora stato pagato.
+    Pagamenti: [
+      { id:'m1', viaggio_id:'v-demo', data:g(-12), tipo:'anticipo', chi:'Giulia Ferri', verso:'',
+        importo:472, riferimento:'Volo A/R', paganti:'Tutti', note:'Biglietti + bagagli' },
+      { id:'m2', viaggio_id:'v-demo', data:g(-10), tipo:'rimborso', chi:'Marco Bianchi', verso:'Giulia Ferri', importo:118 },
+      { id:'m3', viaggio_id:'v-demo', data:g(-9),  tipo:'rimborso', chi:'Sara Neri',     verso:'Giulia Ferri', importo:118 },
+      { id:'m4', viaggio_id:'v-demo', data:g(-3),  tipo:'rimborso', chi:'Luca Rossi',    verso:'Giulia Ferri', importo:60, note:'Il resto dopo' }
+    ],
+
+    Spese: [
+      { id:'s1', viaggio_id:'v-demo', data:g(-8), descrizione:'Biglietti Museo del Prado', categoria:'Cultura',
+        paganti:'Tutti', totale:60, prezzo_testa:15, pagato_da:'Sara Neri' },
+      { id:'s2', viaggio_id:'v-demo', data:g(-2), descrizione:'Assicurazione viaggio', categoria:'Assicurazione',
+        paganti:'Tutti', totale:48, prezzo_testa:12, pagato_da:'' }
+    ],
+
+    CoseDaFare: [
+      { id:'c1', viaggio_id:'v-demo', data:via, ora:'13:00', tipo:'Ristorante', attivita:'Pranzo al Mercado de San Miguel',
+        posizione:'Plaza de San Miguel', durata:'1h30', quando:'Pranzo', costo:'' },
+      { id:'c2', viaggio_id:'v-demo', data:isoAddDays(via,1), ora:'10:00', tipo:'Museo', attivita:'Museo del Prado',
+        posizione:'Paseo del Prado', durata:'3h', quando:'Mattina', prenotazione_req:'Sì', confermata:'Sì' },
+      { id:'c3', viaggio_id:'v-demo', data:isoAddDays(via,1), ora:'19:30', tipo:'Locale', attivita:'Aperitivo a Malasaña',
+        posizione:'Malasaña', durata:'2h', quando:'Aperitivo' },
+      // idee ancora senza data: è il caso che il tab "Cose da fare" gestisce
+      { id:'c4', viaggio_id:'v-demo', data:'', ora:'', tipo:'Escursione', attivita:'Toledo in giornata',
+        posizione:'Toledo', durata:'Giornata intera', quando:'Tutto il giorno', prenotazione_req:'Sì', costo:35 },
+      { id:'c5', viaggio_id:'v-demo', data:'', ora:'', tipo:'Museo', attivita:'Reina Sofía (Guernica)',
+        posizione:'Paseo del Prado', durata:'2h', quando:'Mattina' },
+      { id:'c6', viaggio_id:'v-demo', data:'', ora:'', tipo:'Parco', attivita:'Parco del Retiro',
+        posizione:'Retiro', durata:'2h' },
+      { id:'c7', viaggio_id:'v-demo', data:'', ora:'', tipo:'Mercato', attivita:'El Rastro (solo domenica)',
+        posizione:'La Latina', durata:'2h', quando:'Mattina' },
+      { id:'c8', viaggio_id:'v-demo', data:'', ora:'', tipo:'Serata', attivita:'Spettacolo di flamenco',
+        durata:'1h30', quando:'Sera', prenotazione_req:'Sì', costo:40 }
+    ],
+
+    CosaPortare: [
+      { id:'k1', viaggio_id:'v-demo', categoria:'Documenti', cosa:"Carta d'identità", qta:'', chi:'', priorita:'Essenziale', spuntato:'Sì' },
+      { id:'k2', viaggio_id:'v-demo', categoria:'Documenti', cosa:'Tessera sanitaria', priorita:'Essenziale', spuntato:'Sì' },
+      { id:'k3', viaggio_id:'v-demo', categoria:'Documenti', cosa:'Copie dei documenti', priorita:'Consigliato', spuntato:'' },
+      { id:'k4', viaggio_id:'v-demo', categoria:'Abbigliamento', cosa:'Scarpe comode', priorita:'Essenziale', spuntato:'Sì' },
+      { id:'k5', viaggio_id:'v-demo', categoria:'Abbigliamento', cosa:'Giacca leggera', chi:'Marco Bianchi', spuntato:'' },
+      { id:'k6', viaggio_id:'v-demo', categoria:'Elettronica', cosa:'Powerbank', qta:2, spuntato:'' },
+      { id:'k7', viaggio_id:'v-demo', categoria:'Farmacia', cosa:'Cerotti', priorita:'Consigliato', spuntato:'' }
+    ],
+
+    Contatti: [
+      { id:'t1', viaggio_id:'v-demo', categoria:'Emergenza', nome:'Emergenze Spagna', telefono:'112' },
+      { id:'t2', viaggio_id:'v-demo', categoria:'Emergenza', nome:'Ambasciata d\'Italia a Madrid', telefono:'+34 914 233 300',
+        indirizzo:'Calle Lagasca 98, Madrid' },
+      { id:'t3', viaggio_id:'v-demo', categoria:'Alloggio', nome:'Host appartamento (Elena)', telefono:'+34 600 111 222' }
+    ],
+
+    InfoDest: [
+      { id:'i1', viaggio_id:'v-demo', sezione:'Base', chiave:'Valuta', valore:'Euro (€)' },
+      { id:'i2', viaggio_id:'v-demo', sezione:'Base', chiave:'Lingua', valore:'Spagnolo' },
+      { id:'i3', viaggio_id:'v-demo', sezione:'Base', chiave:'Fuso orario', valore:'Stesso dell\'Italia' },
+      { id:'i4', viaggio_id:'v-demo', sezione:'Base', chiave:'Presa elettrica', valore:'Tipo C/F, come in Italia' },
+      { id:'i5', viaggio_id:'v-demo', sezione:'Trasporti', chiave:'Dall\'aeroporto', valore:'Metro linea 8 fino a Nuevos Ministerios, ~30 min' },
+      { id:'i6', viaggio_id:'v-demo', sezione:'Trasporti', chiave:'Biglietto metro', valore:'Tarjeta Multi 2,50 € + corse' },
+      { id:'i7', viaggio_id:'v-demo', sezione:'Abitudini', chiave:'Orari dei pasti', valore:'Pranzo 14-16, cena raramente prima delle 21' }
+    ],
+
+    Rubrica: []
+  };
+}
+
+function demoReset(){ DEMO_DB = demoSeed(); }
+
+/* Le stesse azioni del backend, ma su array in memoria. La latenza finta
+   serve a non far sembrare l'app più veloce di quanto sia davvero. */
+async function demoApi(action, p){
+  p = p || {};
+  if(!DEMO_DB) demoReset();
+  const db = DEMO_DB;
+  const S  = n => (db[n] = db[n] || []);
+  const nid = () => 'd' + Math.random().toString(36).slice(2,9);
+  const mine = (n, vid) => S(n).filter(r => !vid || String(r.viaggio_id) === String(vid));
+  const key  = r => String(r.gruppo_id || r.id);
+
+  await new Promise(r=>setTimeout(r, 120 + Math.random()*160));
+  setSync('pronto');
+
+  switch(action){
+    case 'auth': return { role:'admin', viaggi:null };
+
+    case 'list': return p.sheet === 'Viaggi' ? S('Viaggi').slice() : mine(p.sheet, p.viaggio_id);
+
+    case 'all': {
+      const out = {};
+      Object.keys(db).forEach(n=>{
+        if(n === 'Rubrica') return;
+        out[n] = n === 'Viaggi'
+          ? S('Viaggi').filter(v=>!p.viaggio_id || String(v.id) === String(p.viaggio_id))
+          : mine(n, p.viaggio_id);
+      });
+      return out;
+    }
+
+    case 'create': {
+      const r = Object.assign({}, p.record, { id: (p.record && p.record.id) || nid() });
+      if(p.sheet === 'Viaggi' && !r.codice) r.codice = 'DEMO' + nid().slice(1,5).toUpperCase();
+      S(p.sheet).push(r);
+      return r;
+    }
+    case 'create_many': {
+      const rs = (p.records||[]).map(x=>Object.assign({}, x, { id: x.id || nid() }));
+      rs.forEach(r=>S(p.sheet).push(r));
+      return rs;
+    }
+    case 'update': {
+      const i = S(p.sheet).findIndex(r=>String(r.id) === String(p.record.id));
+      if(i>=0) Object.assign(S(p.sheet)[i], p.record);
+      return p.record;
+    }
+    case 'update_many': {
+      (p.records||[]).forEach(rec=>{
+        const i = S(p.sheet).findIndex(r=>String(r.id) === String(rec.id));
+        if(i>=0) Object.assign(S(p.sheet)[i], rec);
+      });
+      return p.records || [];
+    }
+    case 'delete': {
+      db[p.sheet] = S(p.sheet).filter(r=>String(r.id) !== String(p.id));
+      return { id:p.id, deleted:true };
+    }
+    case 'delete_group': {
+      const ids = (p.ids||[]).map(String);
+      db[p.sheet] = S(p.sheet).filter(r=>key(r) !== String(p.gruppo_id) && ids.indexOf(String(r.id)) < 0);
+      return { deleted:true };
+    }
+    case 'replace_group': {
+      const ids = (p.ids||[]).map(String);
+      db[p.sheet] = S(p.sheet).filter(r=>key(r) !== String(p.gruppo_id) && ids.indexOf(String(r.id)) < 0);
+      const rs = (p.records||[]).map(x=>Object.assign({}, x, { id: x.id || nid() }));
+      rs.forEach(r=>S(p.sheet).push(r));
+      return rs;
+    }
+    case 'set_flags': {
+      const m = {};
+      (p.values||[]).forEach(v=>{ m[String(v.id)] = (v.value == null ? '' : v.value); });
+      S(p.sheet).forEach(r=>{ if(Object.prototype.hasOwnProperty.call(m, String(r.id))) r[p.field] = m[String(r.id)]; });
+      return { changed: Object.keys(m).length };
+    }
+    // scegliere un'opzione deseleziona le altre che coprono le stesse direzioni
+    case 'set_scelta': {
+      const rows = mine('Voli', p.viaggio_id);
+      const dirs = {};
+      rows.filter(r=>key(r) === String(p.gruppo_id)).forEach(r=>{ dirs[dirOf(r)] = true; });
+      rows.forEach(r=>{
+        if(key(r) === String(p.gruppo_id))       r.scelto = p.on ? 'Sì' : '';
+        else if(p.on && dirs[dirOf(r)])          r.scelto = '';
+      });
+      return { gruppo_id:p.gruppo_id, on:!!p.on };
+    }
+    case 'merge_groups': {
+      const rows = mine('Voli', p.viaggio_id);
+      const target = rows.filter(r=>key(r) === String(p.gruppo_id));
+      const opz = target.length ? target[0].opzione : '';
+      rows.forEach(r=>{
+        if(key(r) === String(p.source_id) || key(r) === String(p.gruppo_id)){
+          r.gruppo_id = String(p.gruppo_id);
+          r.opzione = opz;
+        }
+      });
+      return { merged:true };
+    }
+    case 'delete_trip': {
+      Object.keys(db).forEach(n=>{
+        if(n === 'Viaggi' || n === 'Rubrica') return;
+        db[n] = S(n).filter(r=>String(r.viaggio_id) !== String(p.id));
+      });
+      db.Viaggi = S('Viaggi').filter(v=>String(v.id) !== String(p.id));
+      return { id:p.id, deleted:true };
+    }
+    case 'export': return JSON.parse(JSON.stringify(db));
+    case 'import': {
+      if(p.mode === 'replace') Object.keys(db).forEach(n=>{ db[n] = []; });
+      Object.keys(p.payload||{}).forEach(n=>{ (p.payload[n]||[]).forEach(r=>S(n).push(r)); });
+      const rep = {}; Object.keys(db).forEach(n=>{ rep[n] = db[n].length; });
+      return rep;
+    }
+  }
+  throw new Error('azione non prevista nella demo: ' + action);
 }
 
 function sessionExpired(){
@@ -1948,7 +2200,7 @@ function secSpese(d, tid){
       <td class="mono">${toITDate(r.data)}</td>
       <td>${esc(r.descrizione)}</td>
       <td><span class="chip">${esc(r.categoria||'—')}</span></td>
-      <td>${r.pagato_da?`<span class="chip">${esc(r.pagato_da)}</span>`:'<span class="chip" title="senza questo i saldi restano parziali">?</span>'}</td>
+      <td>${r.pagato_da?`<span class="chip">${esc(r.pagato_da)}</span>`:'<span class="chip" title="nessuno l\'ha ancora anticipata: resta fuori dai saldi">non pagata</span>'}</td>
       <td><span class="chip">${pag}</span></td>
       <td class="mono">${eur(r.totale)}</td>
       <td class="mono per-person">${eur(aTesta)}</td>
@@ -6343,7 +6595,11 @@ function initNetwork(){
    BOOT
    ============================================================ */
 async function boot(){
-  if(API_URL.includes('INCOLLA_QUI')){
+  if(DEMO){
+    TOKEN = TOKEN || 'demo';
+    const bar = $('#demobar'); if(bar) bar.classList.add('show');
+  }
+  if(!DEMO && API_URL.includes('INCOLLA_QUI')){
     $('#app').innerHTML = `<div class="sheet p-4 m-4"><h2>⚙️ Configurazione mancante</h2>
       <p>Apri <code>index.html</code> e incolla l'URL della Web App in <code>API_URL</code>.</p></div>`;
     return;

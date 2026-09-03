@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TripHub — test</title>
+<style>
+  :root{--ink:#17324d;--paper:#f2ede1;--line:#d4c9b2;--ok:#3f7d5c;--ko:#a3341f;--muted:#7a6f5a}
+  *{box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);font-family:system-ui,sans-serif;margin:0;padding:1.5rem}
+  h1{font-size:1.4rem;margin:0 0 .2rem}
+  .sub{color:var(--muted);font-size:.85rem;margin-bottom:1.2rem}
+  #summary{position:sticky;top:0;background:var(--paper);padding:.6rem 0;border-bottom:2px solid var(--ink);
+    font-weight:600;margin-bottom:1rem;z-index:2}
+  .suite{margin-bottom:1.1rem}
+  .suite h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+    margin:0 0 .3rem;font-family:ui-monospace,monospace}
+  .t{display:flex;gap:.5rem;padding:.16rem 0;font-size:.85rem;align-items:baseline}
+  .t .mark{flex:none;width:1.1rem;font-weight:700}
+  .pass .mark{color:var(--ok)}
+  .fail{color:var(--ko)}
+  .fail .mark{color:var(--ko)}
+  .why{font-family:ui-monospace,monospace;font-size:.76rem;color:var(--ko);
+    padding-left:1.6rem;white-space:pre-wrap}
+  .ok{color:var(--ok)} .ko{color:var(--ko)}
+  iframe{display:none}
+</style>
+</head>
+<body>
+<h1>TripHub — test</h1>
+<div class="sub">
+  Nessuna dipendenza e nessun build: la pagina carica <code>index.html?demo</code> in un iframe
+  e verifica le funzioni pure contro il suo <code>window</code>.
+  Va aperta da un server locale (<code>python -m http.server</code>), non da <code>file://</code>:
+  altrimenti il browser blocca l'accesso all'iframe.
+</div>
+<div id="summary">eseguo…</div>
+<div id="out"></div>
+<iframe id="app" src="index.html?demo"></iframe>
+
+<script>
+/* ---------- micro framework: quel che serve, niente di più ---------- */
+let PASS = 0, FAIL = 0, suite = null;
+const out = document.getElementById('out');
+
+function describe(nome, fn){
+  suite = document.createElement('div');
+  suite.className = 'suite';
+  suite.innerHTML = `<h2>${nome}</h2>`;
+  out.appendChild(suite);
+  try { fn(); }
+  catch(e){ report(false, 'la suite è esplosa', String(e && e.stack || e)); }
+}
+function report(ok, nome, perche){
+  const d = document.createElement('div');
+  d.className = 't ' + (ok ? 'pass' : 'fail');
+  d.innerHTML = `<span class="mark">${ok ? '✓' : '✗'}</span><span>${nome}</span>`;
+  suite.appendChild(d);
+  if(!ok && perche){
+    const w = document.createElement('div');
+    w.className = 'why';
+    w.textContent = perche;
+    suite.appendChild(w);
+  }
+  ok ? PASS++ : FAIL++;
+}
+const j = v => JSON.stringify(v);
+function eq(nome, avuto, atteso){
+  const ok = j(avuto) === j(atteso);
+  report(ok, nome, ok ? '' : `atteso  ${j(atteso)}\navuto   ${j(avuto)}`);
+}
+function near(nome, avuto, atteso, tol){
+  const ok = Math.abs(Number(avuto) - Number(atteso)) <= (tol == null ? 0.005 : tol);
+  report(ok, nome, ok ? '' : `atteso ~${atteso}, avuto ${avuto}`);
+}
+function ok(nome, valore, perche){ report(!!valore, nome, valore ? '' : (perche || 'atteso qualcosa di vero')); }
+
+/* ---------- accesso all'app ---------- */
+let W = null;
+// CURRENT_DATA e CURRENT_TRIP sono `let` di modulo: assegnarli dall'esterno
+// come proprietà di window non toccherebbe il binding, serve una eval.
+function stato(trip, data){
+  W.__fixture = { trip, data };
+  W.eval('CURRENT_TRIP = window.__fixture.trip; CURRENT_DATA = window.__fixture.data;');
+}
+const clone = v => JSON.parse(JSON.stringify(v));
+// let/const di modulo non diventano proprietà di window: per leggerli
+// dall'esterno serve valutare l'espressione dentro l'iframe.
+const leggi = expr => W.eval(expr);
+
+/* ---------- dati di comodo ---------- */
+const PERSONE = [{id:'p1',nome:'Anna'},{id:'p2',nome:'Bruno'},{id:'p3',nome:'Carla'},{id:'p4',nome:'Dino'}];
+function viaggio(extra){
+  return Object.assign({
+    Viaggi:[{id:'T',data_inizio:'2099-06-10',data_fine:'2099-06-14',n_persone:4}],
+    Partecipanti: clone(PERSONE),
+    Alloggi:[], Voli:[], Spese:[], Pagamenti:[], CoseDaFare:[],
+    CosaPortare:[], Contatti:[], InfoDest:[]
+  }, extra || {});
+}
+
+/* ============================================================
+   LE PROVE
+   ============================================================ */
+function esegui(){
+
+describe('date e orari', ()=>{
+  eq('ISO passa intatta',        W.toISODate('2026-03-07'), '2026-03-07');
+  eq('formato italiano',         W.toISODate('7/3/2026'), '2026-03-07');
+  eq('anno a due cifre',         W.toISODate('7/3/26'), '2026-03-07');
+  eq('spazzatura → stringa vuota', W.toISODate('domani'), '');
+  eq('orario normalizzato',      W.toHM('9:05'), '09:05');
+  eq('somma giorni',             W.isoAddDays('2026-02-27', 2), '2026-03-01');
+  eq('cambio anno',              W.isoAddDays('2026-12-31', 1), '2027-01-01');
+  eq('minuti → hh:mm',           W.minToHM(9*60+5), '09:05');
+  eq('mezzanotte non sfora',     W.minToHM(24*60+30), '23:59');
+});
+
+describe('durate scritte a mano', ()=>{
+  eq('2h',               W.cdfDurMin('2h'), 120);
+  eq('1h30',             W.cdfDurMin('1h30'), 90);
+  eq('1:30',             W.cdfDurMin('1:30'), 90);
+  eq('90m',              W.cdfDurMin('90m'), 90);
+  eq('45 min',           W.cdfDurMin('45 min'), 45);
+  eq('3 ore',            W.cdfDurMin('3 ore'), 180);
+  eq('1,5 → ore',        W.cdfDurMin('1,5'), 90);
+  eq('mezza giornata',   W.cdfDurMin('mezza giornata'), 240);
+  eq('giornata intera',  W.cdfDurMin('Giornata intera'), 480);
+  eq('vuoto → null',     W.cdfDurMin(''), null);
+  eq('non interpretabile', W.cdfDurMin('un pomeriggio'), null);
+  eq('default quando manca', W.cdfNeed({}), 120);
+});
+
+describe('aggiunta rapida delle idee', ()=>{
+  const p = W.cdfParseLine('Museo del Prado ~2h @Madrid centro #cultura !prenota €25');
+  eq('una sola voce', p.length, 1);
+  eq('titolo ripulito', p[0].attivita, 'Museo del Prado');
+  eq('durata',         p[0].durata, '2h');
+  eq('posizione',      p[0].posizione, 'Madrid centro');
+  eq('tipo risolto',   p[0].tipo, 'Cultura');
+  eq('costo',          p[0].costo, 25);
+  eq('da prenotare',   p[0].prenotazione_req, 'Sì');
+  eq('più voci con la virgola', W.cdfParseLine('Prado, Retiro, Toledo').length, 3);
+  eq('righe vuote ignorate',    W.cdfParseLine('  ,  , ').length, 0);
+});
+
+describe('semplificazione dei debiti', ()=>{
+  const t = s => W.simplifyDebts(s);
+  eq('già in pari → nessun bonifico', t([{nome:'A',saldo:0},{nome:'B',saldo:0}]), []);
+  eq('due persone, un bonifico',
+     t([{nome:'A',saldo:50},{nome:'B',saldo:-50}]),
+     [{da:'B', a:'A', importo:50}]);
+
+  const quattro = t([{nome:'A',saldo:390},{nome:'B',saldo:190},{nome:'C',saldo:-230},{nome:'D',saldo:-350}]);
+  ok('mai più di n−1 bonifici', quattro.length <= 3, `sono ${quattro.length}`);
+  near('i bonifici chiudono i debiti',
+       quattro.reduce((s,x)=>s+x.importo,0), 580);
+  ok('nessun bonifico da zero', quattro.every(x=>x.importo > 0));
+
+  // il caso che il greedy risolve bene: chi si compensa esattamente si accoppia
+  const coppie = t([{nome:'A',saldo:100},{nome:'B',saldo:-100},{nome:'C',saldo:70},{nome:'D',saldo:-70}]);
+  eq('coppie esatte → 2 bonifici', coppie.length, 2);
+
+  // deterministico: la lista non deve ballare fra un ridisegno e l'altro
+  const s1 = t([{nome:'A',saldo:10},{nome:'B',saldo:10},{nome:'C',saldo:-20}]);
+  const s2 = t([{nome:'B',saldo:10},{nome:'A',saldo:10},{nome:'C',saldo:-20}]);
+  eq('stesso risultato a parità di saldi', s1, s2);
+});
+
+describe('saldi: costi e movimenti sono separati', ()=>{
+  // Il caso che ha motivato il registro: il volo è pagato e già rimborsato,
+  // l'alloggio è prenotato ma si salda fra mesi.
+  const d = viaggio({
+    Alloggi:[{id:'a1',scelto:'Sì',struttura:'Casa',totale:800}],
+    Voli:[{id:'v1',scelto:'Sì',gruppo_id:'g1',direzione:'Andata',tratta:1,totale:500,costo_bagaglio:100}],
+    Pagamenti:[
+      {id:'m1',tipo:'anticipo',chi:'Anna',importo:600,riferimento:'Volo',paganti:'Tutti'},
+      {id:'m2',tipo:'rimborso',chi:'Bruno',verso:'Anna',importo:150},
+      {id:'m3',tipo:'rimborso',chi:'Carla',verso:'Anna',importo:150},
+      {id:'m4',tipo:'rimborso',chi:'Dino', verso:'Anna',importo:150}
+    ]
+  });
+  stato(d.Viaggi[0], d);
+  const st = W.computeSettlement(d), c = W.cassa(d);
+  eq('il costo comprende anche il non pagato', c.costo, 1400);
+  eq('uscito solo quello davvero anticipato', c.uscito, 600);
+  eq('resta da pagare l\'alloggio', c.daPagare, 800);
+  ok('rimborsati tutti → nessuno in debito', st.trasferimenti.length === 0,
+     j(st.trasferimenti));
+  ok('l\'alloggio non pagato non crea debiti', st.righe.every(r=>Math.abs(r.saldo) < 0.005),
+     j(st.righe));
+
+  // rimborso parziale
+  const d2 = clone(d);
+  d2.Pagamenti = d2.Pagamenti.slice(0,2);
+  d2.Pagamenti[1].importo = 100;                 // Bruno ne restituisce 100 su 150
+  stato(d2.Viaggi[0], d2);
+  const st2 = W.computeSettlement(d2);
+  const saldo = n => st2.righe.find(r=>r.nome===n).saldo;
+  near('chi ha reso solo una parte resta a debito', saldo('Bruno'), -50);
+  near('chi non ha reso niente deve tutto',        saldo('Carla'), -150);
+  near('chi ha anticipato è a credito',            saldo('Anna'),  350);
+  near('i saldi si chiudono a zero', st2.righe.reduce((s,r)=>s+r.saldo,0), 0);
+
+  // caparra: pagamento parziale di una voce
+  const d3 = viaggio({ Alloggi:[{id:'a1',scelto:'Sì',totale:800}],
+    Pagamenti:[{id:'m1',tipo:'anticipo',chi:'Anna',importo:200,riferimento:'caparra',paganti:'Tutti'}] });
+  stato(d3.Viaggi[0], d3);
+  const c3 = W.cassa(d3);
+  eq('la caparra conta come uscita', c3.uscito, 200);
+  eq('il resto è ancora da pagare',  c3.daPagare, 600);
+  near('chi ha messo la caparra è a credito',
+       W.computeSettlement(d3).righe.find(r=>r.nome==='Anna').saldo, 150);
+});
+
+describe('saldi: casi limite', ()=>{
+  const d = viaggio({ Spese:[{id:'s1',descrizione:'Cena',totale:100,paganti:'Tutti',pagato_da:'Anna'}] });
+  stato(d.Viaggi[0], d);
+  const st = W.computeSettlement(d);
+  near('spesa pagata = anticipo', st.righe.find(r=>r.nome==='Anna').saldo, 75);
+
+  const d2 = viaggio({ Spese:[{id:'s1',descrizione:'Cena',totale:100,paganti:'Tutti',pagato_da:''}] });
+  stato(d2.Viaggi[0], d2);
+  ok('spesa non pagata non muove i saldi',
+     W.computeSettlement(d2).righe.every(r=>r.saldo === 0));
+
+  const d3 = viaggio({ Pagamenti:[{id:'m1',tipo:'anticipo',chi:'Fantasma',importo:100,paganti:'Tutti'}] });
+  stato(d3.Viaggi[0], d3);
+  const st3 = W.computeSettlement(d3);
+  ok('un nome sconosciuto viene saltato', st3.righe.every(r=>r.saldo === 0));
+  ok('…e segnalato', st3.ignoti.indexOf('Fantasma') >= 0, j(st3.ignoti));
+
+  const d4 = viaggio({ Partecipanti:[] });
+  stato(d4.Viaggi[0], d4);
+  eq('senza partecipanti non c\'è niente da dividere', W.computeSettlement(d4), null);
+});
+
+describe('suggeritore di orari', ()=>{
+  const d = viaggio({
+    Voli:[
+      {id:'v1',scelto:'Sì',gruppo_id:'g1',direzione:'Andata', tratta:1,data_part:'2099-06-10',ora_part:'12:00',data_arr:'2099-06-10',ora_arr:'16:30'},
+      {id:'v2',scelto:'Sì',gruppo_id:'g1',direzione:'Ritorno',tratta:1,data_part:'2099-06-14',ora_part:'11:00'}
+    ],
+    CoseDaFare:[
+      {id:'c1',data:'2099-06-11',ora:'10:00',tipo:'Museo',attivita:'Prado',durata:'3h',quando:'Mattina'}
+    ]
+  });
+  stato(d.Viaggi[0], d);
+
+  eq('i giorni sono quelli del viaggio', W.cdfTripDays().length, 5);
+  const b = W.cdfTravelBounds();
+  eq('atterraggio riconosciuto', [b.arrISO, b.arrMin], ['2099-06-10', 990]);
+  eq('rientro riconosciuto',     [b.depISO, b.depMin], ['2099-06-14', 660]);
+
+  const arrivo = W.cdfDayWindow('2099-06-10');
+  eq('il giorno di arrivo parte 1h30 dopo l\'atterraggio', arrivo.ws, 990 + 90);
+  const partenza = W.cdfDayWindow('2099-06-14');
+  ok('il giorno di partenza è di fatto inutilizzabile', partenza.we - partenza.ws < 45,
+     `finestra di ${partenza.we - partenza.ws} minuti`);
+
+  // un'attività da 2h la mattina non deve finire sopra il Prado (10:00-13:00)
+  const idea = {id:'x', durata:'2h', quando:'Mattina', tipo:'Museo'};
+  const slot = W.cdfSlotFor(idea, '2099-06-11', b);
+  ok('trova comunque un posto l\'11', !!slot);
+  ok('non si sovrappone a quello che c\'è già',
+     slot.start >= 13*60 + 30 || slot.start + 120 <= 10*60,
+     `proposto alle ${W.minToHM(slot.start)}`);
+
+  const sug = W.cdfSuggest(idea, 3);
+  ok('propone almeno un giorno', sug.list.length > 0);
+  ok('resta dentro il viaggio', sug.list.every(s=>s.iso >= '2099-06-10' && s.iso <= '2099-06-14'));
+  ok('preferisce i giorni liberi al giorno già pieno', sug.list[0].iso !== '2099-06-11',
+     `ha proposto ${sug.list[0].iso}`);
+
+  // giornata intera in un giorno saturo: non deve inventarsi spazio
+  const enorme = {id:'y', durata:'Giornata intera', quando:'Tutto il giorno'};
+  eq('se non ci sta, non propone niente', W.cdfSlotFor(enorme, '2099-06-14', b), null);
+});
+
+describe('export calendario (.ics)', ()=>{
+  const d = viaggio({
+    Alloggi:[{id:'a1',scelto:'Sì',struttura:'Casa Sol, Centro',checkin:'2099-06-10',ora_checkin:'15:00',
+      checkout:'2099-06-14',ora_checkout:'10:00',indirizzo:'Calle Mayor 1; Madrid'}],
+    CoseDaFare:[
+      {id:'c1',data:'2099-06-11',ora:'10:00',attivita:'Prado',durata:'3h',note:'linea 2, rossa'},
+      {id:'c2',data:'2099-06-12',ora:'',attivita:'Giornata libera'},
+      {id:'c3',data:'2099-06-12',ora:'23:00',attivita:'Locale',durata:'3h'},
+      {id:'c9',data:'',attivita:'Idea senza data'}
+    ]
+  });
+  const ics = W.buildICS(d, d.Viaggi[0]);
+  ok('inizia e finisce come si deve',
+     /^BEGIN:VCALENDAR\r\n/.test(ics) && /END:VCALENDAR\r\n$/.test(ics));
+  ok('righe separate da CRLF', ics.indexOf('\r\n') > 0 && !/[^\r]\n/.test(ics));
+  ok('la virgola è protetta',   ics.indexOf('Casa Sol\\, Centro') >= 0);
+  ok('il punto e virgola pure', ics.indexOf('Calle Mayor 1\\; Madrid') >= 0);
+  ok('evento tutto il giorno',  ics.indexOf('DTSTART;VALUE=DATE:20990612') >= 0);
+  ok('…e finisce il giorno dopo', ics.indexOf('DTEND;VALUE=DATE:20990613') >= 0);
+  ok('oltre la mezzanotte passa al giorno dopo', ics.indexOf('DTEND:20990613T020000') >= 0);
+  ok('le idee senza data restano fuori', ics.indexOf('Idea senza data') < 0);
+  eq('un evento per ogni voce con data', (ics.match(/BEGIN:VEVENT/g)||[]).length, 4);
+});
+
+describe('link non fidati', ()=>{
+  ok('javascript: non diventa un link',  W.linkCell('javascript:alert(1)').indexOf('<a ') < 0);
+  ok('data: nemmeno',                    W.linkCell('data:text/html,<b>x').indexOf('<a ') < 0);
+  ok('https resta cliccabile',           W.linkCell('https://esempio.it/x').indexOf('<a ') >= 0);
+  ok('il testo viene comunque protetto', W.linkCell('<img onerror=x>').indexOf('<img') < 0);
+});
+
+describe('modalità demo', ()=>{
+  const db = leggi('DEMO_DB');
+  ok('è attiva con ?demo', leggi('DEMO') === true);
+  ok('il viaggio di esempio esiste', db && db.Viaggi.length === 1);
+  ok('le date sono relative a oggi',
+     db.Viaggi[0].data_inizio > W.todayISO(),
+     'il viaggio di esempio deve stare nel futuro, altrimenti il suggeritore non ha giorni');
+  ok('ci sono idee ancora senza data', db.CoseDaFare.some(r=>!r.data));
+  ok('c\'è una voce non ancora pagata',
+     db.Alloggi.some(a=>a.scelto) && W.cassa(db).daPagare > 0);
+  ok('i saldi della demo si chiudono a zero',
+     Math.abs(W.computeSettlement(db).righe.reduce((s,r)=>s+r.saldo,0)) < 0.005);
+});
+
+/* ---------- verdetto ---------- */
+const s = document.getElementById('summary');
+s.innerHTML = FAIL
+  ? `<span class="ko">✗ ${FAIL} test falliti</span> · <span class="ok">${PASS} passati</span>`
+  : `<span class="ok">✓ tutti e ${PASS} i test passati</span>`;
+document.title = (FAIL ? '✗ ' : '✓ ') + `TripHub — test (${PASS}/${PASS+FAIL})`;
+}
+
+/* ---------- avvio ---------- */
+const frame = document.getElementById('app');
+frame.addEventListener('load', ()=>{
+  try {
+    W = frame.contentWindow;
+    if(!W.buildICS) throw new Error('l\'app non ha finito di caricarsi');
+    // la demo popola il suo database alla prima chiamata: forziamola qui
+    W.demoReset();
+    esegui();
+  } catch(e){
+    document.getElementById('summary').innerHTML =
+      `<span class="ko">✗ non riesco a leggere l'app: ${String(e && e.message || e)}</span>`;
+    out.innerHTML = `<p>Se hai aperto questa pagina con un doppio click (<code>file://</code>),
+      riprova servendola via HTTP:<br><code>python -m http.server</code> e poi
+      <code>http://localhost:8000/test.html</code></p>`;
+  }
+});
+</script>
+</body>
+</html>
