@@ -431,6 +431,40 @@
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
   .cal-ev:hover{background:var(--stamp)}
   .cal-more{font-size:.62rem;color:var(--stamp);font-weight:600}
+  .cal-cell.droppable{border-style:dashed}
+  .cal-cell.over{border-color:var(--stamp);border-style:solid;background:#fff0dd;box-shadow:inset 0 0 0 1px var(--stamp)}
+  /* idee ancora senza data */
+  .cdf-n{display:inline-block;min-width:1.1rem;padding:0 .25rem;border-radius:9px;font-size:.66rem;
+    font-family:'JetBrains Mono',monospace;background:rgba(0,0,0,.12);vertical-align:.08em}
+  .cdf-tabs .btn{white-space:nowrap}
+  @media (max-width:430px){ .cdf-tabs .btn{padding:.25rem .45rem;font-size:.72rem} }
+  .cdf-rail{display:flex;flex-wrap:wrap;gap:.4rem}
+  .cdf-chip{display:inline-flex;align-items:center;gap:.35rem;max-width:100%;cursor:grab;
+    border:1px dashed var(--line);background:#fdfbf5;border-radius:20px;padding:.2rem .7rem;
+    font-size:.78rem;color:var(--ink);text-align:left}
+  .cdf-chip .mono{font-size:.66rem;color:var(--muted)}
+  .cdf-chip:hover{border-color:var(--stamp);border-style:solid}
+  .cdf-chip.on{border-style:solid;border-color:var(--stamp);background:#fff0dd;
+    box-shadow:0 2px 8px rgba(0,0,0,.12);transform:translateY(-1px)}
+  .cdf-chip:active{cursor:grabbing}
+  /* schede di suggerimento */
+  .sug-card{border:1px solid var(--line);border-radius:10px;padding:.6rem .7rem;margin-bottom:.5rem;background:#fdfbf5}
+  .sug-card.top{border-color:var(--stamp);background:#fff8ee}
+  .sug-when{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;font-weight:600}
+  .sug-when .mono{font-size:.78rem;color:var(--stamp);text-transform:none}
+  .sug-why{display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.35rem}
+  .sug-tag{font-size:.68rem;color:var(--ink-soft);background:var(--paper-2);
+    border:1px solid var(--line);border-radius:20px;padding:.05rem .45rem}
+  .sug-pick{display:flex;gap:.5rem;align-items:baseline;padding:.25rem 0;cursor:pointer}
+  .cdf-row{display:flex;align-items:flex-start;gap:.5rem;padding:.5rem 0;border-bottom:1px solid var(--line)}
+  .cdf-row .cdf-ico{font-size:1.1rem;flex:none;line-height:1.4}
+  .cdf-row .cdf-main{flex:1;min-width:0}
+  .cdf-acts{flex:none;display:flex;align-items:center;gap:.1rem;white-space:nowrap}
+  @media (max-width:520px){
+    .cdf-row{flex-wrap:wrap}
+    .cdf-acts{flex:1 0 100%;justify-content:flex-end;padding-top:.15rem}
+  }
+  .sug-pick .mono{font-size:.78rem}
   /* ricerca home */
   .search-box{max-width:280px}
   /* --- CARD OPZIONE (voli, alloggi) --- */
@@ -1179,9 +1213,9 @@ function mountTrip(all, section){
   const trip = (all.Viaggi||[])[0];
   // reset delle viste locali se è cambiato viaggio
   if(!CURRENT_TRIP || CURRENT_TRIP.id !== trip.id){
-    CDF_MONTH = null; CDF_VIEW = 'lista'; VOLI_VIEW = 'schede'; ALG_VIEW = 'schede';
+    VOLI_VIEW = 'schede'; ALG_VIEW = 'schede';
     CURRENT_TRIP = trip;
-    cpReset();
+    cpReset(); cdfReset();
   }
   CURRENT_TRIP = trip; CURRENT_DATA = all;
   TRIP_CACHE.set(String(trip.id), all);
@@ -1203,7 +1237,12 @@ function tabBadge(k, d){
     return { n: keys.length, warn: keys.length>0 && !sel };
   }
   if(k==='spese')      return { n: len(d.Spese) };
-  if(k==='cosedafare') return { n: len(d.CoseDaFare) };
+  if(k==='cosedafare'){
+    const rows = d.CoseDaFare||[];
+    if(!rows.length) return { n:0 };
+    const prog = rows.filter(r=>toISODate(r.data)).length;
+    return { n: prog===rows.length ? rows.length : `${prog}/${rows.length}` };
+  }
   if(k==='cosaportare'){
     const rows = d.CosaPortare||[];
     if(!rows.length) return { n:0 };
@@ -1753,7 +1792,7 @@ const COLS = {
 const LABELS = {
   checkin:'check-in', checkout:'check-out', ora_checkin:'ora check-in', ora_checkout:'ora check-out',
   n_volo:'n° volo', ora_part:'orario', ora:'orario',
-  prenotazione_req:'prenot.', valutazione:'voto', qta:'q.tà', da:'da', a:'a',
+  prenotazione_req:'da prenotare', valutazione:'voto', qta:'q.tà', da:'da', a:'a',
   prezzo_testa:'a testa', prezzo_testa_notte:'a testa/notte', prezzo_notte:'a notte',
   data_part:'data part.', data_arr:'data arr.', ora_arr:'ora arr.',
   data_nascita:'data di nascita', luogo_nascita:'luogo di nascita', tipo_doc:'tipo documento',
@@ -1761,6 +1800,8 @@ const LABELS = {
   nazionalita:'nazionalità', paganti:'paganti', chi:'chi', n_persone:'n° persone',
   costo_bagaglio:'costo bagagli', pnr:'n° prenotazione', mappa_link:'link mappa',
   codice:'codice di accesso',
+  attivita:'attività', durata:'durata — es. 2h, mezza giornata',
+  quando:'quando — fascia oraria preferita',
   stato:'stato — lascia vuoto per calcolarlo dalle date'
 };
 const lbl = k => LABELS[k] || k.replace(/_/g,' ');
@@ -2572,84 +2613,416 @@ async function abbinaVolo(key){
   }catch(e){ if(e instanceof AuthError) sessionExpired(); else toast('Errore: '+e.message,'error'); }
 }
 
-/* ---------- COSE DA FARE (switch calendario / lista) ---------- */
-let CDF_VIEW = 'lista';
+/* ============================================================
+   COSE DA FARE — prima le idee, poi il calendario
+   ------------------------------------------------------------
+   Un'attività NON deve avere per forza una data. Prima la si censisce
+   (cosa è, che tipo, quanto dura, in che fascia oraria ha senso), poi
+   si decide QUANDO farla guardando quello che c'è già in agenda.
+
+   Tre viste:
+     · Idee       → il taccuino: aggiunta rapida, nessuna data
+     · Programma  → solo le cose collocate, giorno per giorno
+     · Calendario → il mese, con la striscia delle idee da piazzare
+                    (trascina un'idea su un giorno, oppure toccala e poi
+                    tocca il giorno: sui telefoni il drag non esiste)
+
+   "✨ Suggerisci" propone giorno e ora incrociando: date del viaggio,
+   orari dei voli scelti, buchi liberi della giornata, quanto è già
+   carico quel giorno, fascia oraria preferita, luogo e tipo delle
+   attività già fissate.
+   ============================================================ */
+let CDF_VIEW  = '';        // '' = non ancora deciso (lo sceglie cdfEnsureView)
 let CDF_MONTH = null;
+let CDF_PICK  = null;      // id dell'idea "presa in mano" nel calendario
+let CDF_TIPO  = '';        // tipo selezionato nella barra di aggiunta rapida
+
 const TIPO_ICON = {
-  'sport acquatico':'🌊','escursione':'🥾','gita':'🚌','cultura':'🏛️','cibo':'🍽️','serata':'🌙','relax':'🏖️'
+  'sport acquatico':'🌊','escursione':'🥾','gita':'🚌','cultura':'🏛️','cibo':'🍽️','serata':'🌙','relax':'🏖️',
+  'avventura':'🪂','benessere':'💆','evento':'🎫','locale':'🍸','mercato':'🧺','monumento':'🗿','museo':'🖼️',
+  'natura':'🌿','parco':'🌳','passeggiata':'🚶','ristorante':'🍽️','shopping':'🛍️','spa':'♨️','spiaggia':'🏖️',
+  'sport':'⚽','tour':'🧭','trekking':'🥾','viaggio':'🚆','visita':'👀'
 };
 function tipoIcon(t){ return TIPO_ICON[String(t||'').toLowerCase()] || '📍'; }
 
-function secCoseDaFare(rows, tid){
-  rows = rows || [];
-  ensureCdfMonth();
-  const toggle = `
-    <div class="btn-group btn-group-sm" role="group">
-      <button class="btn ${CDF_VIEW==='lista'?'btn-ink':'btn-ghost'}" onclick="setCdfView('lista')">Lista</button>
-      <button class="btn ${CDF_VIEW==='calendario'?'btn-ink':'btn-ghost'}" onclick="setCdfView('calendario')">Calendario</button>
-    </div>`;
-  const header = `
-    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-      <div class="d-flex align-items-center gap-2">${toggle}
-        <span class="mono" style="font-size:.72rem;color:var(--muted)">${rows.length} attività</span></div>
-      <button class="btn btn-stamp btn-sm" onclick="editRow('CoseDaFare', null, '${jsArg(tid)}')">+ Aggiungi</button>
-    </div>`;
-  return header + (CDF_VIEW==='calendario' ? cdfCalendar(rows, tid) : cdfList(rows, tid));
+function cdfPrefKey(){ return 'triphub_cdf_' + (CURRENT_TRIP ? CURRENT_TRIP.id : ''); }
+function cdfReset(){
+  CDF_MONTH = null; CDF_PICK = null; CDF_TIPO = ''; CDF_VIEW = '';
+  try{
+    const v = localStorage.getItem(cdfPrefKey());
+    if(v==='idee' || v==='lista' || v==='calendario') CDF_VIEW = v;
+  }catch(_){}
+}
+// Alla prima apertura: se non c'è ancora niente in calendario si parte dalle idee.
+function cdfEnsureView(rows){
+  if(CDF_VIEW) return;
+  CDF_VIEW = (rows||[]).some(r=>toISODate(r.data)) ? 'lista' : 'idee';
+}
+function setCdfView(v){
+  CDF_VIEW = v; CDF_PICK = null;
+  try{ localStorage.setItem(cdfPrefKey(), v); }catch(_){}
+  renderSection('cosedafare');
 }
 
-function setCdfView(v){ CDF_VIEW = v; renderSection('cosedafare'); }
+function cdfRows(){ return (CURRENT_DATA && CURRENT_DATA.CoseDaFare) || []; }
+function cdfDated(rows){ return (rows||[]).filter(r=>toISODate(r.data)); }
+function cdfIdeas(rows){ return (rows||[]).filter(r=>!toISODate(r.data)); }
+
+/* ---------- durata: il campo resta testo libero, qui lo traduco in minuti ---------- */
+const CDF_DURATE = ['30m','45m','1h','1h30','2h','3h','4h','Mezza giornata','Giornata intera'];
+const CDF_DUR_DEF = 120;   // se non lo dici, conto due ore
+
+function cdfDurMin(raw){
+  const s = String(raw||'').trim().toLowerCase();
+  if(!s) return null;
+  if(/mezz[ao]\s*giornat/.test(s)) return 240;
+  if(/giornat|tutto il giorno|full day/.test(s)) return 480;
+  let m = s.match(/^(\d{1,2})\s*[h:]\s*(\d{1,2})\s*(?:m|min)?$/);        // 1h30 · 1:30
+  if(m) return Number(m[1])*60 + Number(m[2]);
+  m = s.match(/(\d{1,3})\s*(?:h\b|ore\b|ora\b)/);                        // 2h · 3 ore
+  if(m) return Number(m[1])*60;
+  m = s.match(/(\d{1,4})\s*(?:m\b|min)/);                                // 90m · 45 min
+  if(m) return Number(m[1]);
+  m = s.match(/^(\d{1,2})(?:[.,](\d))?$/);                               // "2" · "1,5" → ore
+  if(m) return Math.round((Number(m[1]) + (m[2]?Number(m[2])/10:0))*60);
+  return null;
+}
+function cdfNeed(r){ return cdfDurMin(r && r.durata) || CDF_DUR_DEF; }
+
+/* ---------- fascia oraria preferita (campo "quando") ---------- */
+const CDF_FASCE = {
+  'Mattina presto':  [ 6*60, 10*60],
+  'Mattina':         [ 9*60, 13*60],
+  'Pranzo':          [12*60, 14*60+30],
+  'Pomeriggio':      [14*60, 19*60],
+  'Aperitivo':       [18*60, 20*60+30],
+  'Sera':            [19*60, 23*60],
+  'Tutto il giorno': [ 9*60, 19*60],
+  'Indifferente':    [ 9*60, 21*60]
+};
+const CDF_FASCE_LIST = Object.keys(CDF_FASCE);
+function cdfFascia(r){
+  const q = String((r && r.quando) || '').trim().toLowerCase();
+  return CDF_FASCE_LIST.find(k=>k.toLowerCase()===q) || 'Indifferente';
+}
+function cdfWin(r){ return CDF_FASCE[cdfFascia(r)]; }
+// come lo diciamo all'utente: "in fascia indifferente" non vuol dire niente
+function cdfFasciaLabel(r){
+  const f = cdfFascia(r);
+  return f==='Indifferente' ? 'a qualsiasi ora' : 'in fascia ' + f.toLowerCase();
+}
+
+function cdfCapFirst(s){ s = String(s||''); return s.charAt(0).toUpperCase() + s.slice(1); }
+function hmToMin(hm){ const m = String(hm||'').match(/^(\d{1,2}):(\d{2})$/); return m ? Number(m[1])*60+Number(m[2]) : null; }
+function minToHM(v){
+  const t = Math.max(0, Math.min(23*60+59, Math.round(Number(v)||0)));
+  return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0');
+}
+
+/* ---------- il perimetro: giorni del viaggio e orari dei voli scelti ---------- */
+function cdfTripDays(){
+  const t = CURRENT_TRIP || {};
+  let a = toISODate(t.data_inizio), b = toISODate(t.data_fine);
+  const dated = cdfDated(cdfRows()).map(r=>toISODate(r.data)).sort();
+  if(!a) a = dated[0] || '';
+  if(!b) b = dated[dated.length-1] || '';
+  if(!a) return [];
+  if(!b || b < a) b = isoAddDays(a, 6);
+  const days = [];
+  for(let d=a; d<=b && days.length<90; d=isoAddDays(d,1)) days.push(d);
+  return days;
+}
+
+// Atterraggio dell'andata e decollo del ritorno (solo dai voli SCELTI):
+// il primo e l'ultimo giorno non sono giornate piene e non vanno riempite.
+function cdfTravelBounds(){
+  const out = { arrISO:'', arrMin:null, depISO:'', depMin:null };
+  const d = CURRENT_DATA; if(!d) return out;
+  const groups = voliGroups(d.Voli||[]);
+  Object.keys(groups).forEach(k=>{
+    const legs = groups[k];
+    if(!groupChosen(legs)) return;
+    const A = legsOfDir(legs,'Andata'), R = legsOfDir(legs,'Ritorno');
+    if(A.length){
+      const last = A[A.length-1], iso = rowArrISO(last);
+      if(iso && (!out.arrISO || iso > out.arrISO)){ out.arrISO = iso; out.arrMin = hmToMin(toHM(last.ora_arr)); }
+    }
+    if(R.length){
+      const first = R[0], iso = toISODate(first.data_part);
+      if(iso && (!out.depISO || iso < out.depISO)){ out.depISO = iso; out.depMin = hmToMin(toHM(first.ora_part)); }
+    }
+  });
+  return out;
+}
+
+// Finestra utile della giornata, già tolti atterraggio (+1h30) e rientro (−3h).
+function cdfDayWindow(iso, tb){
+  tb = tb || cdfTravelBounds();
+  let ws = 8*60, we = 23*60;
+  const arrivo = !!(tb.arrISO && iso===tb.arrISO), partenza = !!(tb.depISO && iso===tb.depISO);
+  if(arrivo   && tb.arrMin!=null) ws = Math.max(ws, tb.arrMin + 90);
+  if(partenza && tb.depMin!=null) we = Math.min(we, tb.depMin - 180);
+  return { ws, we, arrivo, partenza };
+}
+
+/* ---------- che cosa c'è già quel giorno ----------
+   `extra` serve alla pianificazione in blocco: sono le attività appena
+   proposte, non ancora salvate, che però devono già occupare spazio. */
+function cdfDayItems(iso, exceptId, extra){
+  const skip = String(exceptId||'');
+  const add  = (extra||[]).filter(r=>toISODate(r.data)===iso && String(r.id)!==skip);
+  const ids  = add.map(r=>String(r.id));
+  return cdfRows()
+    .filter(r=>toISODate(r.data)===iso && String(r.id)!==skip && ids.indexOf(String(r.id))<0)
+    .concat(add);
+}
+function cdfBusy(items){
+  return (items||[]).map(r=>{
+    const s = hmToMin(toHM(r.ora));
+    return s==null ? null : [s, s + cdfNeed(r)];
+  }).filter(Boolean).sort((a,b)=>a[0]-b[0]);
+}
+const CDF_GAP = 30;   // mezz'ora di respiro fra una cosa e l'altra
+function cdfGaps(ws, we, busy){
+  const out = [];
+  let cur = ws;
+  busy.forEach(b=>{
+    if(b[0] - CDF_GAP > cur) out.push([cur, b[0] - CDF_GAP]);
+    cur = Math.max(cur, b[1] + CDF_GAP);
+  });
+  if(we > cur) out.push([cur, we]);
+  return out.filter(g=>g[1] > g[0]);
+}
+
+// Miglior orario per QUESTA attività in QUEL giorno (null se non ci sta).
+function cdfSlotFor(row, iso, tb, extra){
+  const w = cdfDayWindow(iso, tb);
+  if(w.we - w.ws < 45) return null;                   // giornata mangiata dal volo
+  const items = cdfDayItems(iso, row && row.id, extra);
+  const need  = cdfNeed(row);
+  const gaps  = cdfGaps(w.ws, w.we, cdfBusy(items));
+  const f = cdfWin(row), fs = f[0], fe = f[1];
+  let best = null;
+  gaps.forEach(g=>{
+    const gs = g[0], ge = g[1];
+    if(ge - gs < need) return;
+    let st = Math.ceil(Math.max(gs, fs)/15)*15;
+    if(st + need > ge) st = Math.floor((ge - need)/15)*15;
+    if(st < gs || st + need > ge) return;
+    const fuori = (st < fs ? fs - st : 0) + (st + need > fe ? (st + need) - fe : 0);
+    if(!best || fuori < best.fuori || (fuori===best.fuori && st < best.start)) best = { start: st, fuori: fuori };
+  });
+  if(!best) return null;
+  best.items   = items;
+  best.busyMin = items.reduce((s,r)=>s + cdfNeed(r), 0);
+  best.window  = w;
+  return best;
+}
+
+/* ---------- il punteggio: perché un giorno è meglio di un altro ---------- */
+function cdfScoreDay(row, iso, slot){
+  const items = slot.items, why = [];
+  let score = 100;
+
+  score -= Math.min(24, Math.round(slot.busyMin/30) * 2);
+  if(!items.length) why.push('giornata ancora libera');
+  else if(items.length <= 2) why.push(items.length===1 ? 'una sola cosa già in programma' : 'giornata ancora tranquilla');
+  else { score -= 12; why.push(items.length + ' attività già in programma'); }
+
+  if(slot.fuori === 0) why.push(cdfFasciaLabel(row));
+  else { score -= Math.min(30, Math.round(slot.fuori/8)); why.push('un po\' fuori dalla fascia preferita'); }
+
+  const tipo = String(row.tipo||'').trim().toLowerCase();
+  if(tipo && items.some(r=>String(r.tipo||'').trim().toLowerCase()===tipo)){
+    score -= 8; why.push('stesso tipo di un\'altra attività del giorno');
+  }
+  const pos = String(row.posizione||'').trim().toLowerCase();
+  if(pos && items.some(r=>String(r.posizione||'').trim().toLowerCase()===pos)){
+    score += 10; why.push('stessa zona di quel giorno');
+  }
+  if(slot.window.arrivo){   score -= 14; why.push('giorno di arrivo'); }
+  if(slot.window.partenza){ score -= 16; why.push('giorno di partenza'); }
+  if(truthy(row.prenotazione_req) && !truthy(row.confermata) && slot.window.arrivo) score -= 6;
+
+  const need = cdfNeed(row), tol = CDF_GAP + 15;
+  if(items.some(r=>{
+      const s = hmToMin(toHM(r.ora));
+      if(s==null) return false;
+      return Math.abs((s + cdfNeed(r)) - slot.start) <= tol || Math.abs((slot.start + need) - s) <= tol;
+    })){ score += 6; why.push('si incastra con quello che c\'è già'); }
+
+  return { score, why };
+}
+
+// Le proposte migliori, una per giorno, dalla più convincente.
+function cdfSuggest(row, max, extra){
+  const days = cdfTripDays();
+  if(!days.length) return { days: 0, list: [], motivo: 'nodate' };
+  const tb = cdfTravelBounds(), oggi = todayISO();
+  const out = [];
+  let futuri = 0;
+  days.forEach(iso=>{
+    if(iso < oggi) return;
+    futuri++;
+    const slot = cdfSlotFor(row, iso, tb, extra);
+    if(!slot) return;
+    const s = cdfScoreDay(row, iso, slot);
+    out.push({ iso, start: slot.start, need: cdfNeed(row), score: s.score, why: s.why });
+  });
+  out.sort((a,b)=> b.score - a.score || a.iso.localeCompare(b.iso));
+  return { days: days.length, list: out.slice(0, max||3), motivo: futuri ? (out.length?'':'pieno') : 'passato' };
+}
+
+/* ============================================================
+   SEZIONE
+   ============================================================ */
+function secCoseDaFare(rows, tid){
+  rows = rows || [];
+  cdfEnsureView(rows);
+  ensureCdfMonth();
+  const nIdee = cdfIdeas(rows).length, nProg = cdfDated(rows).length;
+  const tab = (v, label, n) =>
+    `<button class="btn ${CDF_VIEW===v?'btn-ink':'btn-ghost'}" onclick="setCdfView('${v}')">${label}${n?` <span class="cdf-n">${n}</span>`:''}</button>`;
+  const header = `
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+      <div class="btn-group btn-group-sm cdf-tabs" role="group">
+        ${tab('idee','💡 Idee', nIdee)}${tab('lista','📋 Programma', nProg)}${tab('calendario','🗓 Calendario', 0)}
+      </div>
+      <button class="btn ${CDF_VIEW==='idee'?'btn-ghost':'btn-stamp'} btn-sm" onclick="editRow('CoseDaFare', null, '${jsArg(tid)}')">${CDF_VIEW==='idee'?'scheda completa':'+ Aggiungi'}</button>
+    </div>`;
+  const body = CDF_VIEW==='calendario' ? cdfCalendar(rows, tid)
+             : CDF_VIEW==='idee'       ? cdfIdeeView(rows, tid)
+             :                           cdfList(rows, tid);
+  return header + body;
+}
 
 function ensureCdfMonth(){
   if(!CDF_MONTH){
     const iso = toISODate(CURRENT_TRIP && CURRENT_TRIP.data_inizio);
-    let base = iso ? new Date(iso+'T12:00:00') : new Date();
+    const base = iso ? new Date(iso+'T12:00:00') : new Date();
     CDF_MONTH = new Date(base.getFullYear(), base.getMonth(), 1);
   }
 }
-
 function cdfMonthShift(delta){
   ensureCdfMonth();
   CDF_MONTH = new Date(CDF_MONTH.getFullYear(), CDF_MONTH.getMonth()+delta, 1);
-  renderSection('cosedafare');
+  renderSection('cosedafare', true);
 }
 
+/* ---------- VISTA IDEE: il taccuino ---------- */
+function cdfIdeeView(rows, tid){
+  const idee = cdfIdeas(rows);
+  const addBar = `
+    <div class="sheet p-2 p-md-3 mb-3">
+      <div class="cp-addbar">
+        <select class="form-select form-select-sm" id="cdf_newtipo" aria-label="Tipo">
+          <option value="">— tipo —</option>
+          ${TIPI_ATTIVITA.map(t=>`<option value="${esc(t)}"${t===CDF_TIPO?' selected':''}>${tipoIcon(t)} ${esc(t)}</option>`).join('')}
+        </select>
+        <input class="form-control form-control-sm grow" id="cdf_newitem"
+          placeholder="cosa ti va di fare?  es: Museo del Prado ~2h @Madrid !prenota"
+          aria-label="Nuova idea"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();cdfAddFromBar('${jsArg(tid)}')}">
+        <button class="btn btn-stamp btn-sm" onclick="cdfAddFromBar('${jsArg(tid)}')">+ Aggiungi</button>
+      </div>
+      <div class="cp-hint">separa con la virgola per più idee ·
+        <strong>~2h</strong> durata · <strong>@luogo</strong> dove ·
+        <strong>#cultura</strong> tipo · <strong>!prenota</strong> serve prenotare ·
+        <strong>€25</strong> costo</div>
+    </div>`;
+
+  if(!idee.length){
+    return addBar + `<div class="sheet empty">
+      <div class="big">Nessuna idea in sospeso</div>
+      <div>Butta giù quello che ti piacerebbe fare: la data la decidi dopo,
+      guardando il calendario.</div></div>`;
+  }
+
+  const bulk = cdfTripDays().length ? `
+    <button class="btn btn-ghost btn-sm" onclick="cdfPlanAll('${jsArg(tid)}')">✨ Suggerisci per tutte</button>` : '';
+
+  return addBar + `
+    <div class="sheet p-3">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+        <p class="eyebrow mb-0">Da programmare · ${idee.length}</p>
+        ${bulk}
+      </div>
+      ${cdfSortIdee(idee).map(r=>cdfItem(r, true)).join('')}
+      <p class="mono mt-2 mb-0" style="font-size:.68rem;color:var(--muted)">
+        ✨ propone giorno e ora tenendo conto dei voli, dei buchi liberi e di quanto è già pieno ogni giorno
+      </p>
+    </div>`;
+}
+
+// Prima quelle da prenotare (hanno una scadenza implicita), poi le più lunghe.
+function cdfSortIdee(idee){
+  return idee.slice().sort((a,b)=>{
+    const p = (truthy(b.prenotazione_req)?1:0) - (truthy(a.prenotazione_req)?1:0);
+    if(p) return p;
+    const d = cdfNeed(b) - cdfNeed(a);
+    if(d) return d;
+    return String(a.attivita||'').localeCompare(String(b.attivita||''),'it');
+  });
+}
+
+/* ---------- VISTA PROGRAMMA ---------- */
 function cdfList(rows, tid){
-  const withDate = rows.filter(r=>toISODate(r.data)).sort((a,b)=>{
+  const withDate = cdfDated(rows).sort((a,b)=>{
     const d = toISODate(a.data).localeCompare(toISODate(b.data));
     return d!==0 ? d : (toHM(a.ora)||'99:99').localeCompare(toHM(b.ora)||'99:99');
   });
-  const noDate   = rows.filter(r=>!toISODate(r.data));
+  const idee = cdfIdeas(rows);
+  if(!withDate.length){
+    return `<div class="sheet empty">
+      <div class="big">Ancora niente in agenda</div>
+      <div>${idee.length ? `Hai ${idee.length} ide${idee.length===1?'a':'e'} da collocare: apri <strong>Idee</strong> e usa ✨ per farti proporre giorno e ora.`
+                         : 'Aggiungi la prima attività.'}</div></div>`;
+  }
   const groups = {};
   withDate.forEach(r=>{ const k=toISODate(r.data); (groups[k] = groups[k] || []).push(r); });
-  const dayBlocks = Object.keys(groups).map(k=>`
-    <div class="mb-3">
-      <p class="eyebrow mb-2">${toITDateLong(k)}</p>
-      ${groups[k].map(r=>cdfItem(r)).join('')}
-    </div>`).join('');
-  const noDateBlock = noDate.length ? `
-    <div class="mb-3">
-      <p class="eyebrow mb-2">Senza data</p>
-      ${noDate.map(r=>cdfItem(r)).join('')}
+  const dayBlocks = Object.keys(groups).sort().map(k=>{
+    const min = groups[k].reduce((s,r)=>s + cdfNeed(r), 0);
+    return `<div class="mb-3">
+      <p class="eyebrow mb-2">${toITDateLong(k)}
+        <span class="mono" style="text-transform:none;letter-spacing:0;color:var(--muted)">· ${groups[k].length} · ${fmtDur(min)}</span></p>
+      ${groups[k].map(r=>cdfItem(r, false)).join('')}
+    </div>`;
+  }).join('');
+  const link = idee.length ? `
+    <div class="mt-2 pt-2" style="border-top:1px dashed var(--line)">
+      <button class="btn btn-ghost btn-sm" onclick="setCdfView('idee')">
+        💡 ${idee.length} ide${idee.length===1?'a':'e'} ancora senza data</button>
     </div>` : '';
-  if(!rows.length) return `<div class="sheet empty"><div class="big">Ancora niente da fare</div><div>Aggiungi la prima attività.</div></div>`;
-  return `<div class="sheet p-3">${dayBlocks}${noDateBlock}</div>`;
+  return `<div class="sheet p-3">${dayBlocks}${link}</div>`;
 }
 
-function cdfItem(r){
+/* ---------- riga singola ---------- */
+function cdfItem(r, isIdea){
   const conf = truthy(r.confermata);
-  const ora = toHM(r.ora);
-  return `<div class="d-flex align-items-start gap-2 py-2" style="border-bottom:1px solid var(--line)">
-    <span style="font-size:1.1rem;flex:none">${tipoIcon(r.tipo)}</span>
-    <div style="flex:1;min-width:0">
-      <div style="font-weight:600">${ora?`<span class="mono" style="color:var(--stamp);font-size:.85rem">${esc(ora)}</span> `:''}${esc(r.attivita||'')}
+  const ora  = toHM(r.ora);
+  const dur  = cdfDurMin(r.durata);
+  const meta = [
+    r.posizione ? esc(r.posizione) : '',
+    r.durata ? esc(r.durata) : '',
+    isIdea ? (cdfFascia(r)!=='Indifferente' ? esc(cdfFascia(r).toLowerCase()) : '') : (r.quando ? esc(r.quando) : ''),
+    num(r.costo) ? eur(r.costo) + (num(r.prezzo_testa)?` (${eur(r.prezzo_testa)} a testa)`:'') : ''
+  ].filter(Boolean).join(' · ');
+  const fine = (!isIdea && ora && dur) ? `<span class="mono" style="font-size:.7rem;color:var(--muted)"> → ${minToHM(hmToMin(ora)+dur)}</span>` : '';
+  return `<div class="cdf-row">
+    <span class="cdf-ico">${tipoIcon(r.tipo)}</span>
+    <div class="cdf-main">
+      <div style="font-weight:600">${ora?`<span class="mono" style="color:var(--stamp);font-size:.85rem">${esc(ora)}</span> `:''}${esc(r.attivita||'')}${fine}
         ${conf?'<span class="chip pick ms-1">✓</span>':''}
-        ${truthy(r.prenotazione_req)?'<span class="chip pri-cons ms-1">prenota</span>':''}</div>
-      <div style="font-size:.82rem;color:var(--ink-soft)">
-        ${r.posizione?esc(r.posizione):''}${r.durata?` · ${esc(r.durata)}`:''}${r.quando?` · ${esc(r.quando)}`:''}${num(r.costo)?` · ${eur(r.costo)}${num(r.prezzo_testa)?` (${eur(r.prezzo_testa)} a testa)`:''}`:''}
-      </div>
+        ${truthy(r.prenotazione_req)&&!conf?'<span class="chip pri-cons ms-1">prenota</span>':''}</div>
+      ${meta?`<div style="font-size:.82rem;color:var(--ink-soft)">${meta}</div>`:''}
       ${r.note?`<div style="font-size:.78rem;color:var(--muted);margin-top:.15rem">${esc(r.note)}</div>`:''}
     </div>
-    <div class="text-nowrap" style="flex:none">
+    <div class="cdf-acts">
+      ${isIdea
+        ? `<button class="icon-btn" title="Suggerisci quando farla" onclick="cdfSuggestModal('${jsArg(r.id)}')">✨</button>
+           <button class="icon-btn" title="Metti una data" onclick="cdfScheduleModal('${jsArg(r.id)}')">📅</button>`
+        : `<button class="icon-btn" title="Sposta" onclick="cdfScheduleModal('${jsArg(r.id)}')">📅</button>
+           <button class="icon-btn" title="Rimetti fra le idee" onclick="cdfUnschedule('${jsArg(r.id)}')">↩</button>`}
       ${r.posizione?`<a class="link-btn" href="${esc(isUrl(r.posizione)?r.posizione:mapsUrl(r.posizione))}" target="_blank" rel="noopener" title="Apri nella mappa">📍</a>`:''}
       ${r.link?linkCell(r.link):''}
       <button class="icon-btn" onclick="editRowById('CoseDaFare','${jsArg(r.id)}')">✎</button>
@@ -2658,6 +3031,7 @@ function cdfItem(r){
   </div>`;
 }
 
+/* ---------- VISTA CALENDARIO (+ striscia delle idee) ---------- */
 function cdfCalendar(rows, tid){
   ensureCdfMonth();
   const y = CDF_MONTH.getFullYear(), mo = CDF_MONTH.getMonth();
@@ -2667,23 +3041,25 @@ function cdfCalendar(rows, tid){
   const monthName = CDF_MONTH.toLocaleDateString('it-IT', {month:'long', year:'numeric'});
 
   const byDay = {};
-  rows.forEach(r=>{ const k=toISODate(r.data); if(k) (byDay[k] = byDay[k] || []).push(r); });
+  cdfDated(rows).forEach(r=>{ const k=toISODate(r.data); (byDay[k] = byDay[k] || []).push(r); });
 
   const vStart = toISODate(CURRENT_TRIP && CURRENT_TRIP.data_inizio), vEnd = toISODate(CURRENT_TRIP && CURRENT_TRIP.data_fine);
-
-  const dow = ['lun','mar','mer','gio','ven','sab','dom']
-    .map(d=>`<div class="cal-dow">${d}</div>`).join('');
+  const dow = ['lun','mar','mer','gio','ven','sab','dom'].map(d=>`<div class="cal-dow">${d}</div>`).join('');
 
   let cells = '';
   for(let i=0;i<startDow;i++) cells += `<div class="cal-cell empty"></div>`;
   for(let d=1; d<=daysInMonth; d++){
     const iso = `${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const items = byDay[iso]||[];
+    const items = (byDay[iso]||[]).slice().sort((a,b)=>(toHM(a.ora)||'99:99').localeCompare(toHM(b.ora)||'99:99'));
     const inTrip = vStart && vEnd && iso>=vStart && iso<=vEnd;
     const chips = items.slice(0,3).map(r=>
-      `<div class="cal-ev" title="${esc(r.attivita)}" onclick="editRowById('CoseDaFare','${jsArg(r.id)}')">${tipoIcon(r.tipo)} ${esc((r.attivita||'').slice(0,14))}</div>`).join('');
+      `<div class="cal-ev" title="${esc(r.attivita)}" onclick="event.stopPropagation();editRowById('CoseDaFare','${jsArg(r.id)}')">${tipoIcon(r.tipo)} ${esc((r.attivita||'').slice(0,14))}</div>`).join('');
     const more = items.length>3 ? `<div class="cal-more">+${items.length-3}</div>` : '';
-    cells += `<div class="cal-cell${inTrip?' in-trip':''}" ondblclick="cdfQuickAdd('${iso}','${jsArg(tid)}')">
+    cells += `<div class="cal-cell${inTrip?' in-trip':''}${CDF_PICK?' droppable':''}"
+      ondblclick="cdfQuickAdd('${iso}','${jsArg(tid)}')"
+      onclick="cdfDayClick('${iso}')"
+      ondragover="cdfDragOver(event)" ondragleave="this.classList.remove('over')"
+      ondrop="cdfDrop(event,'${iso}')">
       <div class="cal-num">${d}</div>${chips}${more}
     </div>`;
   }
@@ -2700,11 +3076,303 @@ function cdfCalendar(rows, tid){
       <p class="mono mt-2 mb-0" style="font-size:.68rem;color:var(--muted)">
         doppio click su un giorno per aggiungere · giorni evidenziati = durata vacanza
       </p>
-    </div>`;
+    </div>
+    ${cdfRail(rows, tid)}`;
+}
+
+// La striscia delle idee sotto al calendario: trascinale su un giorno,
+// oppure toccale (si "alzano") e poi tocca il giorno.
+function cdfRail(rows, tid){
+  const idee = cdfSortIdee(cdfIdeas(rows));
+  if(!idee.length) return '';
+  const chips = idee.map(r=>{
+    const on = CDF_PICK && String(CDF_PICK)===String(r.id);
+    return `<button class="cdf-chip${on?' on':''}" draggable="true"
+      ondragstart="cdfDragStart(event,'${jsArg(r.id)}')" ondragend="cdfDragEnd()"
+      onclick="cdfPickIdea('${jsArg(r.id)}')"
+      title="${esc(r.attivita||'')}">${tipoIcon(r.tipo)} ${esc((r.attivita||'').slice(0,26))}
+      <span class="mono">${fmtDur(cdfNeed(r))}</span></button>`;
+  }).join('');
+  return `<div class="sheet p-3 mt-3">
+    <p class="eyebrow mb-2">💡 Da collocare · ${idee.length}</p>
+    <div class="cdf-rail">${chips}</div>
+    <p class="mono mt-2 mb-0" style="font-size:.68rem;color:var(--muted)">
+      ${CDF_PICK ? 'ora tocca il giorno in cui vuoi metterla · <button class="btn btn-ghost btn-sm py-0" onclick="cdfPickIdea(\'\')">annulla</button>'
+                 : 'trascina un\'idea su un giorno, oppure toccala e poi tocca il giorno'}
+    </p>
+  </div>`;
+}
+
+function cdfPickIdea(id){
+  CDF_PICK = (id && String(CDF_PICK)!==String(id)) ? String(id) : null;
+  renderSection('cosedafare', true);
+}
+function cdfDragStart(ev, id){
+  CDF_PICK = String(id);
+  try{ ev.dataTransfer.setData('text/plain', String(id)); ev.dataTransfer.effectAllowed='move'; }catch(_){}
+}
+function cdfDragEnd(){ document.querySelectorAll('.cal-cell.over').forEach(c=>c.classList.remove('over')); }
+function cdfDragOver(ev){ if(!CDF_PICK) return; ev.preventDefault(); ev.currentTarget.classList.add('over'); }
+function cdfDrop(ev, iso){
+  ev.preventDefault();
+  ev.currentTarget.classList.remove('over');
+  let id = CDF_PICK;
+  try{ id = ev.dataTransfer.getData('text/plain') || id; }catch(_){}
+  if(id) cdfDropOn(id, iso);
+}
+// Click su un giorno: vale solo se hai un'idea "in mano".
+function cdfDayClick(iso){
+  if(CDF_PICK) cdfDropOn(CDF_PICK, iso);
+}
+
+// Assegna il giorno e ci mette anche l'ora, se in quel giorno c'è posto.
+async function cdfDropOn(id, iso){
+  const r = findRow('CoseDaFare', id);
+  if(!r) return;
+  const slot = cdfSlotFor(r, iso, cdfTravelBounds());
+  CDF_PICK = null;
+  await cdfApply(id, iso, slot ? slot.start : '',
+    slot ? '' : 'quel giorno è pieno: l\'ho messa senza orario');
 }
 
 function cdfQuickAdd(iso, tid){
   editRow('CoseDaFare', { viaggio_id: tid, data: iso }, tid);
+}
+
+/* ---------- scrittura ---------- */
+async function cdfApply(id, iso, startMin, avviso){
+  const r = findRow('CoseDaFare', id);
+  if(!r) return false;
+  const rec = {
+    id: r.id, viaggio_id: r.viaggio_id,
+    data: iso || '',
+    ora: (startMin===''||startMin==null) ? '' : minToHM(startMin)
+  };
+  try{
+    await api('update', { sheet:'CoseDaFare', record: rec });
+    applyLocal('CoseDaFare','update', rec);
+    if(MODAL) MODAL.hide();
+    toast(iso ? `${toITDateLong(iso)}${rec.ora?' · '+rec.ora:''} ✓${avviso?' — '+avviso:''}` : 'Rimessa fra le idee ✓','ok');
+    refreshView();
+    return true;
+  }catch(e){
+    if(e instanceof AuthError) sessionExpired(); else toast('Errore: '+e.message,'error');
+    return false;
+  }
+}
+
+async function cdfUnschedule(id){
+  if(!await askConfirm('Togliere la data e rimetterla fra le idee?')) return;
+  await cdfApply(id, '', '');
+}
+
+/* ---------- modal: metti/sposta la data a mano ---------- */
+function cdfScheduleModal(id){
+  const r = findRow('CoseDaFare', id);
+  if(!r) return;
+  ensureModal();
+  const days = cdfTripDays();
+  const iso  = toISODate(r.data) || '';
+  const ora  = toHM(r.ora) || '';
+  $('#mTitle').textContent = 'Quando · ' + (r.attivita || 'attività');
+  $('#mBody').innerHTML = `
+    <div class="mb-2"><label class="form-label">giorno
+      <span style="font-weight:400;color:var(--muted);font-size:.7rem">— svuotalo per rimetterla fra le idee</span></label>
+      <input class="form-control" type="date" id="f_cdf_data" value="${esc(iso)}"></div>
+    <div class="mb-2"><label class="form-label">orario
+      <span style="font-weight:400;color:var(--muted);font-size:.7rem">— lascialo vuoto se non lo sai ancora</span></label>
+      <input class="form-control" type="time" id="f_cdf_ora" value="${esc(ora)}"></div>
+    <div class="mb-2"><label class="form-label">durata</label>
+      <input class="form-control" id="f_cdf_durata" list="dl_durata" value="${esc(r.durata||'')}" placeholder="es. 2h"></div>
+    <div class="mb-2"><label class="form-label">fascia preferita</label>
+      <select class="form-select" id="f_cdf_quando">
+        ${CDF_FASCE_LIST.map(k=>`<option value="${esc(k)}"${cdfFascia(r)===k?' selected':''}>${esc(k)}</option>`).join('')}
+      </select></div>
+    ${days.length?`<button class="btn btn-ghost btn-sm" onclick="cdfSuggestModal('${jsArg(r.id)}')">✨ non lo so, suggeriscimi tu</button>
+    <div class="mono mt-2" style="font-size:.68rem;color:var(--muted)">viaggio: ${toITDate(days[0])} – ${toITDate(days[days.length-1])}</div>`:''}
+    ${durataDatalist()}`;
+  $('#mSave').textContent = 'Salva';
+  $('#mSave').onclick = ()=> withBtnLoading($('#mSave'), 'Salvo…', async ()=>{
+    const rec = {
+      id: r.id, viaggio_id: r.viaggio_id,
+      data:   $('#f_cdf_data').value || '',
+      ora:    $('#f_cdf_ora').value || '',
+      durata: $('#f_cdf_durata').value.trim(),
+      quando: $('#f_cdf_quando').value
+    };
+    if(!rec.data) rec.ora = '';         // un orario senza giorno non vuol dire niente
+    await api('update', { sheet:'CoseDaFare', record: rec });
+    applyLocal('CoseDaFare','update', rec);
+    MODAL.hide(); toast('Salvato ✓','ok');
+    refreshView();
+  });
+  MODAL.show();
+}
+
+function durataDatalist(){
+  return `<datalist id="dl_durata">${CDF_DURATE.map(d=>`<option value="${esc(d)}">`).join('')}</datalist>`;
+}
+
+/* ---------- modal: ✨ suggerimento ---------- */
+function cdfSuggestModal(id){
+  const r = findRow('CoseDaFare', id);
+  if(!r) return;
+  ensureModal();
+  const res = cdfSuggest(r, 3);
+  $('#mTitle').textContent = '✨ Quando farla?';
+
+  if(!res.list.length){
+    const msg = res.motivo==='nodate'
+      ? 'Non so su che giorni ragionare: metti le date del viaggio (o programma almeno un\'attività) e ci riprovo.'
+      : res.motivo==='passato'
+        ? 'I giorni del viaggio sono già passati.'
+        : `Non c'è un buco da ${fmtDur(cdfNeed(r))} in nessuno dei ${res.days} giorni: accorcia la durata, allarga la fascia oraria o sposta qualcosa.`;
+    $('#mBody').innerHTML = `<p class="mb-0">${esc(msg)}</p>`;
+    $('#mSave').textContent = 'Scelgo io';
+    $('#mSave').onclick = ()=>{ MODAL.hide(); cdfScheduleModal(r.id); };
+    MODAL.show();
+    return;
+  }
+
+  const best = res.list[0];
+  $('#mBody').innerHTML = `
+    <p class="mono mb-3" style="font-size:.74rem;color:var(--muted)">
+      ${esc(r.attivita||'')} · ${fmtDur(cdfNeed(r))} · ${esc(cdfFasciaLabel(r))}
+    </p>
+    ${res.list.map((s,i)=>`
+      <div class="sug-card${i===0?' top':''}">
+        <div class="sug-when">
+          <span>${i===0?'👍 ':''}${esc(cdfCapFirst(toITDateLong(s.iso)))}</span>
+          <span class="mono">${minToHM(s.start)}–${minToHM(s.start+s.need)}</span>
+        </div>
+        <div class="sug-why">${s.why.map(w=>`<span class="sug-tag">${esc(w)}</span>`).join('')}</div>
+        ${i===0?'':`<button class="btn btn-ghost btn-sm mt-2" onclick="cdfApply('${jsArg(r.id)}','${s.iso}',${s.start})">Metti qui</button>`}
+      </div>`).join('')}
+    <button class="btn btn-ghost btn-sm mt-1" onclick="cdfScheduleModal('${jsArg(r.id)}')">scelgo un altro giorno…</button>`;
+  $('#mSave').textContent = `Programma ${toITDate(best.iso)} · ${minToHM(best.start)}`;
+  $('#mSave').onclick = ()=> withBtnLoading($('#mSave'), 'Salvo…', ()=>cdfApply(r.id, best.iso, best.start));
+  MODAL.show();
+}
+
+/* ---------- modal: ✨ pianifica tutte le idee ----------
+   Greedy: parte dalle più vincolanti (da prenotare, poi le più lunghe) e
+   tiene conto anche delle proposte fatte un attimo prima, così due idee
+   non finiscono sopra lo stesso buco. Niente viene salvato senza conferma. */
+let CDF_PLAN = [];
+function cdfPlanAll(tid){
+  const idee = cdfSortIdee(cdfIdeas(cdfRows()));
+  if(!idee.length) return;
+  ensureModal();
+  const extra = [], scarti = [];
+  CDF_PLAN = [];
+  idee.forEach(r=>{
+    const res = cdfSuggest(r, 1, extra);
+    if(res.list.length){
+      const s = res.list[0];
+      CDF_PLAN.push({ r, iso: s.iso, start: s.start, need: s.need });
+      extra.push({ id: r.id, data: s.iso, ora: minToHM(s.start), durata: r.durata, tipo: r.tipo, posizione: r.posizione });
+    } else scarti.push(r);
+  });
+
+  $('#mTitle').textContent = '✨ Proposta di programma';
+  if(!CDF_PLAN.length){
+    $('#mBody').innerHTML = `<p class="mb-0">Non riesco a collocare nessuna idea: controlla le date del viaggio e le durate.</p>`;
+    $('#mSave').textContent = 'Chiudi';
+    $('#mSave').onclick = ()=>MODAL.hide();
+    MODAL.show();
+    return;
+  }
+  const byDay = {};
+  CDF_PLAN.forEach((p,i)=>{ (byDay[p.iso] = byDay[p.iso] || []).push(Object.assign({i}, p)); });
+  $('#mBody').innerHTML = `
+    <p class="mono mb-3" style="font-size:.74rem;color:var(--muted)">
+      togli la spunta a quelle che non ti convincono · niente viene salvato finché non confermi</p>
+    ${Object.keys(byDay).sort().map(iso=>`
+      <p class="eyebrow mb-1 mt-2">${toITDateLong(iso)}</p>
+      ${byDay[iso].sort((a,b)=>a.start-b.start).map(p=>`
+        <label class="sug-pick">
+          <input class="form-check-input plan-one" type="checkbox" value="${p.i}" checked>
+          <span><span class="mono" style="color:var(--stamp)">${minToHM(p.start)}</span>
+            ${esc(p.r.attivita||'')}
+            <span class="mono" style="color:var(--muted)">${fmtDur(p.need)}</span></span>
+        </label>`).join('')}`).join('')}
+    ${scarti.length?`<p class="mono mt-3 mb-0" style="font-size:.72rem;color:var(--danger)">
+      ${scarti.length} non ci stanno da nessuna parte: ${esc(scarti.map(r=>r.attivita).filter(Boolean).join(', '))}</p>`:''}`;
+  $('#mSave').textContent = 'Metti in calendario';
+  $('#mSave').onclick = ()=> withBtnLoading($('#mSave'), 'Salvo…', async ()=>{
+    const picked = [...document.querySelectorAll('.plan-one')].filter(c=>c.checked).map(c=>CDF_PLAN[Number(c.value)]);
+    if(!picked.length){ toast('Non hai scelto niente','error'); return; }
+    let ok = 0;
+    for(const p of picked){
+      const rec = { id: p.r.id, viaggio_id: p.r.viaggio_id, data: p.iso, ora: minToHM(p.start) };
+      try{
+        await api('update', { sheet:'CoseDaFare', record: rec });
+        applyLocal('CoseDaFare','update', rec);
+        ok++;
+      }catch(e){
+        if(e instanceof AuthError){ sessionExpired(); return; }
+        toast('Errore su "'+(p.r.attivita||'')+'": '+e.message,'error');
+      }
+    }
+    MODAL.hide();
+    toast(`${ok} ${ok===1?'attività messa':'attività messe'} in calendario ✓`,'ok');
+    setCdfView('lista');
+  });
+  MODAL.show();
+}
+
+/* ---------- aggiunta rapida delle idee ----------
+   Sintassi:  Museo del Prado ~2h @Madrid #cultura !prenota €25        */
+function cdfResolveTipo(tok){
+  const t = String(tok||'').trim().toLowerCase();
+  if(!t) return '';
+  return TIPI_ATTIVITA.find(x=>x.toLowerCase()===t)
+      || TIPI_ATTIVITA.find(x=>x.toLowerCase().startsWith(t))
+      || tok.charAt(0).toUpperCase()+tok.slice(1);
+}
+function cdfParseLine(txt){
+  return String(txt||'').split(/[,\n;]/).map(x=>x.trim()).filter(Boolean).map(part=>{
+    let tipo='', pos='', dur='', costo='', pren='';
+    part = part.replace(/!\s*(?:prenot\w*|book\w*)/gi, ()=>{ pren='Sì'; return ' '; });
+    part = part.replace(/~\s*([\w:.]+)/g,  (m,g)=>{ dur   = g; return ' '; });
+    part = part.replace(/#([\wÀ-ÿ'’-]+)/g, (m,g)=>{ tipo  = cdfResolveTipo(g); return ' '; });
+    part = part.replace(/€\s*(\d+(?:[.,]\d{1,2})?)/g, (m,g)=>{ costo = parseNum(g); return ' '; });
+    part = part.replace(/@([^@#~!€]+)/g,   (m,g)=>{ pos   = g.trim(); return ' '; });
+    part = part.replace(/\s+/g,' ').trim();
+    return { attivita: part, tipo, posizione: pos, durata: dur, costo, prenotazione_req: pren };
+  }).filter(x=>x.attivita);
+}
+
+async function cdfAddFromBar(tid){
+  const inp = document.getElementById('cdf_newitem');
+  const sel = document.getElementById('cdf_newtipo');
+  if(!inp) return;
+  const parsed = cdfParseLine(inp.value);
+  if(!parsed.length) return;
+  CDF_TIPO = sel ? (sel.value||'') : '';
+  const txt = inp.value;
+  inp.value = ''; inp.disabled = true;
+  const records = parsed.map(x=>({
+    viaggio_id: tid, data:'', ora:'',
+    tipo: x.tipo || CDF_TIPO || '',
+    attivita: x.attivita, posizione: x.posizione, durata: x.durata,
+    costo: x.costo, prenotazione_req: x.prenotazione_req,
+    quando: '', link:'', note:'', confermata:''
+  }));
+  try{
+    const saved = await api('create_many', { sheet:'CoseDaFare', records });
+    applyLocal('CoseDaFare','create_many', saved);
+    renderSection('cosedafare', true);
+    updateTabBadges();
+    toast(saved.length>1 ? `${saved.length} idee aggiunte ✓` : 'Idea aggiunta ✓','ok');
+  }catch(e){
+    const again = document.getElementById('cdf_newitem');
+    if(again){ again.disabled = false; again.value = txt; }
+    if(e instanceof AuthError) sessionExpired(); else toast('Errore: '+e.message,'error');
+    return;
+  }
+  const again = document.getElementById('cdf_newitem');
+  if(again) again.focus();
 }
 
 /* ============================================================
@@ -3737,7 +4405,7 @@ const FIELD_ORDER = {
   Rubrica:['nome','cognome','data_nascita','luogo_nascita','tipo_doc','num_doc','scadenza_doc','nazionalita','cod_fiscale','telefono','email','note'],
   Alloggi:['struttura','checkin','ora_checkin','checkout','ora_checkout','notti','persone','totale','prezzo_notte','prezzo_testa','prezzo_testa_notte','extra','link','indirizzo','mappa_link','posizione','pnr','valutazione','scelto','note'],
   Spese:['data','descrizione','categoria','paganti','totale','prezzo_testa','note'],
-  CoseDaFare:['data','ora','tipo','attivita','posizione','durata','persone','costo','prezzo_testa','prenotazione_req','quando','link','note','confermata'],
+  CoseDaFare:['attivita','tipo','posizione','durata','quando','data','ora','persone','costo','prezzo_testa','prenotazione_req','link','note','confermata'],
   CosaPortare:['categoria','cosa','qta','chi','priorita','spuntato','note'],
   Contatti:['categoria','nome','telefono','email','link','indirizzo','mappa_link','note'],
   InfoDest:['sezione','chiave','valore','link'],
@@ -3867,6 +4535,7 @@ const PRIORITA = ['Essenziale','Consigliato','Opzionale'];
 
 const SELECT_LISTS = {
   stato: STATI_VIAGGIO,
+  quando: CDF_FASCE_LIST,
   priorita: PRIORITA,
   tipo: TIPI_ATTIVITA,
   categoria_portare: CATEGORIE_PORTARE,
@@ -4076,6 +4745,11 @@ function editRow(sheet, record, tid){
           <button class="btn btn-ghost" type="button" onclick="genCodeInto()">genera</button>
         </div></div>`;
     }
+    if(f==='data' && sheet==='CoseDaFare'){
+      return `<div class="mb-2"><label class="form-label">data
+        <span style="font-weight:400;color:var(--muted);font-size:.7rem">— lasciala vuota: resta fra le idee</span></label>
+        <input class="form-control" id="f_data" type="date" value="${esc(toISODate(v))}"></div>`;
+    }
     if(DATE_FIELDS.includes(f)){
       return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
         <input class="form-control" id="f_${f}" type="date" value="${esc(toISODate(v))}"></div>`;
@@ -4120,6 +4794,11 @@ function editRow(sheet, record, tid){
     if(AIRLINE_FIELDS.includes(f)){
       return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
         <input class="form-control" id="f_${f}" list="airlines" value="${esc(v)}" placeholder="scegli o scrivi…"></div>`;
+    }
+    if(f==='durata'){
+      return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
+        <input class="form-control" id="f_durata" list="dl_durata" value="${esc(v)}" placeholder="es. 2h">
+        ${durataDatalist()}</div>`;
     }
     if(LINK_FIELDS.includes(f)){
       return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
