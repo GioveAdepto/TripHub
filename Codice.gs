@@ -49,7 +49,7 @@
 // il foglio esistente mantiene le posizioni originali.
 const SCHEMA = {
   Viaggi:      ['id','nome','destinazione','paese','data_inizio','data_fine','n_persone','stato','note','codice'],
-  Partecipanti:['id','viaggio_id','nome','cognome','data_nascita','luogo_nascita','tipo_doc','num_doc','scadenza_doc','nazionalita','cod_fiscale','telefono','email','note'],
+  Partecipanti:['id','viaggio_id','nome','cognome','data_nascita','luogo_nascita','tipo_doc','scadenza_doc','nazionalita','telefono','email','note'],
   Alloggi:     ['id','viaggio_id','struttura','checkin','ora_checkin','checkout','ora_checkout','notti','persone','prezzo_notte','extra','totale','prezzo_testa','prezzo_testa_notte','link','indirizzo','posizione','valutazione','scelto','note','mappa_link','pnr','pagato_da','scadenza_pag'],
   Voli:        ['id','viaggio_id','gruppo_id','opzione','direzione','tratta','persone','paganti','compagnia','n_volo','da','a','data_part','ora_part','data_arr','ora_arr','scalo','totale','prezzo_testa','bagaglio','scelto','note','costo_bagaglio','pnr','pagato_da','scadenza_pag'],
   Spese:       ['id','viaggio_id','data','descrizione','categoria','paganti','persone','totale','prezzo_testa','note','pagato_da'],
@@ -62,11 +62,20 @@ const SCHEMA = {
   //  tipo 'rimborso' → chi restituisce a chi (nessuna divisione)
   Pagamenti:   ['id','viaggio_id','data','tipo','chi','verso','importo','riferimento','paganti','note'],
   // Anagrafica globale, NON legata a un viaggio: solo l'amministratore la vede.
-  Rubrica:     ['id','nome','cognome','data_nascita','luogo_nascita','tipo_doc','num_doc','scadenza_doc','nazionalita','cod_fiscale','telefono','email','note']
+  Rubrica:     ['id','nome','cognome','data_nascita','luogo_nascita','tipo_doc','scadenza_doc','nazionalita','telefono','email','note']
 };
 
 // Tab che non hanno (e non devono avere) una colonna viaggio_id
 const GLOBAL_SHEETS = ['Viaggi','Rubrica'];
+
+// Colonne che ESISTEVANO e non devono più circolare: numeri di documento e
+// codici fiscali. L'app usa solo la scadenza del documento (per l'avviso
+// "scade prima del rientro"); il numero non serviva a niente e in un foglio
+// condiviso con un codice che gira su WhatsApp era un rischio inutile.
+// listRows() le salta anche se nel foglio ci sono ancora; sanitize() le
+// scarta in scrittura perché non stanno più in SCHEMA. Per svuotare quello
+// che c'è già: esegui una volta purgeDroppedColumns() dall'editor.
+const DROPPED_COLS = ['num_doc','cod_fiscale'];
 
 // Colonne che devono restare NUMERO puro (evita auto-conversione in data/ora da parte di Sheets)
 const NUM_COLS = ['totale','prezzo_notte','prezzo_testa','prezzo_testa_notte','extra','costo','notti','persone','qta','valutazione','n_persone','tratta','opzione','costo_bagaglio','importo'];
@@ -76,7 +85,7 @@ const NUM_COLS = ['totale','prezzo_notte','prezzo_testa','prezzo_testa_notte','e
 const TEXT_COLS = ['data_inizio','data_fine','checkin','checkout','data_part','data_arr','ora_part','ora_arr','data','ora','data_nascita','scadenza_doc','ora_checkin','ora_checkout','codice','pnr',
                    // numeri di telefono e documenti: il "+" iniziale verrebbe letto come formula,
                    // e gli zeri iniziali (0165..., 00358...) verrebbero mangiati.
-                   'telefono','num_doc','cod_fiscale','n_volo','scadenza_pag'];
+                   'telefono','n_volo','scadenza_pag'];
 
 // Azioni che modificano i dati (protette da LockService)
 const WRITE_ACTIONS = ['create','update','delete','create_many','update_many','delete_group','replace_group',
@@ -336,6 +345,7 @@ function listRows(name, viaggioId) {
     var obj = {};
     var empty = true;
     for (var c = 0; c < hdr.length; c++) {
+      if (DROPPED_COLS.indexOf(hdr[c]) >= 0) continue;
       var val = values[i][c];
       // Se una cella data/ora è finita come Date (dati vecchi), riportala a stringa
       // nel fuso orario di Roma, così non torna sfasata in UTC.
@@ -885,6 +895,31 @@ function json(obj) {
  * Crea i tab mancanti e AGGIUNGE IN FONDO le colonne nuove.
  * Non riordina, non sovrascrive e non cancella nulla di esistente.
  */
+/**
+ * Svuota nel foglio le colonne di DROPPED_COLS (numeri di documento, codici
+ * fiscali). Lascia le intestazioni al loro posto così nulla si sposta.
+ * Va lanciata A MANO, una volta: non viene mai chiamata dall'app.
+ */
+function purgeDroppedColumns() {
+  var report = [];
+  Object.keys(SCHEMA).forEach(function (name) {
+    var sh = ss().getSheetByName(name);
+    if (!sh) return;
+    var lastCol = sh.getLastColumn(), lastRow = sh.getLastRow();
+    if (lastCol < 1 || lastRow < 2) return;
+    var hdr = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(String);
+    DROPPED_COLS.forEach(function (col) {
+      var i = hdr.indexOf(col);
+      if (i < 0) return;
+      sh.getRange(2, i + 1, lastRow - 1, 1).clearContent();
+      report.push(name + '.' + col + ' (' + (lastRow - 1) + ' righe)');
+    });
+  });
+  var msg = report.length ? 'svuotate: ' + report.join(' · ') : 'niente da svuotare';
+  SpreadsheetApp.getActiveSpreadsheet().toast(msg, 'TripHub · colonne sensibili', 10);
+  return msg;
+}
+
 function setupSheets() {
   var added = [];
   Object.keys(SCHEMA).forEach(function (name) {
@@ -990,3 +1025,309 @@ function generaCodiciMancanti() {
   Logger.log(out.join('\n'));
   return out.join('\n');
 }
+
+
+// ============================================================
+//  PROMEMORIA SETTIMANALE VIA EMAIL
+// ------------------------------------------------------------
+//  Una volta a settimana, per ogni viaggio non ancora concluso, manda ai
+//  partecipanti (e a chi possiede lo script) quello che manca: opzioni da
+//  scegliere, cose da prenotare, documenti e pagamenti in scadenza, idee
+//  senza data, e chi deve quanto a chi. Se non c'è niente da dire, tace.
+//
+//  Per attivarlo: esegui una volta installDigestTrigger() dall'editor.
+//  Per vedere cosa manderebbe senza inviare nulla: previewDigest().
+//
+//  I conti sono un porting fedele di computeSettlement() del frontend:
+//  stessi movimenti, stessa semplificazione, stessi numeri.
+// ============================================================
+
+var DIGEST_FUNC = 'sendWeeklyDigest';
+
+function installDigestTrigger() {
+  removeDigestTrigger();
+  ScriptApp.newTrigger(DIGEST_FUNC).timeBased()
+    .onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(8).inTimezone('Europe/Rome').create();
+  return 'promemoria attivo: ogni lunedì alle 8';
+}
+function removeDigestTrigger() {
+  var n = 0;
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === DIGEST_FUNC) { ScriptApp.deleteTrigger(t); n++; }
+  });
+  return n ? 'rimossi ' + n + ' trigger' : 'nessun trigger da rimuovere';
+}
+
+/** Manda i promemoria. Torna un riassunto di cosa ha fatto. */
+function sendWeeklyDigest() {
+  var esito = [];
+  dgTripsAttivi().forEach(function (trip) {
+    var all = listAll(trip.id, null);
+    var msg = dgBuild(trip, all);
+    if (!msg) { esito.push(trip.destinazione + ': niente da segnalare'); return; }
+    var to = dgRecipients(all);
+    if (!to.length) { esito.push(trip.destinazione + ': nessun destinatario'); return; }
+    MailApp.sendEmail({ to: to.join(','), subject: msg.subject, body: msg.text, htmlBody: msg.html, name: 'TripHub' });
+    esito.push(trip.destinazione + ': inviato a ' + to.length);
+  });
+  var out = esito.length ? esito.join(' · ') : 'nessun viaggio in programma';
+  Logger.log(out);
+  return out;
+}
+
+/** Prova a secco: scrive nel log cosa manderebbe, senza inviare. */
+function previewDigest() {
+  var out = [];
+  dgTripsAttivi().forEach(function (trip) {
+    var msg = dgBuild(trip, listAll(trip.id, null));
+    out.push('=== ' + trip.destinazione + ' → ' + (msg ? dgRecipients(listAll(trip.id, null)).join(', ') || '(nessun destinatario)' : 'niente da dire'));
+    if (msg) out.push(msg.text);
+  });
+  var txt = out.join('\n') || 'nessun viaggio in programma';
+  Logger.log(txt);
+  return txt;
+}
+
+// ---- selezione viaggi e destinatari ----
+function dgTripsAttivi() {
+  var oggi = dgToday();
+  return listRows('Viaggi').filter(function (v) {
+    if (/annull/i.test(String(v.stato || ''))) return false;
+    var a = dgIso(v.data_inizio), b = dgIso(v.data_fine);
+    if (b) return b >= oggi;
+    return a ? a >= oggi : false;
+  });
+}
+function dgRecipients(all) {
+  var seen = {}, out = [];
+  var add = function (e) {
+    e = String(e || '').trim().toLowerCase();
+    if (e && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && !seen[e]) { seen[e] = true; out.push(e); }
+  };
+  (all.Partecipanti || []).forEach(function (p) { add(p.email); });
+  try { add(Session.getEffectiveUser().getEmail()); } catch (ignore) {}
+  return out;
+}
+
+// ---- il contenuto ----
+function dgBuild(trip, all) {
+  var oggi = dgToday();
+  var inizio = dgIso(trip.data_inizio), fine = dgIso(trip.data_fine);
+  var giorni = inizio ? dgDays(oggi, inizio) : null;
+  var nome = trip.destinazione || trip.nome || 'Viaggio';
+  var voci = dgChecklist(trip, all, oggi);
+  var conti = dgConti(all);
+
+  var vicino = giorni !== null && giorni >= 0 && giorni <= 14;
+  var soldi = conti && (conti.trasferimenti.length > 0 || conti.daPagare > 0.005);
+  if (!voci.length && !vicino && !soldi) return null;
+
+  var quando = giorni === null ? ''
+    : giorni < 0 ? 'in viaggio' + (fine ? ', rientro il ' + dgIt(fine) : '')
+    : giorni === 0 ? 'si parte oggi'
+    : giorni === 1 ? 'si parte domani'
+    : 'mancano ' + giorni + ' giorni';
+
+  var T = [], H = [];
+  var h = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+
+  T.push(nome + (quando ? ' — ' + quando : ''));
+  H.push('<h2 style="margin:0 0 4px;font-size:20px">' + h(nome) + '</h2>');
+  if (quando) H.push('<div style="color:#7a6f5a;margin-bottom:14px">' + h(quando) + '</div>');
+
+  if (voci.length) {
+    T.push(''); T.push('Da fare:');
+    H.push('<h3 style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#d1622a;margin:16px 0 6px">Da fare</h3><ul style="padding-left:18px;margin:0">');
+    voci.forEach(function (v) {
+      T.push((v.grave ? '! ' : '- ') + v.testo);
+      H.push('<li style="margin:3px 0' + (v.grave ? ';font-weight:600' : '') + '">' + h(v.testo) + '</li>');
+    });
+    H.push('</ul>');
+  }
+
+  if (conti) {
+    T.push(''); T.push('Soldi: costa ' + dgEur(conti.costo) + ' · usciti ' + dgEur(conti.uscito) + ' · da pagare ' + dgEur(conti.daPagare));
+    H.push('<h3 style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#d1622a;margin:16px 0 6px">Soldi</h3>');
+    H.push('<div>Il viaggio costa <b>' + dgEur(conti.costo) + '</b> · già usciti ' + dgEur(conti.uscito) + ' · ancora da pagare <b>' + dgEur(conti.daPagare) + '</b></div>');
+    if (conti.trasferimenti.length) {
+      T.push('Per pareggiare:');
+      H.push('<div style="margin-top:6px">Per pareggiare:</div><ul style="padding-left:18px;margin:0">');
+      conti.trasferimenti.forEach(function (t) {
+        T.push('- ' + t.da + ' → ' + t.a + ': ' + dgEur(t.importo));
+        H.push('<li>' + h(t.da) + ' → ' + h(t.a) + ': <b>' + dgEur(t.importo) + '</b></li>');
+      });
+      H.push('</ul>');
+    } else if (conti.uscito > 0.005) {
+      T.push('Siete in pari.');
+      H.push('<div style="color:#3f7d5c">Siete in pari ✓</div>');
+    }
+  }
+
+  T.push(''); T.push('— TripHub, promemoria automatico del lunedì');
+  var html = '<div style="font-family:system-ui,sans-serif;max-width:560px;color:#17324d;background:#f2ede1;padding:20px;border-radius:12px">'
+    + H.join('') + '<div style="margin-top:18px;font-size:11px;color:#7a6f5a">TripHub · promemoria automatico del lunedì</div></div>';
+
+  return { subject: '✈️ ' + nome + (quando ? ' · ' + quando : ''), text: T.join('\n'), html: html };
+}
+
+/** Le stesse voci del riquadro "Prima di partire" dell'app. */
+function dgChecklist(trip, all, oggi) {
+  var out = [];
+  var add = function (grave, testo) { out.push({ grave: grave, testo: testo }); };
+  var fine = dgIso(trip.data_fine);
+
+  var g = dgGroups(all.Voli || []);
+  var keys = Object.keys(g);
+  if (keys.length && !keys.some(function (k) { return dgChosen(g[k]); }))
+    add(true, keys.length + ' opzion' + (keys.length === 1 ? 'e' : 'i') + ' di volo, nessuna scelta');
+  var alg = all.Alloggi || [];
+  if (alg.length && !alg.some(function (a) { return dgTruthy(a.scelto); }))
+    add(true, alg.length + ' opzion' + (alg.length === 1 ? 'e' : 'i') + ' di alloggio, nessuna scelta');
+
+  var daPren = (all.CoseDaFare || []).filter(function (r) { return dgTruthy(r.prenotazione_req) && !dgTruthy(r.confermata); });
+  if (daPren.length)
+    add(true, daPren.length + ' attività da prenotare: ' + daPren.slice(0, 4).map(function (r) { return r.attivita; }).filter(Boolean).join(', ') + (daPren.length > 4 ? '…' : ''));
+
+  var scad = (all.Partecipanti || []).filter(function (p) { var s = dgIso(p.scadenza_doc); return s && fine && s < fine; });
+  if (scad.length)
+    add(true, 'documento in scadenza prima del rientro: ' + scad.map(dgName).join(', '));
+
+  var scadenze = [];
+  alg.filter(function (a) { return dgTruthy(a.scelto) && dgIso(a.scadenza_pag); })
+    .forEach(function (a) { scadenze.push({ nome: a.struttura || 'Alloggio', quando: dgIso(a.scadenza_pag) }); });
+  keys.filter(function (k) { return dgChosen(g[k]) && dgIso(g[k][0].scadenza_pag); })
+    .forEach(function (k) { scadenze.push({ nome: 'Volo ' + dgRoute(g[k]), quando: dgIso(g[k][0].scadenza_pag) }); });
+  scadenze.sort(function (a, b) { return a.quando < b.quando ? -1 : 1; }).forEach(function (x) {
+    var d = dgDays(oggi, x.quando);
+    if (d < 0) add(true, x.nome + ': il pagamento era da fare entro il ' + dgIt(x.quando));
+    else if (d <= 30) add(d <= 7, x.nome + ': da pagare entro il ' + dgIt(x.quando) + ' (' + (d === 0 ? 'oggi' : d + ' giorni') + ')');
+  });
+
+  var idee = (all.CoseDaFare || []).filter(function (r) { return !dgIso(r.data); }).length;
+  if (idee) add(false, idee + ' ide' + (idee === 1 ? 'a' : 'e') + ' ancora senza data');
+
+  return out;
+}
+
+// ---- porting dei conti (deve dare gli stessi numeri del frontend) ----
+function dgConti(all) {
+  var nomi = dgPeople(all);
+  if (!nomi.length) return null;
+  var bal = {}; nomi.forEach(function (n) { bal[n] = 0; });
+  var uscito = 0, ignoti = [];
+
+  dgMovimenti(all).forEach(function (m) {
+    if (!m.valido) { [m.chi, m.verso].forEach(function (n) { if (n && nomi.indexOf(n) < 0 && ignoti.indexOf(n) < 0) ignoti.push(n); }); return; }
+    if (m.tipo === 'rimborso') { bal[m.chi] += m.importo; bal[m.verso] -= m.importo; return; }
+    bal[m.chi] += m.importo;
+    uscito += m.importo;
+    var fra = dgPayers(m.paganti, nomi).filter(function (n) { return n in bal; });
+    var set = fra.length ? fra : nomi;
+    var q = m.importo / set.length;
+    set.forEach(function (n) { bal[n] -= q; });
+  });
+
+  var righe = nomi.map(function (n) { return { nome: n, saldo: dgRound2(bal[n]) }; });
+  var costo = 0;
+  (all.Alloggi || []).forEach(function (a) { if (dgTruthy(a.scelto)) costo += dgNum(a.totale); });
+  (all.Voli || []).forEach(function (v) { if (dgTruthy(v.scelto)) costo += dgNum(v.totale) + dgNum(v.costo_bagaglio); });
+  (all.Spese || []).forEach(function (x) { costo += dgNum(x.totale); });
+
+  return {
+    righe: righe, ignoti: ignoti,
+    trasferimenti: dgSimplify(righe),
+    costo: dgRound2(costo), uscito: dgRound2(uscito),
+    daPagare: dgRound2(Math.max(0, costo - uscito))
+  };
+}
+
+function dgMovimenti(all) {
+  var nomi = dgPeople(all);
+  var noto = function (n) { return nomi.indexOf(String(n || '').trim()) >= 0; };
+  var out = [];
+  (all.Spese || []).forEach(function (x) {
+    var q = dgNum(x.totale), chi = String(x.pagato_da || '').trim();
+    if (!q || !chi) return;
+    out.push({ tipo: 'anticipo', chi: chi, verso: '', importo: q, valido: noto(chi), paganti: x.paganti || '' });
+  });
+  (all.Pagamenti || []).forEach(function (p) {
+    var q = dgNum(p.importo);
+    if (!q) return;
+    var tipo = String(p.tipo || '').toLowerCase() === 'rimborso' ? 'rimborso' : 'anticipo';
+    var chi = String(p.chi || '').trim(), verso = String(p.verso || '').trim();
+    out.push({ tipo: tipo, chi: chi, verso: verso, importo: q, paganti: p.paganti || '',
+      valido: noto(chi) && (tipo === 'anticipo' || noto(verso)) });
+  });
+  (all.Alloggi || []).forEach(function (a) {
+    var chi = String(a.pagato_da || '').trim(), q = dgNum(a.totale);
+    if (dgTruthy(a.scelto) && chi && q) out.push({ tipo: 'anticipo', chi: chi, verso: '', importo: q, valido: noto(chi), paganti: '' });
+  });
+  (all.Voli || []).forEach(function (v) {
+    var chi = String(v.pagato_da || '').trim(), q = dgNum(v.totale) + dgNum(v.costo_bagaglio);
+    if (dgTruthy(v.scelto) && chi && q) out.push({ tipo: 'anticipo', chi: chi, verso: '', importo: q, valido: noto(chi), paganti: v.paganti || '' });
+  });
+  return out;
+}
+
+function dgSimplify(righe) {
+  var eps = 0.005;
+  var cred = righe.filter(function (r) { return r.saldo > eps; }).map(function (r) { return { nome: r.nome, v: r.saldo }; });
+  var debt = righe.filter(function (r) { return r.saldo < -eps; }).map(function (r) { return { nome: r.nome, v: -r.saldo }; });
+  var bySize = function (a, b) { return (b.v - a.v) || a.nome.localeCompare(b.nome, 'it'); };
+  cred.sort(bySize); debt.sort(bySize);
+  var out = [], i = 0, j = 0;
+  while (i < debt.length && j < cred.length) {
+    var q = Math.min(debt[i].v, cred[j].v);
+    if (q > eps) out.push({ da: debt[i].nome, a: cred[j].nome, importo: dgRound2(q) });
+    debt[i].v -= q; cred[j].v -= q;
+    if (debt[i].v <= eps) i++;
+    if (cred[j].v <= eps) j++;
+  }
+  return out;
+}
+
+// ---- piccoli helper, stessi criteri del frontend ----
+function dgTruthy(v) { var s = String(v == null ? '' : v).toLowerCase().trim(); return ['sì', 'si', 'true', '1', 'x', 'yes', '✓'].indexOf(s) >= 0; }
+function dgNum(v) { return Number(String(v == null ? '' : v).replace(/[^\d.-]/g, '')) || 0; }
+function dgRound2(n) { return Math.round((Number(n) + Number.EPSILON) * 100) / 100; }
+function dgEur(n) { return '€ ' + (Number(n) || 0).toFixed(2).replace('.', ','); }
+function dgName(p) { return [p.nome, p.cognome].filter(Boolean).join(' ').trim() || '(senza nome)'; }
+function dgPeople(all) {
+  return (all.Partecipanti || []).map(dgName).sort(function (a, b) { return a.localeCompare(b, 'it'); });
+}
+function dgPayers(paganti, nomi) {
+  var s = String(paganti || '').trim();
+  if (!s || s.toLowerCase() === 'tutti') return nomi.slice();
+  return s.split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+}
+function dgGroups(voli) {
+  var g = {};
+  voli.forEach(function (r) { var k = r.gruppo_id || r.id; (g[k] = g[k] || []).push(r); });
+  Object.keys(g).forEach(function (k) {
+    g[k].sort(function (a, b) {
+      var d = (dgRit(a) ? 1 : 0) - (dgRit(b) ? 1 : 0);
+      return d || dgNum(a.tratta) - dgNum(b.tratta);
+    });
+  });
+  return g;
+}
+function dgRit(r) { return String(r.direzione || '').toLowerCase().indexOf('rit') === 0; }
+function dgChosen(legs) { return legs.some(function (l) { return dgTruthy(l.scelto); }); }
+function dgRoute(legs) {
+  var iata = function (v) { var m = String(v || '').trim().toUpperCase().match(/^([A-Z]{3})\b/); return m ? m[1] : String(v || ''); };
+  return legs.map(function (l) { return iata(l.da); }).concat(iata(legs[legs.length - 1].a)).join(' → ');
+}
+function dgIso(raw) {
+  if (!raw) return '';
+  if (raw instanceof Date) return Utilities.formatDate(raw, 'Europe/Rome', 'yyyy-MM-dd');
+  var s = String(raw).trim(), m;
+  if ((m = s.match(/^(\d{4})-(\d{2})-(\d{2})/))) return m[1] + '-' + m[2] + '-' + m[3];
+  if ((m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/))) {
+    var y = m[3]; if (y.length === 2) y = '20' + y;
+    return y + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2);
+  }
+  return '';
+}
+function dgIt(iso) { var p = String(iso).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0].slice(2) : iso; }
+function dgToday() { return Utilities.formatDate(new Date(), 'Europe/Rome', 'yyyy-MM-dd'); }
+function dgDays(a, b) { return Math.round((Date.parse(b + 'T12:00:00Z') - Date.parse(a + 'T12:00:00Z')) / 86400000); }

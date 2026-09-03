@@ -30,6 +30,7 @@ interamente nel browser con dati inventati, non serve nessun codice.
 | 🧳 **Valigia** | Liste con modelli pronti, aggiunta rapida, spunta per persona |
 | ☎️ **Contatti e info** | Numeri utili, informazioni sulla destinazione |
 | 🖨 **Esportazioni** | Dossier PDF del viaggio, file `.ics` per il calendario del telefono |
+| 📧 **Promemoria** | Ogni lunedì un'email con quello che manca: scelte, prenotazioni, scadenze, chi deve a chi |
 
 ---
 
@@ -106,7 +107,7 @@ mano.
 | File | | |
 |---|---:|---|
 | [`index.html`](index.html) | 6.600 righe | tutta la SPA: routing, viste, form, PDF, ICS, demo |
-| [`Codice.gs`](Codice.gs) | 990 righe | Web App Apps Script: CRUD, controllo accessi, batch |
+| [`Codice.gs`](Codice.gs) | 1.330 righe | Web App Apps Script: CRUD, controllo accessi, batch, promemoria email |
 | [`style.css`](style.css) | 585 righe | |
 | [`test.html`](test.html) | 350 righe | i test, senza framework |
 
@@ -171,6 +172,17 @@ Serve un account Google. Dieci minuti.
 I codici di accesso dei singoli viaggi si generano dall'app quando crei un
 viaggio.
 
+**Promemoria via email** — facoltativo. Dall'editor esegui una volta
+`installDigestTrigger()`: ogni lunedì alle 8 i partecipanti (e tu) ricevono un
+riassunto di quello che manca per ciascun viaggio non ancora concluso. Se non
+c'è niente da dire, non manda niente. Per vedere cosa manderebbe senza spedire:
+`previewDigest()`. Per spegnerlo: `removeDigestTrigger()`.
+
+**Se aggiorni da una versione precedente** che salvava i numeri dei documenti:
+`purgeDroppedColumns()` svuota quelle colonne nel foglio. L'app ha già smesso di
+leggerle e scriverle a prescindere, ma i dati vecchi restano lì finché non lo
+lanci.
+
 ---
 
 ## Sviluppo e test
@@ -206,8 +218,9 @@ Le cose che so che non vanno, dette prima che le scopra qualcun altro.
 - **Nessun tempo reale.** I dati si aggiornano quando premi ⟳ o quando torni sulla
   scheda dopo un minuto. Non c'è push.
 - **La sicurezza è un codice condiviso.** Chi ha il codice del viaggio vede tutto
-  quel viaggio, documenti compresi. I codici girano su WhatsApp e non scadono: se
-  ci metti dentro numeri di documento, tienilo presente.
+  quel viaggio. I codici girano su WhatsApp e non scadono. Per questo l'app **non
+  salva numeri di documento né codici fiscali**: tiene solo tipo e scadenza, che
+  sono l'unica cosa che le serve (per l'avviso "scade prima del rientro").
 - **Annullare vale solo per le eliminazioni**, non per le modifiche.
 - **Apps Script non è veloce.** Una risposta sta fra uno e tre secondi. La cache in
   memoria e gli aggiornamenti ottimistici servono a non farlo pesare, non a
@@ -215,6 +228,4 @@ Le cose che so che non vanno, dette prima che le scopra qualcun altro.
 
 ## Licenza
 
-Da scegliere. Senza un file `LICENSE` il codice resta formalmente "tutti i diritti
-riservati" e nessuno può riutilizzarlo — se l'intenzione è mostrarlo e basta va
-bene così, altrimenti MIT è la scelta consueta.
+[MIT](LICENSE).

@@ -1575,9 +1575,9 @@ function checklistBox(d){
   const scad = persone.filter(p=>docScade(p.scadenza_doc, t.data_fine));
   if(scad.length)
     add(true, '🪪', `documento in scadenza prima del rientro: ${scad.map(pName).join(', ')}`, 'partecipanti', 'controlla');
-  const senzaDoc = persone.filter(p=>!String(p.num_doc||'').trim());
+  const senzaDoc = persone.filter(p=>!toISODate(p.scadenza_doc));
   if(senzaDoc.length && persone.length)
-    add(false, '📄', `${senzaDoc.length} partecipant${senzaDoc.length===1?'e senza documento':'i senza documento'}`, 'partecipanti', 'completa');
+    add(false, '📄', `${senzaDoc.length} partecipant${senzaDoc.length===1?'e senza la scadenza del documento':'i senza la scadenza del documento'}`, 'partecipanti', 'completa');
 
   // idee ancora senza data
   const idee = (d.CoseDaFare||[]).filter(r=>!toISODate(r.data));
@@ -1731,12 +1731,6 @@ function docScade(scadenzaISO, fineViaggioISO){
   if(!s || !f) return false;
   return s < f;
 }
-function maskDoc(v){
-  const s = String(v||'').trim();
-  if(!s) return '';
-  if(s.length<=4) return '••••';
-  return '••••'+s.slice(-4);
-}
 
 function secPartecipanti(rows, tid){
   rows = (rows||[]).slice().sort((a,b)=>pName(a).localeCompare(pName(b),'it'));
@@ -1758,17 +1752,10 @@ function secPartecipanti(rows, tid){
           </div>
         </div>
         <div class="mt-2" style="font-size:.82rem">
-          ${p.tipo_doc||p.num_doc?`<div class="d-flex align-items-center gap-2 mb-1">
-            <span class="chip">${esc(p.tipo_doc||'documento')}</span>
-            ${p.num_doc?`<span class="mono" data-doc="${esc(p.num_doc)}">${esc(maskDoc(p.num_doc))}</span>
-              <button class="link-btn" type="button" onclick="revealDoc(this)">mostra</button>`:''}
-          </div>`:''}
+          ${p.tipo_doc?`<div class="mb-1"><span class="chip">${esc(p.tipo_doc)}</span></div>`:''}
           ${p.scadenza_doc?`<div class="mono" style="font-size:.78rem;${scade?'color:var(--danger);font-weight:600':'color:var(--ink-soft)'}">
             scad. ${toITDate(p.scadenza_doc)} ${scade?'⚠️ scade prima/durante il viaggio':''}</div>`:''}
           ${p.nazionalita?`<div style="font-size:.78rem;color:var(--muted)">${esc(p.nazionalita)}</div>`:''}
-          ${p.cod_fiscale?`<div class="d-flex align-items-center gap-2 mt-1">
-            <span class="mono" style="font-size:.72rem" data-doc="${esc(p.cod_fiscale)}">${esc(maskDoc(p.cod_fiscale))}</span>
-            <button class="link-btn" type="button" onclick="revealDoc(this)">mostra</button></div>`:''}
           ${(p.telefono||p.email)?`<div style="font-size:.78rem;color:var(--ink-soft);margin-top:.3rem">
             ${telHref(p.telefono)?`<a href="${esc(telHref(p.telefono))}">${esc(p.telefono)}</a>`:esc(p.telefono||'')}${p.telefono&&p.email?' · ':''}${p.email?`<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>`:''}</div>`:''}
           ${p.note?`<div style="font-size:.76rem;color:var(--muted);margin-top:.3rem">${esc(p.note)}</div>`:''}
@@ -1784,10 +1771,6 @@ function secPartecipanti(rows, tid){
     </div>` : '';
 
   return `
-    <div class="sheet p-3 mb-3" style="border-color:#d9cfa8;background:#fbf6e3">
-      🔒 <strong>Dati sensibili.</strong> Questa sezione contiene documenti personali. I numeri sono mascherati
-      di default; chi ha il codice di questo viaggio può comunque vederli. Condividilo solo con i partecipanti.
-    </div>
     ${alertScad}
     <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
       <p class="eyebrow mb-0">${rows.length} partecipant${rows.length===1?'e':'i'}</p>
@@ -1801,14 +1784,6 @@ function secPartecipanti(rows, tid){
          <div>Aggiungi le persone: il numero viaggiatori e i nomi verranno usati ovunque.</div></div>`}`;
 }
 
-function revealDoc(btn){
-  const span = btn.parentElement.querySelector('[data-doc]');
-  if(!span) return;
-  const full = span.getAttribute('data-doc');
-  if(btn.textContent==='mostra'){ span.textContent = full; btn.textContent='nascondi'; }
-  else { span.textContent = maskDoc(full); btn.textContent='mostra'; }
-}
-
 const LABELS = {
   checkin:'check-in', checkout:'check-out', ora_checkin:'ora check-in', ora_checkout:'ora check-out',
   n_volo:'n° volo', ora_part:'orario', ora:'orario',
@@ -1816,7 +1791,7 @@ const LABELS = {
   prezzo_testa:'a testa', prezzo_testa_notte:'a testa/notte', prezzo_notte:'a notte',
   data_part:'data part.', data_arr:'data arr.', ora_arr:'ora arr.',
   data_nascita:'data di nascita', luogo_nascita:'luogo di nascita', tipo_doc:'tipo documento',
-  num_doc:'n° documento', scadenza_doc:'scadenza documento', cod_fiscale:'codice fiscale',
+  scadenza_doc:'scadenza documento — è l’unica cosa che serve, il numero non si salva',
   nazionalita:'nazionalità', paganti:'paganti', chi:'chi', n_persone:'n° persone',
   costo_bagaglio:'costo bagagli', pnr:'n° prenotazione', mappa_link:'link mappa',
   codice:'codice di accesso',
@@ -4641,8 +4616,8 @@ function infoTemplateModal(tid){
    ============================================================ */
 const FIELD_ORDER = {
   Viaggi:['nome','destinazione','paese','data_inizio','data_fine','n_persone','stato','codice','note'],
-  Partecipanti:['nome','cognome','data_nascita','luogo_nascita','tipo_doc','num_doc','scadenza_doc','nazionalita','cod_fiscale','telefono','email','note'],
-  Rubrica:['nome','cognome','data_nascita','luogo_nascita','tipo_doc','num_doc','scadenza_doc','nazionalita','cod_fiscale','telefono','email','note'],
+  Partecipanti:['nome','cognome','data_nascita','luogo_nascita','tipo_doc','scadenza_doc','nazionalita','telefono','email','note'],
+  Rubrica:['nome','cognome','data_nascita','luogo_nascita','tipo_doc','scadenza_doc','nazionalita','telefono','email','note'],
   Alloggi:['struttura','checkin','ora_checkin','checkout','ora_checkout','notti','persone','totale','prezzo_notte','prezzo_testa','prezzo_testa_notte','extra','link','indirizzo','mappa_link','posizione','pnr','valutazione','scelto','note'],
   Spese:['data','descrizione','categoria','pagato_da','paganti','totale','prezzo_testa','note'],
   CoseDaFare:['attivita','tipo','posizione','durata','quando','data','ora','persone','costo','prezzo_testa','prenotazione_req','link','note','confermata'],
@@ -4659,7 +4634,6 @@ const CUR_FIELDS = ['totale','prezzo_notte','prezzo_testa','prezzo_testa_notte',
 const LINK_FIELDS = ['link','mappa_link'];
 const DATE_FIELDS = ['data_inizio','data_fine','checkin','checkout','data_part','data_arr','data','data_nascita','scadenza_doc','scadenza_pag'];
 const TIME_FIELDS = ['ora_part','ora_arr','ora','ora_checkin','ora_checkout'];
-const SENSITIVE_FIELDS = ['num_doc','cod_fiscale'];
 
 const AIRLINES = [
   'Aegean Airlines','Aer Lingus','Aeroflot','Air Canada','Air Dolomiti','Air France','Air Malta',
@@ -6040,8 +6014,8 @@ async function volSave(){
    ============================================================ */
 let RUBRICA = null;
 let RUBRICA_PICK = false;
-const RUBRICA_FIELDS = ['nome','cognome','data_nascita','luogo_nascita','tipo_doc','num_doc',
-  'scadenza_doc','nazionalita','cod_fiscale','telefono','email','note'];
+const RUBRICA_FIELDS = ['nome','cognome','data_nascita','luogo_nascita','tipo_doc',
+  'scadenza_doc','nazionalita','telefono','email','note'];
 
 async function loadRubrica(force){
   if(RUBRICA && !force) return RUBRICA;
@@ -6107,7 +6081,7 @@ async function openRubrica(pick){
           <label class="flex-grow-1 mb-0" ${pick?`for="rub_${i}"`:''} style="min-width:0;cursor:${pick?'pointer':'default'}">
             <div style="font-weight:600">${esc(pName(r))} ${già?'<span class="chip pick">già nel viaggio</span>':''}</div>
             <div class="mono" style="font-size:.72rem;color:var(--muted)">
-              ${r.tipo_doc?esc(r.tipo_doc)+' ':''}${r.num_doc?esc(maskDoc(r.num_doc)):''}${r.scadenza_doc?' · scad. '+toITDate(r.scadenza_doc):''}${r.telefono?' · '+esc(r.telefono):''}</div>
+              ${r.tipo_doc?esc(r.tipo_doc):''}${r.scadenza_doc?' · scad. '+toITDate(r.scadenza_doc):''}${r.telefono?' · '+esc(r.telefono):''}</div>
           </label>
           <div class="text-nowrap">
             <button class="icon-btn" title="Modifica" onclick="editRowById('Rubrica','${jsArg(r.id)}')">✎</button>
@@ -6163,7 +6137,6 @@ function printDossier(){
          ['pd_budget','💶 Budget e quote per persona',true],
          ['pd_conti','🧾 Conti: movimenti, saldi e bonifici',true],
          ['pd_part','👥 Elenco partecipanti',true],
-         ['pd_doc','🪪 Numeri dei documenti (dati sensibili)',false],
          ['pd_att','📅 Programma delle attività',true],
          ['pd_cont','☎️ Contatti utili',true],
          ['pd_info','ℹ️ Info destinazione',true],
@@ -6174,7 +6147,7 @@ function printDossier(){
     </div>`;
   $('#mSave').onclick = ()=>{
     const o = {};
-    ['pd_voli','pd_alloggi','pd_budget','pd_conti','pd_part','pd_doc','pd_att','pd_cont','pd_info','pd_cp']
+    ['pd_voli','pd_alloggi','pd_budget','pd_conti','pd_part','pd_att','pd_cont','pd_info','pd_cp']
       .forEach(id=>{ const el=$('#'+id); o[id.slice(3)] = !!(el && el.checked); });
     MODAL.hide();
     setTimeout(()=>doPrintDossier(o), 350);
@@ -6282,8 +6255,8 @@ function buildDossier(o){
   if(o.part && people.length){
     out.push(`<div class="pd-sec"><h2>👥 Partecipanti</h2>${pdBox(
       people.map(p=>`<div class="pd-row"><span>${esc(pName(p))}${p.data_nascita?` <span class="pd-note">${toITDate(p.data_nascita)}</span>`:''}</span>
-        <span class="pd-mono">${o.doc && p.num_doc ? esc(p.tipo_doc||'doc')+' '+esc(p.num_doc)+(p.scadenza_doc?' · scad. '+toITDate(p.scadenza_doc):'') : esc(p.telefono||'')}</span></div>`).join('')
-    )}${o.doc?`<div class="pd-note">⚠️ Questo documento contiene numeri di documenti personali: conservalo con attenzione.</div>`:''}</div>`);
+        <span class="pd-mono">${p.scadenza_doc ? esc(p.tipo_doc||'documento')+' · scad. '+toITDate(p.scadenza_doc) : esc(p.telefono||'')}</span></div>`).join('')
+    )}</div>`);
   }
 
   if(o.att){
