@@ -50,9 +50,9 @@
 const SCHEMA = {
   Viaggi:      ['id','nome','destinazione','paese','data_inizio','data_fine','n_persone','stato','note','codice'],
   Partecipanti:['id','viaggio_id','nome','cognome','data_nascita','luogo_nascita','tipo_doc','num_doc','scadenza_doc','nazionalita','cod_fiscale','telefono','email','note'],
-  Alloggi:     ['id','viaggio_id','struttura','checkin','ora_checkin','checkout','ora_checkout','notti','persone','prezzo_notte','extra','totale','prezzo_testa','prezzo_testa_notte','link','indirizzo','posizione','valutazione','scelto','note','mappa_link','pnr'],
-  Voli:        ['id','viaggio_id','gruppo_id','opzione','direzione','tratta','persone','paganti','compagnia','n_volo','da','a','data_part','ora_part','data_arr','ora_arr','scalo','totale','prezzo_testa','bagaglio','scelto','note','costo_bagaglio','pnr'],
-  Spese:       ['id','viaggio_id','data','descrizione','categoria','paganti','persone','totale','prezzo_testa','note'],
+  Alloggi:     ['id','viaggio_id','struttura','checkin','ora_checkin','checkout','ora_checkout','notti','persone','prezzo_notte','extra','totale','prezzo_testa','prezzo_testa_notte','link','indirizzo','posizione','valutazione','scelto','note','mappa_link','pnr','pagato_da'],
+  Voli:        ['id','viaggio_id','gruppo_id','opzione','direzione','tratta','persone','paganti','compagnia','n_volo','da','a','data_part','ora_part','data_arr','ora_arr','scalo','totale','prezzo_testa','bagaglio','scelto','note','costo_bagaglio','pnr','pagato_da'],
+  Spese:       ['id','viaggio_id','data','descrizione','categoria','paganti','persone','totale','prezzo_testa','note','pagato_da'],
   CoseDaFare:  ['id','viaggio_id','data','ora','tipo','attivita','posizione','durata','persone','costo','prezzo_testa','prenotazione_req','quando','link','note','confermata'],
   CosaPortare: ['id','viaggio_id','categoria','cosa','qta','chi','spuntato','priorita','note'],
   Contatti:    ['id','viaggio_id','categoria','nome','telefono','link','indirizzo','note','email','mappa_link'],
@@ -75,7 +75,7 @@ const TEXT_COLS = ['data_inizio','data_fine','checkin','checkout','data_part','d
                    'telefono','num_doc','cod_fiscale','n_volo'];
 
 // Azioni che modificano i dati (protette da LockService)
-const WRITE_ACTIONS = ['create','update','delete','create_many','delete_group','replace_group',
+const WRITE_ACTIONS = ['create','update','delete','create_many','update_many','delete_group','replace_group',
                        'import','delete_trip','set_scelta','merge_groups','set_flags'];
 
 // ============================================================
@@ -118,6 +118,7 @@ function handle(e, method) {
     else if (action === 'update')        out = updateGuarded(ctx, sheet, req.record);
     else if (action === 'delete')        out = deleteGuarded(ctx, sheet, req.id);
     else if (action === 'create_many')   out = createManyGuarded(ctx, sheet, req.records);
+    else if (action === 'update_many')   out = updateManyGuarded(ctx, sheet, req.records);
     else if (action === 'delete_group')  out = deleteGroup(sheet, req.gruppo_id, req.ids, ctx);
     else if (action === 'replace_group') out = replaceGroupGuarded(ctx, sheet, req.gruppo_id, req.records, req.ids);
     else if (action === 'set_scelta')    out = setSceltaGuarded(ctx, req.viaggio_id, req.gruppo_id, req.on);
@@ -146,12 +147,54 @@ function handle(e, method) {
  *   { role:'trip',  trips:{ id:true, ... } }  → solo quei viaggi
  *   null                                      → codice non valido
  */
+/**
+ * Il risultato viene messo in CacheService: senza cache OGNI chiamata
+ * dell'app rileggeva l'intero foglio Viaggi solo per capire chi sei, e
+ * una lettura di foglio costa piu' di tutto il resto della richiesta.
+ *
+ * La cache e' "namespaced": ogni scrittura sui Viaggi incrementa AUTH_NS,
+ * quindi le vecchie voci diventano irraggiungibili all'istante. Cosi' un
+ * codice cambiato o un viaggio eliminato hanno effetto subito, senza
+ * aspettare la scadenza.
+ */
+var AUTH_TTL = 600;   // 10 minuti: oltre, si rilegge comunque
+
+function authCacheKey(ns, token) {
+  var raw = 'a1|' + ns + '|' + token;
+  var d = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, raw, Utilities.Charset.UTF_8);
+  var out = '';
+  for (var i = 0; i < d.length; i++) out += ('0' + (d[i] & 0xFF).toString(16)).slice(-2);
+  return 'auth_' + out;
+}
+
+function bumpAuthNs() {
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var n = Number(props.getProperty('AUTH_NS') || '0') || 0;
+    props.setProperty('AUTH_NS', String((n + 1) % 1000000));
+  } catch (ignore) {}
+}
+
 function authContext(token) {
   token = String(token == null ? '' : token).trim();
   if (!token) return null;
 
-  var master = PropertiesService.getScriptProperties().getProperty('API_TOKEN');
+  // una sola chiamata a Properties per master token + namespace della cache
+  var props  = PropertiesService.getScriptProperties().getProperties() || {};
+  var master = props.API_TOKEN;
   if (master && token === String(master).trim()) return { role: 'admin', trips: null };
+
+  var ns    = props.AUTH_NS || '0';
+  var cache = null, key = null;
+  try {
+    cache = CacheService.getScriptCache();
+    key   = authCacheKey(ns, token);
+    var hit = cache.get(key);
+    if (hit) {
+      var v = JSON.parse(hit);
+      return v.ok ? { role: 'trip', trips: v.trips } : null;
+    }
+  } catch (ignore) { cache = null; }
 
   // codice di viaggio: confronto senza distinzione fra maiuscole e minuscole
   var wanted = token.toLowerCase();
@@ -161,6 +204,13 @@ function authContext(token) {
     var c = String(v.codice == null ? '' : v.codice).trim().toLowerCase();
     if (c && c === wanted) { trips[String(v.id)] = true; found++; }
   });
+
+  if (cache && key) {
+    // anche il "codice sbagliato" va in cache, con vita breve: evita che
+    // un tentativo ripetuto rilegga il foglio a ogni colpo
+    try { cache.put(key, JSON.stringify({ ok: !!found, trips: trips }), found ? AUTH_TTL : 60); }
+    catch (ignore) {}
+  }
   return found ? { role: 'trip', trips: trips } : null;
 }
 
@@ -408,6 +458,73 @@ function updateRow(name, record) {
   throw 'id non trovato: ' + record.id;
 }
 
+/**
+ * Aggiorna PIU' righe con una sola lettura e una sola scrittura.
+ * Serve alle operazioni in blocco (es. "pianifica tutte le idee"): farle
+ * con N chiamate 'update' significa N invocazioni dello script, N lock e
+ * N riletture del foglio, cioe' diversi secondi di attesa per l'utente.
+ *
+ * Come 'update', i campi assenti dal record restano quelli che c'erano.
+ * viaggio_id non e' modificabile da qui: spostare una riga in un altro
+ * viaggio aggirerebbe il controllo di accesso fatto sulla riga di partenza.
+ */
+function updateMany(name, records, ctx) {
+  records = records || [];
+  if (!records.length) return [];
+  var sh  = getSheet(name);
+  var hdr = headers(sh, name);
+  var iId = hdr.indexOf('id');
+  var iV  = hdr.indexOf('viaggio_id');
+  if (iId < 0) throw 'nessuna colonna id';
+
+  var last = sh.getLastRow();
+  if (last < 2) return [];
+
+  var wanted = {};
+  records.forEach(function (r) {
+    r = sanitize(name, r || {});
+    if (r.id === '' || r.id == null) return;
+    delete r.viaggio_id;
+    wanted[String(r.id)] = r;
+  });
+
+  var values = sh.getRange(2, 1, last - 1, hdr.length).getValues();
+  var first = -1, lastChanged = -1;
+  var applied = [];
+
+  for (var i = 0; i < values.length; i++) {
+    var rec = wanted[String(values[i][iId])];
+    if (!rec) continue;
+    // stesso controllo di accesso di updateGuarded, ma sulla riga gia' letta
+    if (ctx && ctx.role !== 'admin' && iV >= 0 && !allowTrip(ctx, values[i][iV])) continue;
+    for (var c = 0; c < hdr.length; c++) {
+      var h = hdr[c];
+      if (!(h in rec)) continue;
+      var v = rec[h];
+      if (v === '' || v == null)          values[i][c] = '';
+      else if (NUM_COLS.indexOf(h) >= 0)  values[i][c] = Number(v);
+      else if (TEXT_COLS.indexOf(h) >= 0) values[i][c] = String(v);
+      else                                values[i][c] = v;
+    }
+    if (first < 0) first = i;
+    lastChanged = i;
+    applied.push(rec);
+  }
+  if (first < 0) return [];
+
+  // riscrivo solo il blocco che ho toccato, non tutto il foglio
+  var nRows = lastChanged - first + 1;
+  var block = values.slice(first, lastChanged + 1);
+  applyFormats(sh, first + 2, nRows, hdr);
+  sh.getRange(first + 2, 1, nRows, hdr.length).setValues(block);
+  return applied;
+}
+
+function updateManyGuarded(ctx, name, records) {
+  if (name === 'Rubrica' || name === 'Viaggi') adminOnly(ctx);
+  return updateMany(name, records, ctx);
+}
+
 function deleteRow(name, id) {
   var sh = getSheet(name);
   var hdr = headers(sh, name);
@@ -431,7 +548,9 @@ function createGuarded(ctx, name, record) {
   if (name === 'Viaggi') {
     adminOnly(ctx);
     if (!String(record.codice == null ? '' : record.codice).trim()) record.codice = genCode();
-    return createRow(name, record);
+    var createdTrip = createRow(name, record);
+    bumpAuthNs();
+    return createdTrip;
   }
   guardTrip(ctx, record.viaggio_id);
   return createRow(name, record);
@@ -444,7 +563,9 @@ function updateGuarded(ctx, name, record) {
     guardTrip(ctx, record.id);
     // solo l'amministratore può cambiare il codice di accesso
     if (ctx.role !== 'admin' && 'codice' in record) delete record.codice;
-    return updateRow(name, record);
+    var updatedTrip = updateRow(name, record);
+    bumpAuthNs();
+    return updatedTrip;
   }
   guardRow(ctx, name, record.id);
   return updateRow(name, record);
@@ -453,7 +574,9 @@ function updateGuarded(ctx, name, record) {
 function deleteGuarded(ctx, name, id) {
   if (name === 'Viaggi' || name === 'Rubrica') adminOnly(ctx);
   else guardRow(ctx, name, id);
-  return deleteRow(name, id);
+  var res = deleteRow(name, id);
+  if (name === 'Viaggi') bumpAuthNs();
+  return res;
 }
 
 function createManyGuarded(ctx, name, records) {
@@ -696,6 +819,7 @@ function deleteTrip(viaggioId) {
   });
   deleteRow('Viaggi', viaggioId);
   report.Viaggi = 1;
+  bumpAuthNs();
   return { id: viaggioId, deleted: report };
 }
 
@@ -726,6 +850,7 @@ function importAll(payload, mode) {
     if (!rows || !rows.length) { report[name] = 0; return; }
     report[name] = createMany(name, rows).length;
   });
+  bumpAuthNs();
   return report;
 }
 
