@@ -50,13 +50,17 @@
 const SCHEMA = {
   Viaggi:      ['id','nome','destinazione','paese','data_inizio','data_fine','n_persone','stato','note','codice'],
   Partecipanti:['id','viaggio_id','nome','cognome','data_nascita','luogo_nascita','tipo_doc','num_doc','scadenza_doc','nazionalita','cod_fiscale','telefono','email','note'],
-  Alloggi:     ['id','viaggio_id','struttura','checkin','ora_checkin','checkout','ora_checkout','notti','persone','prezzo_notte','extra','totale','prezzo_testa','prezzo_testa_notte','link','indirizzo','posizione','valutazione','scelto','note','mappa_link','pnr','pagato_da'],
-  Voli:        ['id','viaggio_id','gruppo_id','opzione','direzione','tratta','persone','paganti','compagnia','n_volo','da','a','data_part','ora_part','data_arr','ora_arr','scalo','totale','prezzo_testa','bagaglio','scelto','note','costo_bagaglio','pnr','pagato_da'],
+  Alloggi:     ['id','viaggio_id','struttura','checkin','ora_checkin','checkout','ora_checkout','notti','persone','prezzo_notte','extra','totale','prezzo_testa','prezzo_testa_notte','link','indirizzo','posizione','valutazione','scelto','note','mappa_link','pnr','pagato_da','scadenza_pag'],
+  Voli:        ['id','viaggio_id','gruppo_id','opzione','direzione','tratta','persone','paganti','compagnia','n_volo','da','a','data_part','ora_part','data_arr','ora_arr','scalo','totale','prezzo_testa','bagaglio','scelto','note','costo_bagaglio','pnr','pagato_da','scadenza_pag'],
   Spese:       ['id','viaggio_id','data','descrizione','categoria','paganti','persone','totale','prezzo_testa','note','pagato_da'],
   CoseDaFare:  ['id','viaggio_id','data','ora','tipo','attivita','posizione','durata','persone','costo','prezzo_testa','prenotazione_req','quando','link','note','confermata'],
   CosaPortare: ['id','viaggio_id','categoria','cosa','qta','chi','spuntato','priorita','note'],
   Contatti:    ['id','viaggio_id','categoria','nome','telefono','link','indirizzo','note','email','mappa_link'],
   InfoDest:    ['id','viaggio_id','sezione','chiave','valore','link'],
+  // Movimenti di denaro veri, separati dai COSTI (che stanno su Voli/Alloggi/Spese):
+  //  tipo 'anticipo' → chi ha tirato fuori i soldi, diviso fra `paganti`
+  //  tipo 'rimborso' → chi restituisce a chi (nessuna divisione)
+  Pagamenti:   ['id','viaggio_id','data','tipo','chi','verso','importo','riferimento','paganti','note'],
   // Anagrafica globale, NON legata a un viaggio: solo l'amministratore la vede.
   Rubrica:     ['id','nome','cognome','data_nascita','luogo_nascita','tipo_doc','num_doc','scadenza_doc','nazionalita','cod_fiscale','telefono','email','note']
 };
@@ -65,14 +69,14 @@ const SCHEMA = {
 const GLOBAL_SHEETS = ['Viaggi','Rubrica'];
 
 // Colonne che devono restare NUMERO puro (evita auto-conversione in data/ora da parte di Sheets)
-const NUM_COLS = ['totale','prezzo_notte','prezzo_testa','prezzo_testa_notte','extra','costo','notti','persone','qta','valutazione','n_persone','tratta','opzione','costo_bagaglio'];
+const NUM_COLS = ['totale','prezzo_notte','prezzo_testa','prezzo_testa_notte','extra','costo','notti','persone','qta','valutazione','n_persone','tratta','opzione','costo_bagaglio','importo'];
 
 // Colonne che devono restare TESTO esatto (date, ore, codici alfanumerici):
 // mai oggetti Date né numeri, altrimenti Sheets sfasa il giorno o mangia gli zeri iniziali.
 const TEXT_COLS = ['data_inizio','data_fine','checkin','checkout','data_part','data_arr','ora_part','ora_arr','data','ora','data_nascita','scadenza_doc','ora_checkin','ora_checkout','codice','pnr',
                    // numeri di telefono e documenti: il "+" iniziale verrebbe letto come formula,
                    // e gli zeri iniziali (0165..., 00358...) verrebbero mangiati.
-                   'telefono','num_doc','cod_fiscale','n_volo'];
+                   'telefono','num_doc','cod_fiscale','n_volo','scadenza_pag'];
 
 // Azioni che modificano i dati (protette da LockService)
 const WRITE_ACTIONS = ['create','update','delete','create_many','update_many','delete_group','replace_group',

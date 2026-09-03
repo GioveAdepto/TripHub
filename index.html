@@ -1076,7 +1076,7 @@ function pagatoDaSelect(id, val, label){
       <input class="form-control" id="${id}" value="${esc(v)}" placeholder="aggiungi prima i partecipanti">`;
   }
   return `<label class="form-label">${esc(label||'ha pagato')}
-      <span style="font-weight:400;color:var(--muted);font-size:.68rem">— chi ha anticipato</span></label>
+      <span style="font-weight:400;color:var(--muted);font-size:.68rem">— lascia vuoto se non l'hai ancora pagata</span></label>
     <select class="form-select" id="${id}">
       <option value="">— non indicato —</option>
       ${people.map(n=>`<option value="${esc(n)}"${v===n?' selected':''}>${esc(n)}</option>`).join('')}
@@ -1136,63 +1136,122 @@ function computeBalances(d){
 }
 
 /* ============================================================
-   SALDI E CONGUAGLIO
+   SOLDI — costi e movimenti sono due cose diverse
    ------------------------------------------------------------
-   computeBalances() dice quanto SPETTA a ciascuno (la sua quota).
-   Qui aggiungiamo l'altra metà: quanto ciascuno ha ANTICIPATO, letto
-   dal campo `pagato_da` di alloggi, voli e spese.
+   Un errore facile è confondere «quanto costa» con «chi ha tirato fuori
+   i soldi». Sono separati apposta:
 
-       saldo = anticipato − quota
+     COSTI      voli scelti + alloggi scelti + spese   → il preventivo
+     MOVIMENTI  anticipi e rimborsi                    → chi deve a chi
 
-   Saldo positivo = ha messo più del dovuto, deve rientrare.
-   Saldo negativo = deve dare dei soldi.
+   Un alloggio prenotato che paghi fra tre mesi sta nel preventivo ma NON
+   nei saldi: nessuno ha ancora messo soldi, quindi nessuno deve niente.
+   Quando lo paghi (anche solo la caparra) registri un ANTICIPO, e da quel
+   momento entra nei conti. Quando gli altri ti restituiscono la loro parte
+   registri un RIMBORSO, anche parziale.
    ============================================================ */
 
-// Le voci che entrano nel conto, ognuna con il suo importo e chi l'ha pagata.
-// Stessi criteri di computeBudget: solo voli e alloggi SCELTI.
-function moneyItems(d){
+/* Tutti i movimenti di denaro, da tre sorgenti:
+   1. le spese, che sono già di per sé un pagamento (paghi la cena mentre la fai)
+   2. il registro Pagamenti, che è il posto vero dove si gestiscono i soldi
+   3. il vecchio campo "ha pagato" su voli e alloggi, tenuto per non perdere
+      i dati di chi l'aveva già compilato (si converte con un click) */
+function movimenti(d){
+  const nomi = partList(d).map(pName);
+  const noto = n => nomi.indexOf(String(n||'').trim()) >= 0;
   const out = [];
+
+  (d.Spese||[]).forEach(x=>{
+    const q = num(x.totale), chi = String(x.pagato_da||'').trim();
+    if(!q || !chi) return;                       // spesa segnata ma non ancora pagata
+    out.push({ key:'sp-'+x.id, src:'Spese', srcId:x.id, tipo:'anticipo',
+      data: toISODate(x.data), chi, verso:'', importo:q, valido: noto(chi),
+      riferimento: x.descrizione || 'Spesa', paganti: x.paganti||'' });
+  });
+
+  (d.Pagamenti||[]).forEach(p=>{
+    const q = num(p.importo);
+    if(!q) return;
+    const tipo = String(p.tipo||'').toLowerCase()==='rimborso' ? 'rimborso' : 'anticipo';
+    const chi = String(p.chi||'').trim(), verso = String(p.verso||'').trim();
+    out.push({ key:'pg-'+p.id, src:'Pagamenti', srcId:p.id, tipo,
+      data: toISODate(p.data), chi, verso, importo:q,
+      valido: noto(chi) && (tipo==='anticipo' || noto(verso)),
+      riferimento: p.riferimento||'', paganti: p.paganti||'', note: p.note||'' });
+  });
+
   (d.Alloggi||[]).filter(a=>truthy(a.scelto)).forEach(a=>{
-    const q = num(a.totale);
-    if(q) out.push({ tipo:'Alloggio', desc:a.struttura||'Alloggio', importo:q, chi:String(a.pagato_da||'').trim() });
+    const chi = String(a.pagato_da||'').trim(), q = num(a.totale);
+    if(!chi || !q) return;
+    out.push({ key:'lg-al-'+a.id, src:'Alloggi', srcId:a.id, legacy:true, tipo:'anticipo',
+      data:'', chi, verso:'', importo:q, valido: noto(chi),
+      riferimento: a.struttura || 'Alloggio', paganti:'' });
   });
   (d.Voli||[]).filter(v=>truthy(v.scelto)).forEach(v=>{
-    const q = num(v.totale)+num(v.costo_bagaglio);
-    if(q) out.push({ tipo:'Volo', desc:[v.da,v.a].filter(Boolean).join(' → ')||'Volo', importo:q, chi:String(v.pagato_da||'').trim() });
+    const chi = String(v.pagato_da||'').trim(), q = num(v.totale)+num(v.costo_bagaglio);
+    if(!chi || !q) return;
+    out.push({ key:'lg-vo-'+v.id, src:'Voli', srcId:v.id, legacy:true, tipo:'anticipo',
+      data:'', chi, verso:'', importo:q, valido: noto(chi),
+      riferimento: [iataOf(v.da)||v.da, iataOf(v.a)||v.a].filter(Boolean).join(' → ') || 'Volo',
+      paganti: v.paganti||'' });
   });
-  (d.Spese||[]).forEach(x=>{
-    const q = num(x.totale);
-    if(q) out.push({ tipo:'Spesa', desc:x.descrizione||'Spesa', importo:q, chi:String(x.pagato_da||'').trim() });
-  });
-  return out;
+
+  return out.sort((a,b)=>
+    (a.data||'9999-99-99').localeCompare(b.data||'9999-99-99') ||
+    String(a.riferimento).localeCompare(String(b.riferimento),'it'));
 }
 
+/* Saldo di ciascuno, calcolato SOLO sui movimenti reali.
+     anticipo → chi ha pagato sale di tutto, chi ne beneficia scende della sua quota
+     rimborso → chi versa sale, chi incassa scende
+   Un movimento che nomina qualcuno fuori dai partecipanti viene saltato e
+   segnalato: metterlo dentro a metà sbilancerebbe i conti di tutti. */
 function computeSettlement(d){
-  const quote = computeBalances(d);
-  if(!quote) return null;
-  const nomi = quote.map(x=>x.nome);
-  const pagato = {}; nomi.forEach(n=>pagato[n]=0);
+  const nomi = partList(d).map(pName);
+  if(!nomi.length) return null;
+  const bal = {}; nomi.forEach(n=>bal[n]=0);
 
-  let scoperto = 0;                    // soldi di cui non sappiamo chi li ha messi
-  const ignoti = [];
-  moneyItems(d).forEach(it=>{
-    if(it.chi && nomi.indexOf(it.chi)>=0) pagato[it.chi] += it.importo;
-    else { scoperto += it.importo; if(it.chi) ignoti.push(it.chi); }
+  const mov = movimenti(d);
+  const ignoti = new Set();
+  let uscito = 0;
+
+  mov.forEach(m=>{
+    if(!m.valido){
+      [m.chi, m.verso].forEach(n=>{ if(n && nomi.indexOf(n)<0) ignoti.add(n); });
+      return;
+    }
+    if(m.tipo === 'rimborso'){
+      bal[m.chi]   += m.importo;
+      bal[m.verso] -= m.importo;
+      return;
+    }
+    bal[m.chi] += m.importo;
+    uscito     += m.importo;
+    const fra = payerNames(m.paganti, nomi).filter(n=>n in bal);
+    const set = fra.length ? fra : nomi;
+    const q = m.importo / set.length;
+    set.forEach(n=>bal[n] -= q);
   });
 
-  const righe = quote.map(q=>({
-    nome:   q.nome,
-    dovuto: q.quota,
-    pagato: round2(pagato[q.nome]),
-    saldo:  round2(pagato[q.nome] - q.quota)
-  }));
+  const righe = nomi.map(n=>({ nome:n, saldo: round2(bal[n]) }));
   return {
     righe,
-    scoperto: round2(scoperto),
-    ignoti: [...new Set(ignoti)],
-    trasferimenti: simplifyDebts(righe),
-    totale: round2(righe.reduce((s,r)=>s+r.dovuto,0))
+    movimenti: mov,
+    ignoti: [...ignoti],
+    legacy: mov.filter(m=>m.legacy),
+    uscito: round2(uscito),
+    trasferimenti: simplifyDebts(righe)
   };
+}
+
+/* Quanto è già uscito di tasca e quanto resta da pagare.
+   È il numero che mancava: il totale da solo non dice se i soldi sono
+   già stati messi o se devono ancora uscire. */
+function cassa(d){
+  const b  = computeBudget(d);
+  const st = computeSettlement(d);
+  const uscito = st ? st.uscito : 0;
+  return { costo: b.tot, uscito, daPagare: round2(Math.max(0, b.tot - uscito)) };
 }
 
 /* Semplificazione dei debiti, come fa Splitwise.
@@ -1273,13 +1332,32 @@ function checklistBox(d){
   if(idee.length)
     add(false, '💡', `${idee.length} ide${idee.length===1?'a':'e'} ancora senza data`, 'cosedafare', 'programma');
 
+  // scadenze di pagamento: la data si toglie quando la voce è pagata
+  const oggi = todayISO();
+  const conScadenza = []
+    .concat((d.Alloggi||[]).filter(a=>truthy(a.scelto)).map(a=>({nome:a.struttura||'Alloggio', quando:toISODate(a.scadenza_pag), sez:'alloggi'})))
+    .concat(Object.values(voliGroups(d.Voli||[])).filter(groupChosen).map(g=>({
+      nome:'Volo '+routeStr(g), quando:toISODate(g[0].scadenza_pag), sez:'voli'})))
+    .filter(x=>x.quando);
+  conScadenza.sort((a,b)=>a.quando.localeCompare(b.quando)).forEach(x=>{
+    const giorni = nightsBetween(oggi, x.quando);
+    if(x.quando < oggi) add(true, '⏰', `${x.nome}: il pagamento era da fare entro il ${toITDate(x.quando)}`, x.sez, 'apri');
+    else if(giorni <= 30) add(giorni <= 7, '⏰', `${x.nome}: da pagare entro il ${toITDate(x.quando)} (${giorni===0?'oggi':giorni+' giorni'})`, x.sez, 'apri');
+  });
+
   // soldi anticipati non attribuiti: senza questo i saldi non tornano
   const st = computeSettlement(d);
-  if(st && st.scoperto > 0.005)
-    add(false, '💶', `${eur(st.scoperto)} di spese senza "ha pagato": i saldi restano parziali`, 'spese', 'compila');
+  if(st && st.legacy.length)
+    add(false, '💶', st.legacy.length===1
+      ? 'una voce usa ancora il vecchio campo "ha pagato": convertila in movimento'
+      : `${st.legacy.length} voci usano ancora il vecchio campo "ha pagato": convertile in movimenti`, 'spese', 'apri');
+  const c = cassa(d);
+  if(c.daPagare > 0.005 && c.uscito > 0.005)
+    add(false, '💶', `${eur(c.daPagare)} del viaggio non sono ancora stati pagati da nessuno`, 'spese', 'vedi');
 
   if(!items.length) return '';
   const gravi = items.filter(i=>i.grave).length;
+  items.sort((a,b)=>(b.grave?1:0)-(a.grave?1:0));
   return `
     <div class="sheet p-3 mb-3 chk-box">
       <p class="eyebrow mb-2">Prima di partire · ${items.length} cos${items.length===1?'a':'e'}${gravi?` · ${gravi} important${gravi===1?'e':'i'}`:''}</p>
@@ -1490,7 +1568,8 @@ const LABELS = {
   nazionalita:'nazionalità', paganti:'paganti', chi:'chi', n_persone:'n° persone',
   costo_bagaglio:'costo bagagli', pnr:'n° prenotazione', mappa_link:'link mappa',
   codice:'codice di accesso',
-  pagato_da:'ha pagato — chi ha anticipato i soldi',
+  scadenza_pag:'da pagare entro', importo:'importo', riferimento:'per cosa',
+  pagato_da:'ha pagato',
   attivita:'attività', durata:'durata — es. 2h, mezza giornata',
   quando:'quando — fascia oraria preferita',
   stato:'stato — lascia vuoto per calcolarlo dalle date'
@@ -1555,55 +1634,302 @@ function copyLink(btn, url){
 
 /* ---------- SPESE (tabella + totale, ordinabile) ---------- */
 const SPESE_COLS = ['data','descrizione','categoria','pagato_da','paganti','totale'];
-/* Riquadro "chi deve quanto a chi". Compare solo se ci sono partecipanti
-   censiti: senza nomi non c'è niente da dividere. */
-function saldiBox(d){
+/* ---------- CONTI: movimenti, saldi, conguaglio ---------- */
+
+// Le voci di costo a cui un anticipo può fare riferimento (per il datalist)
+function vociDiCosto(d){
+  const out = [];
+  (d.Alloggi||[]).filter(a=>truthy(a.scelto)).forEach(a=>{ if(a.struttura) out.push(String(a.struttura)); });
+  const g = voliGroups(d.Voli||[]);
+  Object.keys(g).filter(k=>groupChosen(g[k])).forEach(k=>{
+    const r = routeStr(g[k]); if(r) out.push('Volo ' + r);
+  });
+  return [...new Set(out)];
+}
+
+function saldoChip(v){
+  if(v >  0.005) return `<span class="sal-pos" title="deve rientrare di questa cifra">+ ${eur(v)}</span>`;
+  if(v < -0.005) return `<span class="sal-neg" title="deve dare questa cifra">− ${eur(-v)}</span>`;
+  return `<span class="sal-zero">in pari</span>`;
+}
+
+/* Riquadro "chi deve quanto a chi". Senza partecipanti censiti non c'è
+   niente da dividere, quindi non compare nemmeno. */
+function saldiBox(d, tid){
   const st = computeSettlement(d);
   if(!st || st.righe.length < 2) return '';
 
-  const chip = v => v > 0.005 ? `<span class="sal-pos" title="deve rientrare di questa cifra">+ ${eur(v)}</span>`
-                  : v < -0.005 ? `<span class="sal-neg" title="deve dare questa cifra">− ${eur(-v)}</span>`
-                  : `<span class="sal-zero">in pari</span>`;
-
-  const righe = st.righe.slice().sort((a,b)=>b.saldo-a.saldo).map(r=>`
-    <div class="sal-row">
+  const righe = st.righe.slice()
+    .sort((a,b)=> b.saldo-a.saldo || a.nome.localeCompare(b.nome,'it'))
+    .map(r=>`<div class="sal-row">
       <span class="sal-name">${esc(r.nome)}</span>
-      <span class="sal-num" title="ha anticipato">${eur(r.pagato)}</span>
-      <span class="sal-num" title="la sua quota">${eur(r.dovuto)}</span>
-      <span class="sal-num">${chip(r.saldo)}</span>
+      <span class="sal-num">${saldoChip(r.saldo)}</span>
     </div>`).join('');
 
   const tr = st.trasferimenti;
   const bonifici = tr.length
     ? tr.map(t=>`<div class="sal-move">
         <span><strong>${esc(t.da)}</strong> <span class="sal-arrow">→</span> <strong>${esc(t.a)}</strong></span>
-        <span class="mono">${eur(t.importo)}</span></div>`).join('')
-    : `<div class="mono" style="font-size:.8rem;color:var(--ok)">Siete già in pari, nessun bonifico da fare ✓</div>`;
+        <span class="d-flex align-items-center gap-2">
+          <span class="mono">${eur(t.importo)}</span>
+          <button class="btn btn-ghost btn-sm" title="Registra il rimborso, anche parziale"
+            onclick="segnaSaldato('${jsArg(t.da)}','${jsArg(t.a)}',${t.importo},'${jsArg(tid)}')">segna saldato</button>
+        </span></div>`).join('')
+    : `<div class="mono" style="font-size:.8rem;color:var(--ok)">Siete in pari, nessun bonifico da fare ✓</div>`;
 
-  const avviso = st.scoperto > 0.005 ? `
-    <div class="mono mt-2" style="font-size:.72rem;color:var(--stamp)">
-      ⚠️ ${eur(st.scoperto)} senza un pagante indicato: i saldi sono parziali finché non compili
-      "ha pagato" su spese, voli e alloggi${st.ignoti.length?` · nomi non riconosciuti: ${esc(st.ignoti.join(', '))}`:''}
-    </div>` : '';
+  const avvisi = [];
+  if(st.ignoti.length) avvisi.push(`nomi che non sono fra i partecipanti, movimenti ignorati: ${esc(st.ignoti.join(', '))}`);
+  if(st.legacy.length) avvisi.push(
+    `${st.legacy.length} ${st.legacy.length===1?'voce usa':'voci usano'} ancora il vecchio campo "ha pagato" di voli/alloggi · ` +
+    `<button class="btn btn-ghost btn-sm py-0" onclick="convertiLegacy('${jsArg(tid)}')">convertile in movimenti</button>`);
 
   return `
     <div class="row g-3 mb-3">
-      <div class="col-12 col-lg-7"><div class="sheet p-3 h-100">
-        <p class="eyebrow mb-2">Saldi</p>
-        <div class="sal-row sal-head">
-          <span class="sal-name"></span><span class="sal-num">ha messo</span>
-          <span class="sal-num">gli tocca</span><span class="sal-num">saldo</span>
+      <div class="col-12 col-lg-5"><div class="sheet p-3 h-100">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <p class="eyebrow mb-0">Saldi</p>
+          <button class="btn btn-ghost btn-sm" onclick="copiaConti()" title="Copia saldi e bonifici come testo">⧉ copia</button>
         </div>
         ${righe}
-        ${avviso}
+        ${avvisi.length?`<div class="mono mt-2" style="font-size:.72rem;color:var(--stamp)">
+          ${avvisi.map(a=>`<div>⚠️ ${a}</div>`).join('')}</div>`:''}
       </div></div>
-      <div class="col-12 col-lg-5"><div class="sheet p-3 h-100">
+      <div class="col-12 col-lg-7"><div class="sheet p-3 h-100">
         <p class="eyebrow mb-2">Come pareggiare${tr.length?` · ${tr.length} bonific${tr.length===1?'o':'i'}`:''}</p>
         ${bonifici}
         ${tr.length?`<p class="mono mt-2 mb-0" style="font-size:.68rem;color:var(--muted)">
           debiti semplificati: si paga solo il netto, non tutti a tutti</p>`:''}
       </div></div>
     </div>`;
+}
+
+/* Il registro: ogni riga è un movimento di soldi davvero avvenuto. */
+function movimentiBox(d, tid){
+  const st = computeSettlement(d);
+  if(!st) return '';
+  const mov = st.movimenti;
+
+  const riga = m=>{
+    const fra = m.tipo==='anticipo'
+      ? (String(m.paganti||'').trim() && String(m.paganti).toLowerCase()!=='tutti' ? esc(m.paganti) : 'tutti')
+      : '';
+    const modificabile = m.src==='Pagamenti';
+    return `<div class="mov-row${m.valido?'':' ko'}">
+      <span class="mov-ico" title="${m.tipo}">${m.tipo==='rimborso'?'🔁':'💸'}</span>
+      <span class="mov-main">
+        <span class="mov-chi">${esc(m.chi||'?')}${m.tipo==='rimborso'?` <span class="sal-arrow">→</span> ${esc(m.verso||'?')}`:''}</span>
+        <span class="mov-rif">${esc(m.riferimento || (m.tipo==='rimborso'?'rimborso':'anticipo'))}${fra?` · fra ${fra}`:''}${m.data?` · ${toITDate(m.data)}`:''}</span>
+      </span>
+      <span class="mono mov-imp">${eur(m.importo)}</span>
+      <span class="mov-act">
+        ${m.src==='Spese'  ? `<span class="chip" title="viene dal tab Spese">spesa</span>` : ''}
+        ${m.legacy         ? `<span class="chip" title="vecchio campo &quot;ha pagato&quot;">da convertire</span>` : ''}
+        ${modificabile ? `<button class="icon-btn" onclick="editPagamento(findRow('Pagamenti','${jsArg(m.srcId)}'),'${jsArg(tid)}')">✎</button>
+           <button class="icon-btn" onclick="delRow('Pagamenti','${jsArg(m.srcId)}')">🗑</button>` : ''}
+      </span>
+    </div>`;
+  };
+
+  return `
+    <div class="sheet p-3 mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+        <p class="eyebrow mb-0">Movimenti${mov.length?` · ${mov.length}`:''}</p>
+        <div class="d-flex gap-2">
+          <button class="btn btn-ghost btn-sm" onclick="editPagamento(null,'${jsArg(tid)}',{tipo:'anticipo'})">💸 Anticipo</button>
+          <button class="btn btn-ghost btn-sm" onclick="editPagamento(null,'${jsArg(tid)}',{tipo:'rimborso'})">🔁 Rimborso</button>
+        </div>
+      </div>
+      ${mov.length ? mov.map(riga).join('')
+        : `<div class="mono" style="font-size:.8rem;color:var(--muted)">
+            Ancora nessun movimento. I costi che hai inserito restano nel preventivo:
+            registra un <strong>anticipo</strong> quando qualcuno tira fuori i soldi davvero,
+            anche solo una caparra.</div>`}
+      <p class="mono mt-2 mb-0" style="font-size:.68rem;color:var(--muted)">
+        anticipo = qualcuno ha pagato qualcosa per il gruppo · rimborso = soldi restituiti fra due persone
+      </p>
+    </div>`;
+}
+
+/* ---------- registrazione di un movimento ---------- */
+function editPagamento(record, tid, preset){
+  ensureModal();
+  const d = CURRENT_DATA || {};
+  const people = partList(d).map(pName);
+  if(!people.length){ toast('Aggiungi prima i partecipanti','error'); return; }
+
+  const r = Object.assign({
+    viaggio_id: tid || (CURRENT_TRIP&&CURRENT_TRIP.id), data: todayISO(),
+    tipo:'anticipo', chi:'', verso:'', importo:'', riferimento:'', paganti:'', note:''
+  }, record || {}, preset || {});
+  const isNew = !r.id;
+  const tipo = String(r.tipo||'anticipo').toLowerCase()==='rimborso' ? 'rimborso' : 'anticipo';
+
+  const sel = (id, val, vuoto) => `<select class="form-select" id="${id}">
+      <option value="">${esc(vuoto)}</option>
+      ${people.map(n=>`<option value="${esc(n)}"${String(val)===n?' selected':''}>${esc(n)}</option>`).join('')}
+      ${val && !people.includes(String(val))?`<option value="${esc(val)}" selected>${esc(val)} (non è fra i partecipanti)</option>`:''}
+    </select>`;
+
+  const selected = payerNames(r.paganti, people);
+  const allSel = !String(r.paganti||'').trim() || String(r.paganti).toLowerCase()==='tutti';
+  const voci = vociDiCosto(d);
+
+  $('#mTitle').textContent = (isNew?'Nuovo · ':'Modifica · ') + (tipo==='rimborso'?'rimborso':'anticipo');
+  $('#mSave').textContent = 'Salva';
+  $('#mBody').innerHTML = `
+    <input type="hidden" id="pg_tipo" value="${esc(tipo)}">
+    <div class="btn-group btn-group-sm mb-3" role="group">
+      <button type="button" class="btn ${tipo==='anticipo'?'btn-ink':'btn-ghost'}" onclick="pgSetTipo('anticipo')">💸 Anticipo</button>
+      <button type="button" class="btn ${tipo==='rimborso'?'btn-ink':'btn-ghost'}" onclick="pgSetTipo('rimborso')">🔁 Rimborso</button>
+    </div>
+    <p class="mono mb-3" style="font-size:.72rem;color:var(--muted)">
+      ${tipo==='anticipo'
+        ? 'qualcuno ha tirato fuori dei soldi per il gruppo · anche solo una caparra'
+        : 'soldi restituiti da una persona a un\'altra · anche solo una parte'}
+    </p>
+    <div class="row g-2 mb-2">
+      <div class="col-12 col-md-6"><label class="form-label">${tipo==='rimborso'?'chi versa':'chi ha pagato'}</label>${sel('pg_chi', r.chi, '— scegli —')}</div>
+      ${tipo==='rimborso'
+        ? `<div class="col-12 col-md-6"><label class="form-label">a chi</label>${sel('pg_verso', r.verso, '— scegli —')}</div>`
+        : ''}
+      <div class="col-6 col-md-4"><label class="form-label">importo</label>
+        <div class="input-group">
+          <span class="input-group-text" style="background:var(--paper-2);border-color:var(--line)">€</span>
+          <input class="form-control" id="pg_importo" type="text" inputmode="decimal"
+            value="${r.importo!==''&&r.importo!=null?esc(fmtNumIT(parseNum(r.importo))):''}" placeholder="0,00">
+        </div></div>
+      <div class="col-6 col-md-4"><label class="form-label">data</label>
+        <input class="form-control" type="date" id="pg_data" value="${esc(toISODate(r.data))}"></div>
+      <div class="col-12 col-md-4"><label class="form-label">per cosa</label>
+        <input class="form-control" id="pg_riferimento" list="dl_voci" value="${esc(r.riferimento)}"
+          placeholder="${tipo==='rimborso'?'facoltativo':'es. Volo A/R, caparra alloggio'}">
+        <datalist id="dl_voci">${voci.map(v=>`<option value="${esc(v)}">`).join('')}</datalist></div>
+    </div>
+    ${tipo==='anticipo' ? `
+    <div class="mb-2"><label class="form-label">si divide fra
+        <span style="font-weight:400;color:var(--muted);font-size:.7rem">— chi ne beneficia</span></label>
+      <div class="sheet p-2" id="f_pg_pag_box" data-field="pg_pag">
+        <div class="form-check">
+          <input class="form-check-input pay-all" type="checkbox" id="f_pg_pag_all" ${allSel?'checked':''} onchange="togglePayAll(this,'pg_pag')">
+          <label class="form-check-label" for="f_pg_pag_all"><strong>Tutti</strong></label>
+        </div>
+        <hr class="my-1" style="border-color:var(--line)">
+        ${people.map((n,i)=>`<div class="form-check">
+          <input class="form-check-input pay-one" type="checkbox" id="f_pg_pag_${i}" value="${esc(n)}" ${(!allSel && selected.includes(n))?'checked':''} ${allSel?'disabled':''} onchange="onPayOne('pg_pag')">
+          <label class="form-check-label" for="f_pg_pag_${i}">${esc(n)}</label></div>`).join('')}
+      </div></div>` : ''}
+    <div class="mb-2"><label class="form-label">note</label>
+      <textarea class="form-control" id="pg_note" rows="2">${esc(r.note||'')}</textarea></div>`;
+
+  PG_DRAFT = r;
+  $('#mSave').onclick = ()=> withBtnLoading($('#mSave'), 'Salvo…', async ()=>{
+    const t = $('#pg_tipo').value;
+    const out = {
+      id: r.id, viaggio_id: r.viaggio_id,
+      tipo: t,
+      data: $('#pg_data').value || '',
+      chi: $('#pg_chi').value.trim(),
+      verso: t==='rimborso' ? ($('#pg_verso')?$('#pg_verso').value.trim():'') : '',
+      importo: parseNum($('#pg_importo').value),
+      riferimento: $('#pg_riferimento').value.trim(),
+      paganti: t==='anticipo' ? readPayValue('pg_pag') : '',
+      note: $('#pg_note').value.trim()
+    };
+    if(!out.chi){ toast('Manca chi mette i soldi','error'); return; }
+    if(t==='rimborso' && !out.verso){ toast('Manca a chi vanno i soldi','error'); return; }
+    if(t==='rimborso' && out.chi===out.verso){ toast('Sono la stessa persona','error'); return; }
+    if(!out.importo || out.importo<=0){ toast('Manca l\'importo','error'); return; }
+
+    if(r.id){
+      await api('update', { sheet:'Pagamenti', record: out });
+      applyLocal('Pagamenti','update', out);
+    } else {
+      const saved = await api('create', { sheet:'Pagamenti', record: out });
+      applyLocal('Pagamenti','create', saved);
+    }
+    MODAL.hide(); toast('Registrato ✓','ok');
+    refreshView();
+  });
+  MODAL.show();
+}
+
+// Cambiare tipo ridisegna il form: i campi non sono gli stessi
+let PG_DRAFT = null;
+function pgSetTipo(t){
+  const cur = PG_DRAFT || {};
+  const draft = Object.assign({}, cur, {
+    tipo: t,
+    data: $('#pg_data') ? $('#pg_data').value : cur.data,
+    chi: $('#pg_chi') ? $('#pg_chi').value : cur.chi,
+    verso: $('#pg_verso') ? $('#pg_verso').value : cur.verso,
+    importo: $('#pg_importo') ? parseNum($('#pg_importo').value) : cur.importo,
+    riferimento: $('#pg_riferimento') ? $('#pg_riferimento').value : cur.riferimento,
+    paganti: $('#f_pg_pag_box') ? readPayValue('pg_pag') : cur.paganti,
+    note: $('#pg_note') ? $('#pg_note').value : cur.note
+  });
+  editPagamento(draft.id ? draft : Object.assign({}, draft, {id:undefined}), draft.viaggio_id, {tipo:t});
+}
+
+/* Dal bonifico suggerito al movimento registrato, con l'importo già dentro:
+   se te ne danno solo una parte lo correggi prima di salvare. */
+function segnaSaldato(da, a, importo, tid){
+  editPagamento(null, tid, { tipo:'rimborso', chi:da, verso:a, importo, riferimento:'' });
+}
+
+/* Porta il vecchio campo "ha pagato" di voli e alloggi dentro il registro,
+   così il dato non si perde e smette di stare in due posti diversi. */
+async function convertiLegacy(tid){
+  const st = computeSettlement(CURRENT_DATA);
+  if(!st || !st.legacy.length) return;
+  const n = st.legacy.length;
+  if(!await askConfirm(`Trasformo ${n} vec${n===1?'chia voce':'chie voci'} "ha pagato" in altrettanti anticipi, e svuoto il vecchio campo. Procedo?`)) return;
+
+  const records = st.legacy.map(m=>({
+    viaggio_id: tid, tipo:'anticipo', data:'', chi:m.chi, verso:'',
+    importo: m.importo, riferimento: m.riferimento, paganti: m.paganti||'', note:''
+  }));
+  try{
+    const saved = await api('create_many', { sheet:'Pagamenti', records });
+    applyLocal('Pagamenti','create_many', saved);
+    // svuoto il campo sulle righe di origine, altrimenti conterebbe due volte
+    const perFoglio = {};
+    st.legacy.forEach(m=>{ (perFoglio[m.src] = perFoglio[m.src] || []).push({ id:m.srcId, pagato_da:'' }); });
+    for(const foglio of Object.keys(perFoglio)){
+      await api('update_many', { sheet: foglio, records: perFoglio[foglio] });
+      perFoglio[foglio].forEach(rec=>applyLocal(foglio,'update',rec));
+    }
+    toast(`${saved.length} movimenti creati ✓`,'ok');
+    refreshView();
+  }catch(e){
+    if(e instanceof AuthError) sessionExpired(); else toast('Errore: '+e.message,'error');
+  }
+}
+
+/* Saldi e bonifici come testo semplice, da incollare nel gruppo. */
+function contiTesto(d){
+  const st = computeSettlement(d);
+  if(!st) return '';
+  const c = cassa(d);
+  const L = [];
+  L.push(`💶 ${(CURRENT_TRIP && (CURRENT_TRIP.destinazione||CURRENT_TRIP.nome)) || 'Viaggio'} — conti`);
+  L.push(`Costo totale ${eur(c.costo)} · già usciti ${eur(c.uscito)} · da pagare ${eur(c.daPagare)}`);
+  L.push('');
+  st.righe.slice().sort((a,b)=>b.saldo-a.saldo).forEach(r=>{
+    const s = r.saldo > 0.005 ? `deve ricevere ${eur(r.saldo)}`
+            : r.saldo < -0.005 ? `deve dare ${eur(-r.saldo)}` : 'in pari';
+    L.push(`• ${r.nome}: ${s}`);
+  });
+  if(st.trasferimenti.length){
+    L.push('');
+    L.push('Per pareggiare:');
+    st.trasferimenti.forEach(t=>L.push(`• ${t.da} → ${t.a}: ${eur(t.importo)}`));
+  }
+  return L.join('\n');
+}
+function copiaConti(){
+  const t = contiTesto(CURRENT_DATA);
+  if(!t){ toast('Niente da copiare','error'); return; }
+  copyText(t, 'Conti copiati ✓');
 }
 
 function secSpese(d, tid){
@@ -1613,6 +1939,7 @@ function secSpese(d, tid){
   const pers = tripPeople(d);
   const allNames = partList(d).map(pName);
   const b = computeBudget(d);
+  const c = cassa(d);
   const body = rows.map(r=>{
     const nPay = payerCount(r.paganti, pers, allNames);
     const aTesta = num(r.prezzo_testa) || (nPay ? round2(num(r.totale)/nPay) : 0);
@@ -1634,9 +1961,12 @@ function secSpese(d, tid){
   return `
     <div class="row g-3 mb-3">
       <div class="col-12 col-md-4"><div class="sheet p-3 h-100">
-        <p class="eyebrow mb-1">Totale viaggio</p>
+        <p class="eyebrow mb-1">Il viaggio costa</p>
         <div class="budget-total">${eur(b.tot)}</div>
-        <div class="per-person">${eur(b.perPersona)} a testa</div></div></div>
+        <div class="per-person mb-2">${eur(b.perPersona)} a testa</div>
+        <div class="budget-line"><span>già usciti</span><span class="mono">${eur(c.uscito)}</span></div>
+        <div class="budget-line"><span>ancora da pagare</span><span class="mono">${eur(c.daPagare)}</span></div>
+      </div></div>
       <div class="col-12 col-md-8"><div class="sheet p-3 h-100">
         <p class="eyebrow mb-2">Composizione</p>
         <div class="budget-line"><span>🏠 Alloggio</span><span class="mono">${eur(b.alloggio)}</span></div>
@@ -1644,7 +1974,8 @@ function secSpese(d, tid){
         <div class="budget-line"><span>🧾 Spese extra</span><span class="mono">${eur(b.spese)}</span></div>
       </div></div>
     </div>
-    ${saldiBox(d)}
+    ${saldiBox(d, tid)}
+    ${movimentiBox(d, tid)}
     <div class="d-flex justify-content-between align-items-center mb-2">
       <p class="eyebrow mb-0">spese extra oltre a voli/alloggio</p>
       <button class="btn btn-stamp btn-sm" onclick="editRow('Spese', null, '${jsArg(tid)}')">+ Aggiungi spesa</button>
@@ -4074,7 +4405,7 @@ const NUM_FIELDS = ['totale','prezzo_notte','prezzo_testa','prezzo_testa_notte',
 const INT_FIELDS = ['persone','notti','qta','n_persone','tratta','opzione','valutazione'];
 const CUR_FIELDS = ['totale','prezzo_notte','prezzo_testa','prezzo_testa_notte','extra','costo','costo_bagaglio'];
 const LINK_FIELDS = ['link','mappa_link'];
-const DATE_FIELDS = ['data_inizio','data_fine','checkin','checkout','data_part','data_arr','data','data_nascita','scadenza_doc'];
+const DATE_FIELDS = ['data_inizio','data_fine','checkin','checkout','data_part','data_arr','data','data_nascita','scadenza_doc','scadenza_pag'];
 const TIME_FIELDS = ['ora_part','ora_arr','ora','ora_checkin','ora_checkout'];
 const SENSITIVE_FIELDS = ['num_doc','cod_fiscale'];
 
@@ -4426,17 +4757,7 @@ function editRow(sheet, record, tid){
         </select></div>`;
     }
     if(f==='pagato_da'){
-      const people = partList(CURRENT_DATA).map(pName);
-      if(!people.length){
-        return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
-          <input class="form-control" id="f_${f}" type="text" value="${esc(v)}" placeholder="aggiungi prima i partecipanti"></div>`;
-      }
-      return `<div class="mb-2"><label class="form-label">${esc(lbl(f))}</label>
-        <select class="form-select" id="f_${f}">
-          <option value="">— non ancora indicato —</option>
-          ${people.map(n=>`<option value="${esc(n)}"${String(v)===n?' selected':''}>${esc(n)}</option>`).join('')}
-          ${v && !people.includes(String(v))?`<option value="${esc(v)}" selected>${esc(v)} (non è più tra i partecipanti)</option>`:''}
-        </select></div>`;
+      return `<div class="mb-2">${pagatoDaSelect('f_'+f, v, lbl(f))}</div>`;
     }
     if(f==='paganti' || f==='chi'){
       const people = partList(CURRENT_DATA).map(pName);
@@ -4659,7 +4980,7 @@ function editAlloggio(record, tid){
   const r = Object.assign({
     viaggio_id: tid || t.id, struttura:'', checkin:'', ora_checkin:'', checkout:'', ora_checkout:'',
     notti:'', persone:'', totale:'', extra:'', prezzo_notte:'', prezzo_testa:'', prezzo_testa_notte:'',
-    link:'', indirizzo:'', mappa_link:'', pnr:'', posizione:'', valutazione:'', scelto:'', note:'', pagato_da:''
+    link:'', indirizzo:'', mappa_link:'', pnr:'', posizione:'', valutazione:'', scelto:'', note:'', scadenza_pag:''
   }, record || {});
   if(isNew){
     if(!r.checkin)  r.checkin  = toISODate(t.data_inizio);
@@ -4724,7 +5045,9 @@ function editAlloggio(record, tid){
       ${money('extra','extra', r.extra, '— pulizie, tasse')}
       ${money('prezzo_notte','a notte', r.prezzo_notte, '— auto')}
       ${money('prezzo_testa','a testa', r.prezzo_testa, '— auto')}
-      <div class="col-12 col-md-6">${pagatoDaSelect('a_pagato_da', r.pagato_da)}</div>
+      <div class="col-12 col-md-6"><label class="form-label">da pagare entro
+          <span style="font-weight:400;color:var(--muted);font-size:.68rem">— facoltativo, te lo ricordo nel riepilogo</span></label>
+        <input class="form-control" type="date" id="a_scadenza_pag" value="${esc(toISODate(r.scadenza_pag))}"></div>
     </div>
     <div class="derived mb-3 mt-1" id="a_summary"></div>
 
@@ -4799,7 +5122,7 @@ function editAlloggio(record, tid){
     ['notti','persone'].forEach(f=>{ out[f] = $('#a_'+f).value!=='' ? Math.round(parseNum($('#a_'+f).value)) : ''; });
     ['totale','extra','prezzo_notte','prezzo_testa','prezzo_testa_notte'].forEach(f=>{ out[f] = parseNum($('#a_'+f).value); });
     out.valutazione = Number($('#alg_stars').dataset.val || '') || '';
-    out.pagato_da = $('#a_pagato_da').value.trim();
+    out.scadenza_pag = $('#a_scadenza_pag').value || '';
     out.scelto = $('#a_scelto').checked ? 'Sì' : '';
 
     if(!out.struttura){ toast('Serve almeno il nome della struttura','error'); return; }
@@ -4992,7 +5315,8 @@ function editVolo(group, tid){
     bagc      : bagCByDir,
     bag       : bagByDir,
     paganti   : base.paganti || '',
-    pagato_da : base.pagato_da || '',
+    pagato_da : base.pagato_da || '',        // vecchio campo: non si edita più, si converte
+    scadenza_pag : base.scadenza_pag || '',
     legs      : legsByDir
   };
 
@@ -5003,8 +5327,10 @@ function editVolo(group, tid){
     <div class="row g-2 align-items-center mb-2">
       <div class="col-4 col-md-3"><label class="form-label">opzione n°</label>
         <input class="form-control" id="v_opzione" type="text" inputmode="numeric" value="${esc(VOL.opzione)}"></div>
-      <div class="col-8 col-md-4"><label class="form-label">n° prenotazione</label>
+      <div class="col-8 col-md-3"><label class="form-label">n° prenotazione</label>
         <input class="form-control mono" id="v_pnr" value="${esc(VOL.pnr)}" placeholder="es. XK7T2P"></div>
+      <div class="col-6 col-md-3"><label class="form-label">da pagare entro</label>
+        <input class="form-control" type="date" id="v_scadenza_pag" value="${esc(toISODate(VOL.scadenza_pag))}"></div>
       <div class="col-6 col-md-3"><div class="form-check mt-md-3">
         <input class="form-check-input" type="checkbox" id="v_ar" ${VOL.ar?'checked':''} onchange="volToggleAR()">
         <label class="form-check-label" for="v_ar"><strong>andata e ritorno</strong></label></div></div>
@@ -5090,9 +5416,7 @@ function voliPaganti(vol){
       ${people.map((n,i)=>`<div class="form-check">
         <input class="form-check-input pay-one" type="checkbox" id="f_${f}_${i}" value="${esc(n)}" ${(!allSel && selected.includes(n))?'checked':''} ${allSel?'disabled':''} onchange="onPayOne('${f}')">
         <label class="form-check-label" for="f_${f}_${i}">${esc(n)}</label></div>`).join('')}
-    </div>
-    <div class="mt-2">${pagatoDaSelect('v_pagato_da', vol.pagato_da)}</div>
-  </div>`;
+    </div></div>`;
 }
 
 function volToggleAR(){
@@ -5239,7 +5563,7 @@ function volReadForm(){
   if(el('v_bagtot'))       VOL.bagTot = parseNum(el('v_bagtot').value);
   if(el('v_prezzo_testa')) VOL.prezzo_testa = parseNum(el('v_prezzo_testa').value);
   VOL.paganti = readPayValue('v_pag');
-  if($('#v_pagato_da')) VOL.pagato_da = $('#v_pagato_da').value.trim();
+  if(el('v_scadenza_pag')) VOL.scadenza_pag = el('v_scadenza_pag').value || '';
 
   DIRS.forEach(d=>{
     const t = el('v_tot_'+dk(d));  if(t) VOL.tot[d]  = parseNum(t.value);
@@ -5412,7 +5736,8 @@ async function volSave(){
       records.push({
         viaggio_id: VOL.viaggio_id, gruppo_id: VOL.gruppo_id,
         opzione: opz, direzione: d, tratta: i+1,
-        persone: n, paganti: VOL.paganti, pagato_da: VOL.pagato_da,
+        persone: n, paganti: VOL.paganti,
+        pagato_da: VOL.pagato_da, scadenza_pag: VOL.scadenza_pag,
         compagnia: L.compagnia||'', n_volo: L.n_volo||'',
         da: L.da||'', a: L.a||'',
         data_part: L.data_part||'', ora_part: L.ora_part||'',
@@ -5584,6 +5909,7 @@ function printDossier(){
       ${[['pd_voli','✈️ Voli scelti (con codici di prenotazione)',true],
          ['pd_alloggi','🏠 Alloggi scelti e indirizzi',true],
          ['pd_budget','💶 Budget e quote per persona',true],
+         ['pd_conti','🧾 Conti: movimenti, saldi e bonifici',true],
          ['pd_part','👥 Elenco partecipanti',true],
          ['pd_doc','🪪 Numeri dei documenti (dati sensibili)',false],
          ['pd_att','📅 Programma delle attività',true],
@@ -5596,7 +5922,7 @@ function printDossier(){
     </div>`;
   $('#mSave').onclick = ()=>{
     const o = {};
-    ['pd_voli','pd_alloggi','pd_budget','pd_part','pd_doc','pd_att','pd_cont','pd_info','pd_cp']
+    ['pd_voli','pd_alloggi','pd_budget','pd_conti','pd_part','pd_doc','pd_att','pd_cont','pd_info','pd_cp']
       .forEach(id=>{ const el=$('#'+id); o[id.slice(3)] = !!(el && el.checked); });
     MODAL.hide();
     setTimeout(()=>doPrintDossier(o), 350);
@@ -5673,6 +5999,32 @@ function buildDossier(o){
       ${balances && balances.length ? pdBox(`<div class="pd-k" style="margin-bottom:3px">quota per persona</div>
         ${balances.map(x=>`<div class="pd-row"><span>${esc(x.nome)}</span><span class="pd-mono">${eur(x.quota)}</span></div>`).join('')}`) : ''}
     </div>`);
+  }
+
+  if(o.conti){
+    const st = computeSettlement(d);
+    const c  = cassa(d);
+    if(st){
+      const segno = v => v > 0.005 ? 'deve ricevere ' + eur(v)
+                      : v < -0.005 ? 'deve dare ' + eur(-v) : 'in pari';
+      const mov = st.movimenti.filter(m=>m.valido);
+      out.push(`<div class="pd-sec"><h2>🧾 Conti</h2>${pdBox(`
+        <div class="pd-row"><span>Costo del viaggio</span><span class="pd-mono">${eur(c.costo)}</span></div>
+        <div class="pd-row"><span>Già usciti</span><span class="pd-mono">${eur(c.uscito)}</span></div>
+        <div class="pd-row"><strong>Ancora da pagare</strong><span class="pd-mono"><strong>${eur(c.daPagare)}</strong></span></div>`)}
+        ${mov.length ? pdBox(`<div class="pd-k" style="margin-bottom:3px">movimenti</div>
+          ${mov.map(m=>`<div class="pd-row">
+            <span>${m.data?`<span class="pd-mono">${toITDate(m.data)}</span> `:''}${esc(m.chi)}${m.tipo==='rimborso'?' → '+esc(m.verso):''}
+              ${m.riferimento?`<span class="pd-note">${esc(m.riferimento)}</span>`:''}</span>
+            <span class="pd-mono">${eur(m.importo)}</span></div>`).join('')}`) : ''}
+        ${pdBox(`<div class="pd-k" style="margin-bottom:3px">saldi</div>
+          ${st.righe.slice().sort((a,b)=>b.saldo-a.saldo).map(r=>`<div class="pd-row">
+            <span>${esc(r.nome)}</span><span class="pd-mono">${esc(segno(r.saldo))}</span></div>`).join('')}`)}
+        ${st.trasferimenti.length ? pdBox(`<div class="pd-k" style="margin-bottom:3px">per pareggiare</div>
+          ${st.trasferimenti.map(t=>`<div class="pd-row"><span>${esc(t.da)} → ${esc(t.a)}</span>
+            <span class="pd-mono">${eur(t.importo)}</span></div>`).join('')}`) : ''}
+      </div>`);
+    }
   }
 
   if(o.part && people.length){
