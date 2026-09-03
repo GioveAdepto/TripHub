@@ -30,7 +30,7 @@ interamente nel browser con dati inventati, non serve nessun codice.
 | 🧳 **Valigia** | Liste con modelli pronti, aggiunta rapida, spunta per persona |
 | ☎️ **Contatti e info** | Numeri utili, informazioni sulla destinazione |
 | 🖨 **Esportazioni** | Dossier PDF del viaggio, file `.ics` per il calendario del telefono |
-| 📧 **Promemoria** | Ogni lunedì un'email con quello che manca: scelte, prenotazioni, scadenze, chi deve a chi |
+| 📧 **Promemoria** | Un'email a te — solo a te, e solo quando cambia qualcosa — con quello che manca: scelte, prenotazioni, scadenze, chi deve a chi |
 
 ---
 
@@ -173,10 +173,14 @@ I codici di accesso dei singoli viaggi si generano dall'app quando crei un
 viaggio.
 
 **Promemoria via email** — facoltativo. Dall'editor esegui una volta
-`installDigestTrigger()`: ogni lunedì alle 8 i partecipanti (e tu) ricevono un
-riassunto di quello che manca per ciascun viaggio non ancora concluso. Se non
-c'è niente da dire, non manda niente. Per vedere cosa manderebbe senza spedire:
-`previewDigest()`. Per spegnerlo: `removeDigestTrigger()`.
+`installDigestTrigger()`. Da lì lo script controlla ogni mattina i viaggi non
+conclusi e manda un'email **solo a chi possiede lo script** — i partecipanti non
+ricevono mai niente — e **solo se il contenuto è diverso dall'ultima email
+inviata**: una scadenza entrata nella finestra, un pagamento registrato, una
+cosa nuova da prenotare. Se non è cambiato nulla, tace. Il conto alla rovescia
+dei giorni non conta come novità, altrimenti scriverebbe ogni giorno.
+`previewDigest()` mostra cosa farebbe senza spedire; `removeDigestTrigger()` lo
+spegne; `resetDigestMemory()` gli fa dimenticare cosa ha già mandato.
 
 **Se aggiorni da una versione precedente** che salvava i numeri dei documenti:
 `purgeDroppedColumns()` svuota quelle colonne nel foglio. L'app ha già smesso di

@@ -1026,69 +1026,110 @@ function generaCodiciMancanti() {
   return out.join('\n');
 }
 
-
 // ============================================================
-//  PROMEMORIA SETTIMANALE VIA EMAIL
+//  PROMEMORIA VIA EMAIL — solo a te, solo quando cambia qualcosa
 // ------------------------------------------------------------
-//  Una volta a settimana, per ogni viaggio non ancora concluso, manda ai
-//  partecipanti (e a chi possiede lo script) quello che manca: opzioni da
-//  scegliere, cose da prenotare, documenti e pagamenti in scadenza, idee
-//  senza data, e chi deve quanto a chi. Se non c'è niente da dire, tace.
+//  Ogni giorno, per ogni viaggio non ancora concluso, lo script guarda
+//  cosa manca: opzioni da scegliere, cose da prenotare, documenti e
+//  pagamenti in scadenza, idee senza data, chi deve quanto a chi.
+//
+//  Due regole contro lo spam:
+//   1. L'unico destinatario è chi possiede lo script. Gli altri non
+//      ricevono mai niente: per condividere c'è "copia per WhatsApp".
+//   2. Scrive SOLO se il contenuto è diverso dall'ultima email inviata.
+//      Ricorda un'impronta per viaggio in ScriptProperties; il conto alla
+//      rovescia dei giorni non ne fa parte, altrimenti cambierebbe ogni
+//      giorno. Se non è cambiato niente, tace.
 //
 //  Per attivarlo: esegui una volta installDigestTrigger() dall'editor.
-//  Per vedere cosa manderebbe senza inviare nulla: previewDigest().
+//  Per vedere cosa farebbe senza inviare: previewDigest().
+//  Per farlo ripartire da zero (rimanda tutto): resetDigestMemory().
 //
 //  I conti sono un porting fedele di computeSettlement() del frontend:
 //  stessi movimenti, stessa semplificazione, stessi numeri.
 // ============================================================
 
-var DIGEST_FUNC = 'sendWeeklyDigest';
+var DIGEST_FUNC = 'sendDigest';
+var DIGEST_KEY  = 'digest:';           // prefisso delle impronte in ScriptProperties
 
 function installDigestTrigger() {
   removeDigestTrigger();
   ScriptApp.newTrigger(DIGEST_FUNC).timeBased()
-    .onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(8).inTimezone('Europe/Rome').create();
-  return 'promemoria attivo: ogni lunedì alle 8';
+    .everyDays(1).atHour(8).inTimezone('Europe/Rome').create();
+  return 'promemoria attivo: controllo ogni mattina, email solo se cambia qualcosa';
 }
 function removeDigestTrigger() {
   var n = 0;
   ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (t.getHandlerFunction() === DIGEST_FUNC) { ScriptApp.deleteTrigger(t); n++; }
+    var f = t.getHandlerFunction();
+    if (f === DIGEST_FUNC || f === 'sendWeeklyDigest') { ScriptApp.deleteTrigger(t); n++; }
   });
   return n ? 'rimossi ' + n + ' trigger' : 'nessun trigger da rimuovere';
 }
+function resetDigestMemory() {
+  var props = PropertiesService.getScriptProperties();
+  var all = props.getProperties(), n = 0;
+  Object.keys(all).forEach(function (k) { if (k.indexOf(DIGEST_KEY) === 0) { props.deleteProperty(k); n++; } });
+  return 'dimenticate ' + n + ' impronte: al prossimo controllo rimanda tutto';
+}
 
-/** Manda i promemoria. Torna un riassunto di cosa ha fatto. */
-function sendWeeklyDigest() {
-  var esito = [];
-  dgTripsAttivi().forEach(function (trip) {
-    var all = listAll(trip.id, null);
-    var msg = dgBuild(trip, all);
-    if (!msg) { esito.push(trip.destinazione + ': niente da segnalare'); return; }
-    var to = dgRecipients(all);
-    if (!to.length) { esito.push(trip.destinazione + ': nessun destinatario'); return; }
-    MailApp.sendEmail({ to: to.join(','), subject: msg.subject, body: msg.text, htmlBody: msg.html, name: 'TripHub' });
-    esito.push(trip.destinazione + ': inviato a ' + to.length);
+/** Controlla e, se serve, manda. Torna un riassunto di cosa ha fatto. */
+function sendDigest() {
+  var to = dgOwnerEmail();
+  var esito = dgPlan().map(function (p) {
+    if (p.stato !== 'invia') return p.nome + ': ' + p.stato;
+    if (!to) return p.nome + ': nessun indirizzo a cui mandare';
+    MailApp.sendEmail({ to: to, subject: p.msg.subject, body: p.msg.text, htmlBody: p.msg.html, name: 'TripHub' });
+    dgRemember(p.id, p.msg.fp);
+    return p.nome + ': inviato';
   });
   var out = esito.length ? esito.join(' · ') : 'nessun viaggio in programma';
   Logger.log(out);
   return out;
 }
+// nome vecchio, nel caso qualcuno abbia già un trigger che lo chiama
+function sendWeeklyDigest() { return sendDigest(); }
 
-/** Prova a secco: scrive nel log cosa manderebbe, senza inviare. */
+/** Prova a secco: per ogni viaggio dice cosa farebbe e mostra il testo. Non invia. */
 function previewDigest() {
-  var out = [];
-  dgTripsAttivi().forEach(function (trip) {
-    var msg = dgBuild(trip, listAll(trip.id, null));
-    out.push('=== ' + trip.destinazione + ' → ' + (msg ? dgRecipients(listAll(trip.id, null)).join(', ') || '(nessun destinatario)' : 'niente da dire'));
-    if (msg) out.push(msg.text);
+  var out = ['destinatario: ' + (dgOwnerEmail() || '(nessuno)')];
+  dgPlan().forEach(function (p) {
+    out.push('');
+    out.push('=== ' + p.nome + ' → ' + p.stato);
+    if (p.msg) out.push(p.msg.text);
   });
-  var txt = out.join('\n') || 'nessun viaggio in programma';
+  var txt = out.join('\n');
   Logger.log(txt);
   return txt;
 }
 
-// ---- selezione viaggi e destinatari ----
+/* Decide viaggio per viaggio: 'invia', 'identico all\'ultimo inviato',
+   o 'niente da dire'. È l'unico punto in cui si applicano le regole. */
+function dgPlan() {
+  return dgTripsAttivi().map(function (trip) {
+    var nome = trip.destinazione || trip.nome || 'Viaggio';
+    var msg = dgBuild(trip, listAll(trip.id, null));
+    if (!msg) { dgRemember(trip.id, ''); return { id: trip.id, nome: nome, stato: 'niente da dire', msg: null }; }
+    var ultimo = dgRecall(trip.id);
+    var stato = (ultimo === msg.fp) ? 'identico all\'ultimo inviato, salto' : 'invia';
+    return { id: trip.id, nome: nome, stato: stato, msg: msg };
+  });
+}
+
+// ---- memoria dell'ultimo invio ----
+function dgRecall(tripId) {
+  try { return PropertiesService.getScriptProperties().getProperty(DIGEST_KEY + tripId) || ''; }
+  catch (ignore) { return ''; }
+}
+function dgRemember(tripId, fp) {
+  try {
+    var props = PropertiesService.getScriptProperties();
+    if (fp) props.setProperty(DIGEST_KEY + tripId, fp);
+    else props.deleteProperty(DIGEST_KEY + tripId);
+  } catch (ignore) {}
+}
+
+// ---- selezione viaggi e destinatario ----
 function dgTripsAttivi() {
   var oggi = dgToday();
   return listRows('Viaggi').filter(function (v) {
@@ -1098,15 +1139,8 @@ function dgTripsAttivi() {
     return a ? a >= oggi : false;
   });
 }
-function dgRecipients(all) {
-  var seen = {}, out = [];
-  var add = function (e) {
-    e = String(e || '').trim().toLowerCase();
-    if (e && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && !seen[e]) { seen[e] = true; out.push(e); }
-  };
-  (all.Partecipanti || []).forEach(function (p) { add(p.email); });
-  try { add(Session.getEffectiveUser().getEmail()); } catch (ignore) {}
-  return out;
+function dgOwnerEmail() {
+  try { return String(Session.getEffectiveUser().getEmail() || '').trim(); } catch (ignore) { return ''; }
 }
 
 // ---- il contenuto ----
@@ -1121,6 +1155,14 @@ function dgBuild(trip, all) {
   var vicino = giorni !== null && giorni >= 0 && giorni <= 14;
   var soldi = conti && (conti.trasferimenti.length > 0 || conti.daPagare > 0.005);
   if (!voci.length && !vicino && !soldi) return null;
+
+  // l'impronta: tutto ciò che è "notizia", niente conto alla rovescia
+  var fp = JSON.stringify({
+    v: voci.map(function (x) { return x.testo; }),
+    t: conti ? conti.trasferimenti : [],
+    p: conti ? conti.daPagare : 0,
+    vicino: vicino
+  });
 
   var quando = giorni === null ? ''
     : giorni < 0 ? 'in viaggio' + (fine ? ', rientro il ' + dgIt(fine) : '')
@@ -1163,11 +1205,11 @@ function dgBuild(trip, all) {
     }
   }
 
-  T.push(''); T.push('— TripHub, promemoria automatico del lunedì');
+  T.push(''); T.push('— TripHub. Questa email arriva solo quando cambia qualcosa.');
   var html = '<div style="font-family:system-ui,sans-serif;max-width:560px;color:#17324d;background:#f2ede1;padding:20px;border-radius:12px">'
-    + H.join('') + '<div style="margin-top:18px;font-size:11px;color:#7a6f5a">TripHub · promemoria automatico del lunedì</div></div>';
+    + H.join('') + '<div style="margin-top:18px;font-size:11px;color:#7a6f5a">TripHub · arriva solo quando cambia qualcosa</div></div>';
 
-  return { subject: '✈️ ' + nome + (quando ? ' · ' + quando : ''), text: T.join('\n'), html: html };
+  return { subject: '✈️ ' + nome + (quando ? ' · ' + quando : ''), text: T.join('\n'), html: html, fp: fp };
 }
 
 /** Le stesse voci del riquadro "Prima di partire" dell'app. */
@@ -1200,7 +1242,7 @@ function dgChecklist(trip, all, oggi) {
   scadenze.sort(function (a, b) { return a.quando < b.quando ? -1 : 1; }).forEach(function (x) {
     var d = dgDays(oggi, x.quando);
     if (d < 0) add(true, x.nome + ': il pagamento era da fare entro il ' + dgIt(x.quando));
-    else if (d <= 30) add(d <= 7, x.nome + ': da pagare entro il ' + dgIt(x.quando) + ' (' + (d === 0 ? 'oggi' : d + ' giorni') + ')');
+    else if (d <= 30) add(d <= 7, x.nome + ': da pagare entro il ' + dgIt(x.quando) + (d <= 7 ? ' (' + (d === 0 ? 'oggi' : d + ' giorni') + ')' : ''));
   });
 
   var idee = (all.CoseDaFare || []).filter(function (r) { return !dgIso(r.data); }).length;
