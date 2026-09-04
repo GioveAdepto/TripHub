@@ -376,6 +376,33 @@ label.form-label{font-size:.78rem;font-weight:600;color:var(--ink-soft);margin-b
 
 /* --- STAMPA: il piano di viaggio su carta --- */
 /* ==========================================================
+   COMMENTI
+   ========================================================== */
+.cmt-btn{position:relative}
+.cmt-btn.has{color:var(--stamp)}
+.cmt-n{font-family:'JetBrains Mono',monospace;font-size:.6rem;font-weight:600;
+  vertical-align:.35em;margin-left:.05rem}
+.cmt-lista{max-height:46vh;overflow-y:auto;padding-right:.2rem}
+.cmt{border-bottom:1px solid var(--line);padding:.5rem 0}
+.cmt:last-child{border-bottom:none}
+.cmt-head{display:flex;align-items:baseline;gap:.45rem}
+.cmt-chi{font-weight:600;font-size:.86rem}
+.cmt-quando{font-family:'JetBrains Mono',monospace;font-size:.66rem;color:var(--muted);flex:1}
+.cmt-del{border:none;background:none;color:var(--muted);font-size:.78rem;cursor:pointer;padding:0 .2rem}
+.cmt-del:hover{color:var(--danger)}
+.cmt.mio .cmt-chi{color:var(--stamp)}
+.cmt-testo{font-size:.9rem;line-height:1.45;white-space:pre-wrap;margin-top:.15rem}
+.cmt-vuoto{font-size:.78rem;color:var(--muted);margin:.6rem 0}
+.cmt-io{font-size:.78rem;color:var(--ink-soft);margin-top:.7rem;padding-top:.6rem;
+  border-top:1px dashed var(--line)}
+.cmt-cambia{border:none;background:none;color:var(--muted);font-size:.74rem;
+  text-decoration:underline;cursor:pointer;padding:0 .2rem}
+.cmt-cambia:hover{color:var(--ink)}
+.cmt-peek{font-size:.82rem;color:var(--ink-soft);padding:.2rem 0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cmt-peek .cmt-chi{margin-right:.35rem}
+
+/* ==========================================================
    VISITA GUIDATA
    Riprende il linguaggio del passaporto: l'avanzamento sono
    timbri che si riempiono, non pallini generici.

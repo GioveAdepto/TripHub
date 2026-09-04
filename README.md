@@ -30,6 +30,7 @@ interamente nel browser con dati inventati, non serve nessun codice.
 | 🧳 **Valigia** | Liste con modelli pronti, aggiunta rapida, spunta per persona |
 | ☎️ **Contatti e info** | Numeri utili, informazioni sulla destinazione |
 | 🖨 **Esportazioni** | Dossier PDF del viaggio, file `.ics` per il calendario del telefono |
+| 💬 **Commenti** | Una discussione sotto ogni opzione di volo, alloggio, spesa e attività, più una bacheca del viaggio |
 | 📧 **Promemoria** | Un'email a te — solo a te, e solo quando cambia qualcosa — con quello che manca: scelte, prenotazioni, scadenze, chi deve a chi |
 
 ---
@@ -130,8 +131,8 @@ Un foglio Google fa da database, un tab per entità. Le colonne nuove vengono
 `headers()` confronta lo schema con il foglio e crea da sé quel che manca.
 
 I tab principali: `Viaggi`, `Partecipanti`, `Voli`, `Alloggi`, `Spese`,
-`Pagamenti`, `CoseDaFare`, `CosaPortare`, `Contatti`, `InfoDest`, più una
-`Rubrica` globale.
+`Pagamenti`, `CoseDaFare`, `CosaPortare`, `Contatti`, `InfoDest`, `Commenti`,
+più una `Rubrica` globale.
 
 Qualche dettaglio non ovvio:
 
@@ -149,6 +150,13 @@ Qualche dettaglio non ovvio:
   a testo, altrimenti Sheets sfasa i giorni e mangia gli zeri iniziali.
 - **Aggiornamenti ottimistici**: dopo un salvataggio si aggiorna la copia in
   memoria e si ridisegna solo la sezione corrente, senza rifare la chiamata piena.
+- **Chi sei, senza login**: i commenti non usano account. Scegli il tuo nome fra i
+  partecipanti una volta sola e resta sul dispositivo; sul foglio va l'ID, non il
+  nome, così correggere il cognome in anagrafica non spezza l'identità. La stessa
+  scelta filtra la Valigia, per non avere due nomi diversi per la stessa persona.
+  Ogni commento porta sia `autore_id` sia il soprannome del momento: se ti
+  ribattezzi si aggiornano anche i vecchi, se sparisci dai partecipanti restano
+  firmati com'erano.
 
 ---
 
@@ -205,8 +213,8 @@ python -m http.server 8000
 I test non hanno framework né dipendenze: la pagina carica `index.html?demo` in un
 iframe e verifica le funzioni pure contro il suo `window`. Coprono conversioni di
 date e durate, il conguaglio dei debiti, il suggeritore di orari, la generazione
-ICS e la validazione dei link. Sono **84** e sono stati verificati con quattro
-mutazioni deliberate del codice, per assicurarsi che sappiano fallire.
+ICS, i commenti e la validazione dei link. Sono **96** e sono stati verificati con
+quattro mutazioni deliberate del codice, per assicurarsi che sappiano fallire.
 
 ---
 
@@ -225,6 +233,10 @@ Le cose che so che non vanno, dette prima che le scopra qualcun altro.
   quel viaggio. I codici girano su WhatsApp e non scadono. Per questo l'app **non
   salva numeri di documento né codici fiscali**: tiene solo tipo e scadenza, che
   sono l'unica cosa che le serve (per l'avviso "scade prima del rientro").
+- **L'autore di un commento non è verificato.** Chi ha il codice sceglie da sé chi
+  essere, quindi in teoria può firmarsi come un altro. È lo stesso livello di
+  fiducia che serve già per non cancellare i voli altrui: dentro un gruppo di
+  amici va bene, come sistema di identità no.
 - **Annullare vale solo per le eliminazioni**, non per le modifiche.
 - **Apps Script non è veloce.** Una risposta sta fra uno e tre secondi. La cache in
   memoria e gli aggiornamenti ottimistici servono a non farlo pesare, non a

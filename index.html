@@ -144,8 +144,8 @@ function demoSeed(){
       note:'Viaggio di esempio: i dati sono inventati.' }],
 
     Partecipanti: [
-      { id:'p1', viaggio_id:'v-demo', nome:'Giulia', cognome:'Ferri',   tipo_doc:"Carta d'identità", scadenza_doc:g(400), nazionalita:'Italiana', telefono:'+39 333 1234567' },
-      { id:'p2', viaggio_id:'v-demo', nome:'Marco',  cognome:'Bianchi', tipo_doc:'Passaporto',       scadenza_doc:g(20),  nazionalita:'Italiana', telefono:'+39 340 7654321' },
+      { id:'p1', viaggio_id:'v-demo', nome:'Giulia', cognome:'Ferri',   soprannome:'Giuli',   tipo_doc:"Carta d'identità", scadenza_doc:g(400), nazionalita:'Italiana', telefono:'+39 333 1234567' },
+      { id:'p2', viaggio_id:'v-demo', nome:'Marco',  cognome:'Bianchi', soprannome:'Bianchi', tipo_doc:'Passaporto',       scadenza_doc:g(20),  nazionalita:'Italiana', telefono:'+39 340 7654321' },
       { id:'p3', viaggio_id:'v-demo', nome:'Sara',   cognome:'Neri',    tipo_doc:"Carta d'identità", scadenza_doc:g(900), nazionalita:'Italiana' },
       { id:'p4', viaggio_id:'v-demo', nome:'Luca',   cognome:'Rossi',   tipo_doc:'Passaporto',       scadenza_doc:g(1200),nazionalita:'Italiana' }
     ],
@@ -242,6 +242,21 @@ function demoSeed(){
       { id:'i5', viaggio_id:'v-demo', sezione:'Trasporti', chiave:'Dall\'aeroporto', valore:'Metro linea 8 fino a Nuevos Ministerios, ~30 min' },
       { id:'i6', viaggio_id:'v-demo', sezione:'Trasporti', chiave:'Biglietto metro', valore:'Tarjeta Multi 2,50 € + corse' },
       { id:'i7', viaggio_id:'v-demo', sezione:'Abitudini', chiave:'Orari dei pasti', valore:'Pranzo 14-16, cena raramente prima delle 21' }
+    ],
+
+    Commenti: [
+      { id:'q1', viaggio_id:'v-demo', su:'Alloggi', su_id:'a1', autore_id:'p2', autore:'Bianchi',
+        testo:'Ho guardato su Maps: dalla metro sono cinque minuti a piedi, va benissimo.', data:g(-14)+'T18:20:00.000Z' },
+      { id:'q2', viaggio_id:'v-demo', su:'Alloggi', su_id:'a1', autore_id:'p3', autore:'Sara',
+        testo:'Per me ok. Ricordiamoci che il saldo va pagato un mese prima.', data:g(-13)+'T09:05:00.000Z' },
+      { id:'q3', viaggio_id:'v-demo', su:'Voli', su_id:'g2', autore_id:'p1', autore:'Giuli',
+        testo:'Questa costa 270 in piu e parte pure piu tardi. Io la scarterei.', data:g(-15)+'T21:40:00.000Z' },
+      { id:'q4', viaggio_id:'v-demo', su:'CoseDaFare', su_id:'c4', autore_id:'p4', autore:'Luca',
+        testo:'Toledo il treno da Atocha ci mette mezz ora. Meglio partire presto.', data:g(-6)+'T12:10:00.000Z' },
+      { id:'q5', viaggio_id:'v-demo', su:'Viaggi', su_id:'v-demo', autore_id:'p1', autore:'Giuli',
+        testo:'Ragazzi ci troviamo a Orio alle 5, il volo e alle 7:20.', data:g(-5)+'T19:00:00.000Z' },
+      { id:'q6', viaggio_id:'v-demo', su:'Viaggi', su_id:'v-demo', autore_id:'p4', autore:'Luca',
+        testo:'Io arrivo in macchina, posso passare a prendere due persone.', data:g(-5)+'T19:35:00.000Z' }
     ],
 
     Rubrica: []
@@ -1726,7 +1741,8 @@ function secRiepilogo(d){
       <div class="sheet p-4 h-100"><p class="eyebrow mb-2">✈️ Voli scelti</p>${voliBox}${warn}</div>
     </div>
   </div>
-  ${balBox}`;
+  ${balBox}
+  ${bachecaBox()}`;
 }
 
 /* ---------- PARTECIPANTI (anagrafica viaggiatori) ---------- */
@@ -1799,6 +1815,7 @@ const LABELS = {
   nazionalita:'nazionalità', paganti:'paganti', chi:'chi', n_persone:'n° persone',
   costo_bagaglio:'costo bagagli', pnr:'n° prenotazione', mappa_link:'link mappa',
   codice:'codice di accesso',
+  soprannome:'soprannome — il nome che appare sui commenti',
   scadenza_pag:'da pagare entro', importo:'importo', riferimento:'per cosa',
   pagato_da:'ha pagato',
   attivita:'attività', durata:'durata — es. 2h, mezza giornata',
@@ -1955,6 +1972,7 @@ function movimentiBox(d, tid){
       <span class="mov-act">
         ${m.src==='Spese'  ? `<span class="chip" title="viene dal tab Spese">spesa</span>` : ''}
         ${m.legacy         ? `<span class="chip" title="vecchio campo &quot;ha pagato&quot;">da convertire</span>` : ''}
+        ${modificabile ? cmtBtn('Pagamenti', m.srcId, m.riferimento || (m.tipo==='rimborso'?'Rimborso':'Anticipo')) : ''}
         ${modificabile ? `<button class="icon-btn" onclick="editPagamento(findRow('Pagamenti','${jsArg(m.srcId)}'),'${jsArg(tid)}')">✎</button>
            <button class="icon-btn" onclick="delRow('Pagamenti','${jsArg(m.srcId)}')">🗑</button>` : ''}
       </span>
@@ -2184,6 +2202,7 @@ function secSpese(d, tid){
       <td class="mono">${eur(r.totale)}</td>
       <td class="mono per-person">${eur(aTesta)}</td>
       <td class="text-nowrap">
+        ${cmtBtn('Spese', r.id, r.descrizione || 'Spesa')}
         <button class="icon-btn" onclick="editRowById('Spese','${jsArg(r.id)}')">✎</button>
         <button class="icon-btn" onclick="delRow('Spese','${jsArg(r.id)}')">🗑</button>
       </td></tr>`;
@@ -2353,6 +2372,7 @@ function alloggioCard(a){
           ${pick?'<span class="chip pick ms-1">✓ scelto</span>':''}
         </div>
         <div class="text-nowrap">
+          ${cmtBtn('Alloggi', a.id, a.struttura || 'Alloggio')}
           <button class="icon-btn" title="Duplica" onclick="dupAlloggio('${jsArg(a.id)}')">⧉</button>
           <button class="icon-btn" title="Modifica" onclick="editRowById('Alloggi','${jsArg(a.id)}')">✎</button>
           <button class="icon-btn" title="Elimina" onclick="delRow('Alloggi','${jsArg(a.id)}')">🗑</button>
@@ -2697,6 +2717,7 @@ function voloCard(key, legs, groups){
           ${pick?'<span class="chip pick">✓ scelto</span>':''}
         </div>
         <div class="text-nowrap">
+          ${cmtBtn('Voli', key, 'Volo · opz. ' + groupOpz(legs))}
           ${canMerge?`<button class="icon-btn" title="Abbina con l'altra direzione" onclick="abbinaVolo('${jsArg(key)}')">⇄</button>`:''}
           <button class="icon-btn" title="Duplica opzione" onclick="dupVolo('${jsArg(key)}')">⧉</button>
           <button class="icon-btn" title="Modifica" onclick="editVoloById('${jsArg(key)}')">✎</button>
@@ -3243,6 +3264,7 @@ function cdfItem(r, isIdea){
       ${r.note?`<div style="font-size:.78rem;color:var(--muted);margin-top:.15rem">${esc(r.note)}</div>`:''}
     </div>
     <div class="cdf-acts">
+      ${cmtBtn('CoseDaFare', r.id, r.attivita || 'Attività')}
       ${isIdea
         ? `<button class="icon-btn" title="Suggerisci quando farla" onclick="cdfSuggestModal('${jsArg(r.id)}')">✨</button>
            <button class="icon-btn" title="Metti una data" onclick="cdfScheduleModal('${jsArg(r.id)}')">📅</button>`
@@ -3637,15 +3659,18 @@ function cpSavePrefs(){
 }
 
 function cpWhoKey(){ return 'triphub_who_' + (CURRENT_TRIP ? CURRENT_TRIP.id : ''); }
+// "Chi sono" è uno solo: la Valigia e i commenti leggono la stessa scelta.
 function cpWho(){
   if(CP_WHO === null){
-    try { CP_WHO = localStorage.getItem(cpWhoKey()) || ''; } catch(_){ CP_WHO = ''; }
+    const p = me();
+    CP_WHO = p ? pName(p) : '';
   }
   return CP_WHO;
 }
 function cpSetWho(v){
-  CP_WHO = v || '';
-  try { v ? localStorage.setItem(cpWhoKey(), v) : localStorage.removeItem(cpWhoKey()); } catch(_){}
+  const p = v ? partList(CURRENT_DATA||{}).find(x=>pName(x) === v) : null;
+  meSetId(p ? p.id : '');
+  CP_WHO = p ? v : '';
   renderSection('cosaportare');
 }
 function cpSetFilter(f){ CP_FILTER = f; cpSavePrefs(); renderSection('cosaportare'); }
@@ -4620,7 +4645,7 @@ function infoTemplateModal(tid){
    ============================================================ */
 const FIELD_ORDER = {
   Viaggi:['nome','destinazione','paese','data_inizio','data_fine','n_persone','stato','codice','note'],
-  Partecipanti:['nome','cognome','data_nascita','luogo_nascita','tipo_doc','scadenza_doc','nazionalita','telefono','email','note'],
+  Partecipanti:['nome','cognome','soprannome','data_nascita','luogo_nascita','tipo_doc','scadenza_doc','nazionalita','telefono','email','note'],
   Rubrica:['nome','cognome','data_nascita','luogo_nascita','tipo_doc','scadenza_doc','nazionalita','telefono','email','note'],
   Alloggi:['struttura','checkin','ora_checkin','checkout','ora_checkout','notti','persone','totale','prezzo_notte','prezzo_testa','prezzo_testa_notte','extra','link','indirizzo','mappa_link','posizione','pnr','valutazione','scelto','note'],
   Spese:['data','descrizione','categoria','pagato_da','paganti','totale','prezzo_testa','note'],
@@ -6566,6 +6591,253 @@ function initNetwork(){
   window.addEventListener('online', ()=>{ paint(); toast('Connessione ripristinata','ok'); });
   window.addEventListener('offline', paint);
   paint();
+}
+
+/* ============================================================
+   CHI SEI — l'identità del dispositivo
+   ------------------------------------------------------------
+   Niente login: si sceglie il proprio nome fra i partecipanti, una volta
+   sola, e resta sul dispositivo. La stessa identità serve alla Valigia
+   ("solo le mie voci") e ai commenti, così non ci sono due nomi diversi
+   per la stessa persona.
+
+   In memoria salviamo l'ID del partecipante, non il nome: se qualcuno si
+   corregge il cognome nell'anagrafica, l'identità regge lo stesso.
+   ============================================================ */
+function meKey(){ return 'triphub_me_' + (CURRENT_TRIP ? CURRENT_TRIP.id : ''); }
+
+function meId(){
+  let id = '';
+  try{ id = localStorage.getItem(meKey()) || ''; }catch(_){ return ''; }
+  if(id) return id;
+  // chi usava già la Valigia aveva il nome salvato: lo converto in ID
+  try{
+    const vecchio = localStorage.getItem(cpWhoKey());
+    if(vecchio){
+      const p = partList(CURRENT_DATA||{}).find(x=>pName(x) === vecchio);
+      if(p){ localStorage.setItem(meKey(), String(p.id)); return String(p.id); }
+    }
+  }catch(_){}
+  return '';
+}
+function me(){
+  const id = meId();
+  return id ? (partList(CURRENT_DATA||{}).find(p=>String(p.id)===String(id)) || null) : null;
+}
+function meSetId(id){
+  try{
+    if(id) localStorage.setItem(meKey(), String(id));
+    else { localStorage.removeItem(meKey()); localStorage.removeItem(cpWhoKey()); }
+  }catch(_){}
+  CP_WHO = null;                 // la Valigia rilegge da qui
+}
+// Come ti vedono gli altri: il soprannome se c'è, altrimenti il nome di battesimo.
+function nickOf(p){
+  if(!p) return '';
+  return String(p.soprannome||'').trim() || String(p.nome||'').trim() || pName(p);
+}
+function meNick(){ return nickOf(me()); }
+
+/* ============================================================
+   COMMENTI
+   ------------------------------------------------------------
+   Una discussione attaccata a una voce: un'opzione di volo, un alloggio,
+   una spesa, un movimento, un'attività — oppure al viaggio intero, che è
+   la bacheca. Per i voli il commento sta sul GRUPPO (l'opzione), non sulla
+   singola tratta: si discute dell'opzione, non del secondo scalo.
+
+   Salviamo sia autore_id sia il soprannome del momento: se la persona
+   cambia soprannome i vecchi commenti si aggiornano, se viene tolta dai
+   partecipanti restano firmati com'erano invece di diventare anonimi.
+   ============================================================ */
+function commentiDi(su, suId){
+  return ((CURRENT_DATA && CURRENT_DATA.Commenti) || [])
+    .filter(c => String(c.su)===String(su) && String(c.su_id)===String(suId))
+    .sort((a,b)=>String(a.data||'').localeCompare(String(b.data||'')));
+}
+function nCommenti(su, suId){ return commentiDi(su, suId).length; }
+
+// Il pulsante da mettere accanto alle altre azioni della riga.
+function cmtBtn(su, suId, titolo){
+  const n = nCommenti(su, suId);
+  return `<button class="icon-btn cmt-btn${n?' has':''}"
+    title="${n ? n+(n===1?' commento':' commenti') : 'Commenta'}"
+    onclick="openCommenti('${jsArg(su)}','${jsArg(suId)}','${jsArg(titolo||'')}')"
+    >💬${n?`<span class="cmt-n">${n}</span>`:''}</button>`;
+}
+
+function cmtQuando(iso){
+  const s = String(iso||'');
+  const d = new Date(s);
+  if(isNaN(d)) return '';
+  const oggi = todayISO(), giorno = s.slice(0,10);
+  const ora = String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  if(giorno === oggi) return 'oggi ' + ora;
+  if(giorno === isoAddDays(oggi,-1)) return 'ieri ' + ora;
+  return toITDate(giorno) + ' ' + ora;
+}
+
+function openCommenti(su, suId, titolo){
+  ensureModal();
+  $('#mTitle').textContent = titolo ? ('💬 ' + titolo) : '💬 Commenti';
+  cmtRender(su, suId, titolo);
+  $('#mSave').textContent = 'Invia';
+  $('#mSave').onclick = ()=> withBtnLoading($('#mSave'), 'Invio…', ()=>cmtInvia(su, suId, titolo));
+  MODAL.show();
+  setTimeout(()=>{ const t = $('#cmt_testo'); if(t) t.focus(); }, 300);
+}
+
+function cmtRender(su, suId, titolo){
+  const lista = commentiDi(su, suId);
+  const io = me();
+  const mio = c => io && String(c.autore_id) === String(io.id);
+  // il soprannome attuale vince su quello salvato: se ti ribattezzi, cambiano tutti
+  const firma = c => {
+    const p = partList(CURRENT_DATA||{}).find(x=>String(x.id)===String(c.autore_id));
+    return p ? nickOf(p) : (String(c.autore||'').trim() || 'qualcuno');
+  };
+
+  const righe = lista.length ? lista.map(c=>`
+    <div class="cmt${mio(c)?' mio':''}">
+      <div class="cmt-head">
+        <span class="cmt-chi">${esc(firma(c))}</span>
+        <span class="cmt-quando">${esc(cmtQuando(c.data))}</span>
+        ${mio(c)?`<button class="cmt-del" title="Elimina" onclick="cmtElimina('${jsArg(c.id)}','${jsArg(su)}','${jsArg(suId)}','${jsArg(titolo||'')}')">🗑</button>`:''}
+      </div>
+      <div class="cmt-testo">${esc(c.testo||'')}</div>
+    </div>`).join('')
+    : `<p class="mono cmt-vuoto">Ancora nessun commento. Scrivi il primo.</p>`;
+
+  const chi = io
+    ? `<div class="cmt-io">Scrivi come <strong>${esc(meNick())}</strong>
+         <button class="cmt-cambia" onclick="chiSeiModal('${jsArg(su)}','${jsArg(suId)}','${jsArg(titolo||'')}')">cambia</button></div>`
+    : `<div class="cmt-io">
+         <button class="btn btn-ghost btn-sm" onclick="chiSeiModal('${jsArg(su)}','${jsArg(suId)}','${jsArg(titolo||'')}')">Dimmi chi sei per commentare</button>
+       </div>`;
+
+  $('#mBody').innerHTML = `
+    <div class="cmt-lista" id="cmt_lista">${righe}</div>
+    ${chi}
+    <textarea class="form-control mt-2" id="cmt_testo" rows="3"
+      placeholder="${io ? 'Scrivi qui…' : 'Prima dimmi chi sei'}" ${io?'':'disabled'}></textarea>`;
+  const box = $('#cmt_lista');
+  if(box) box.scrollTop = box.scrollHeight;      // l'ultimo commento in vista
+}
+
+async function cmtInvia(su, suId, titolo){
+  const io = me();
+  if(!io){ chiSeiModal(su, suId, titolo); return; }
+  const el = $('#cmt_testo');
+  const testo = el ? el.value.trim() : '';
+  if(!testo){ toast('Scrivi qualcosa prima','error'); return; }
+
+  const rec = {
+    viaggio_id: CURRENT_TRIP.id, su, su_id: suId,
+    autore_id: String(io.id), autore: meNick(),
+    testo, data: new Date().toISOString()
+  };
+  const saved = await api('create', { sheet:'Commenti', record: rec });
+  applyLocal('Commenti','create', saved);
+  if(el) el.value = '';
+  cmtRender(su, suId, titolo);                    // resto nella discussione
+  updateTabBadges();
+  refreshView();
+  MODAL.show();                                   // refreshView ridisegna sotto, il modal resta
+}
+
+async function cmtElimina(id, su, suId, titolo){
+  if(!await askConfirm('Eliminare questo commento?', true)) return;
+  try{
+    await api('delete', { sheet:'Commenti', id });
+    applyLocal('Commenti','delete', id);
+    cmtRender(su, suId, titolo);
+    refreshView(); MODAL.show();
+  }catch(e){
+    if(e instanceof AuthError) sessionExpired(); else toast('Errore: '+e.message,'error');
+  }
+}
+
+/* Chi sei + come ti facciamo chiamare. Chiesto una volta sola, alla
+   prima cosa che richiede un'identità. */
+function chiSeiModal(tornaSu, tornaSuId, tornaTitolo){
+  ensureModal();
+  const people = partList(CURRENT_DATA||{});
+  if(!people.length){
+    $('#mTitle').textContent = 'Chi sei?';
+    $('#mBody').innerHTML = `<p class="mb-0">Per commentare servono i partecipanti:
+      aggiungili nel tab <strong>Partecipanti</strong> e torna qui.</p>`;
+    $('#mSave').textContent = 'Ho capito';
+    $('#mSave').onclick = ()=>MODAL.hide();
+    MODAL.show();
+    return;
+  }
+  const io = me();
+  $('#mTitle').textContent = 'Chi sei?';
+  $('#mBody').innerHTML = `
+    <p class="mono mb-3" style="font-size:.74rem;color:var(--muted)">
+      Resta su questo dispositivo. Serve a firmare i commenti e a filtrare la valigia.</p>
+    <div class="mb-3">
+      <label class="form-label">sei</label>
+      <select class="form-select" id="cs_id" onchange="csSyncNick()">
+        <option value="">— scegli —</option>
+        ${people.map(p=>`<option value="${esc(p.id)}"${io&&String(io.id)===String(p.id)?' selected':''}
+          data-nick="${esc(nickOf(p))}">${esc(pName(p))}</option>`).join('')}
+      </select>
+    </div>
+    <div class="mb-2">
+      <label class="form-label">come ti facciamo chiamare
+        <span style="font-weight:400;color:var(--muted);font-size:.7rem">— è il nome che vedranno sui tuoi commenti</span></label>
+      <input class="form-control" id="cs_nick" maxlength="24" value="${esc(io?nickOf(io):'')}" placeholder="es. Giuli">
+    </div>`;
+  $('#mSave').textContent = 'Sono io';
+  $('#mSave').onclick = ()=> withBtnLoading($('#mSave'), 'Salvo…', async ()=>{
+    const id = $('#cs_id').value;
+    if(!id){ toast('Scegli chi sei','error'); return; }
+    const p = people.find(x=>String(x.id)===String(id));
+    const nick = $('#cs_nick').value.trim() || String(p.nome||'').trim() || pName(p);
+    if(nick !== nickOf(p)){
+      const rec = { id: p.id, viaggio_id: p.viaggio_id, soprannome: nick };
+      await api('update', { sheet:'Partecipanti', record: rec });
+      applyLocal('Partecipanti','update', rec);
+    }
+    meSetId(id);
+    if(tornaSu) openCommenti(tornaSu, tornaSuId, tornaTitolo || '');
+    else { MODAL.hide(); toast(`Ciao ${nick} ✓`,'ok'); refreshView(); }
+  });
+  MODAL.show();
+}
+// scegliendo la persona propongo il soprannome che ha già
+function csSyncNick(){
+  const sel = $('#cs_id'), inp = $('#cs_nick');
+  if(!sel || !inp) return;
+  const opt = sel.selectedOptions[0];
+  inp.value = opt ? (opt.getAttribute('data-nick') || '') : '';
+}
+
+/* La bacheca del viaggio: quello che non riguarda una voce precisa. */
+function bachecaBox(){
+  if(!CURRENT_TRIP) return '';
+  const n = nCommenti('Viaggi', CURRENT_TRIP.id);
+  const ultimi = commentiDi('Viaggi', CURRENT_TRIP.id).slice(-2);
+  const firma = c => {
+    const p = partList(CURRENT_DATA||{}).find(x=>String(x.id)===String(c.autore_id));
+    return p ? nickOf(p) : (String(c.autore||'').trim() || 'qualcuno');
+  };
+  return `
+    <div class="sheet p-3 mb-3">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 ${n?'mb-2':''}">
+        <p class="eyebrow mb-0">📌 Bacheca${n?` · ${n}`:''}</p>
+        <button class="btn btn-ghost btn-sm"
+          onclick="openCommenti('Viaggi','${jsArg(CURRENT_TRIP.id)}','Bacheca del viaggio')">
+          ${n?'apri la discussione':'scrivi il primo messaggio'}</button>
+      </div>
+      ${ultimi.length ? ultimi.map(c=>`<div class="cmt-peek">
+          <span class="cmt-chi">${esc(firma(c))}</span>
+          <span>${esc(String(c.testo||'').slice(0,120))}${String(c.testo||'').length>120?'…':''}</span>
+        </div>`).join('')
+        : `<p class="mono mb-0" style="font-size:.76rem;color:var(--muted)">
+             Per quello che non sta sotto una voce precisa: chi porta le casse, a che ora ci si trova.</p>`}
+    </div>`;
 }
 
 /* ============================================================

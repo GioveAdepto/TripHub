@@ -49,7 +49,7 @@
 // il foglio esistente mantiene le posizioni originali.
 const SCHEMA = {
   Viaggi:      ['id','nome','destinazione','paese','data_inizio','data_fine','n_persone','stato','note','codice'],
-  Partecipanti:['id','viaggio_id','nome','cognome','data_nascita','luogo_nascita','tipo_doc','scadenza_doc','nazionalita','telefono','email','note'],
+  Partecipanti:['id','viaggio_id','nome','cognome','data_nascita','luogo_nascita','tipo_doc','scadenza_doc','nazionalita','telefono','email','note','soprannome'],
   Alloggi:     ['id','viaggio_id','struttura','checkin','ora_checkin','checkout','ora_checkout','notti','persone','prezzo_notte','extra','totale','prezzo_testa','prezzo_testa_notte','link','indirizzo','posizione','valutazione','scelto','note','mappa_link','pnr','pagato_da','scadenza_pag'],
   Voli:        ['id','viaggio_id','gruppo_id','opzione','direzione','tratta','persone','paganti','compagnia','n_volo','da','a','data_part','ora_part','data_arr','ora_arr','scalo','totale','prezzo_testa','bagaglio','scelto','note','costo_bagaglio','pnr','pagato_da','scadenza_pag'],
   Spese:       ['id','viaggio_id','data','descrizione','categoria','paganti','persone','totale','prezzo_testa','note','pagato_da'],
@@ -61,6 +61,10 @@ const SCHEMA = {
   //  tipo 'anticipo' → chi ha tirato fuori i soldi, diviso fra `paganti`
   //  tipo 'rimborso' → chi restituisce a chi (nessuna divisione)
   Pagamenti:   ['id','viaggio_id','data','tipo','chi','verso','importo','riferimento','paganti','note'],
+  // Discussioni agganciate a una voce (su = tab, su_id = riga; per i voli il gruppo)
+  // o al viaggio intero (su = 'Viaggi'). autore_id punta al partecipante, autore
+  // e' il soprannome com'era quando ha scritto: se cambia si aggiorna, se sparisce resta.
+  Commenti:    ['id','viaggio_id','su','su_id','autore_id','autore','testo','data'],
   // Anagrafica globale, NON legata a un viaggio: solo l'amministratore la vede.
   Rubrica:     ['id','nome','cognome','data_nascita','luogo_nascita','tipo_doc','scadenza_doc','nazionalita','telefono','email','note']
 };
@@ -1151,17 +1155,19 @@ function dgBuild(trip, all) {
   var nome = trip.destinazione || trip.nome || 'Viaggio';
   var voci = dgChecklist(trip, all, oggi);
   var conti = dgConti(all);
+  var commenti = (all.Commenti || []).slice().sort(function (a, b) { return String(b.data || '').localeCompare(String(a.data || '')); });
 
   var vicino = giorni !== null && giorni >= 0 && giorni <= 14;
   var soldi = conti && (conti.trasferimenti.length > 0 || conti.daPagare > 0.005);
-  if (!voci.length && !vicino && !soldi) return null;
+  if (!voci.length && !vicino && !soldi && !commenti.length) return null;
 
   // l'impronta: tutto ciò che è "notizia", niente conto alla rovescia
   var fp = JSON.stringify({
     v: voci.map(function (x) { return x.testo; }),
     t: conti ? conti.trasferimenti : [],
     p: conti ? conti.daPagare : 0,
-    vicino: vicino
+    vicino: vicino,
+    c: commenti.length                     // un commento nuovo basta a rimandare
   });
 
   var quando = giorni === null ? ''
@@ -1203,6 +1209,17 @@ function dgBuild(trip, all) {
       T.push('Siete in pari.');
       H.push('<div style="color:#3f7d5c">Siete in pari ✓</div>');
     }
+  }
+
+  if (commenti.length) {
+    var ultimi = commenti.slice(0, 3);
+    T.push(''); T.push('Ultimi commenti (' + commenti.length + ' in tutto):');
+    H.push('<h3 style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#d1622a;margin:16px 0 6px">Ultimi commenti · ' + commenti.length + '</h3>');
+    ultimi.forEach(function (c) {
+      var chi = dgAutore(c, all), dove = dgDove(c, all);
+      T.push('- ' + chi + (dove ? ' su ' + dove : '') + ': ' + String(c.testo || '').replace(/\s+/g, ' ').slice(0, 140));
+      H.push('<div style="margin:4px 0"><b>' + h(chi) + '</b>' + (dove ? ' <span style="color:#7a6f5a">su ' + h(dove) + '</span>' : '') + ': ' + h(String(c.testo || '').slice(0, 140)) + '</div>');
+    });
   }
 
   T.push(''); T.push('— TripHub. Questa email arriva solo quando cambia qualcosa.');
@@ -1249,6 +1266,23 @@ function dgChecklist(trip, all, oggi) {
   if (idee) add(false, idee + ' ide' + (idee === 1 ? 'a' : 'e') + ' ancora senza data');
 
   return out;
+}
+
+// ---- commenti: soprannome attuale se la persona c'e' ancora, altrimenti quello salvato ----
+function dgAutore(c, all) {
+  var p = (all.Partecipanti || []).filter(function (x) { return String(x.id) === String(c.autore_id); })[0];
+  if (p) return String(p.soprannome || '').trim() || p.nome || dgName(p);
+  return String(c.autore || '').trim() || 'qualcuno';
+}
+function dgDove(c, all) {
+  var su = String(c.su || ''), id = String(c.su_id || '');
+  var find = function (rows, f) { var r = (rows || []).filter(function (x) { return String(x.id) === id; })[0]; return r ? f(r) : ''; };
+  if (su === 'Alloggi')    return find(all.Alloggi, function (a) { return a.struttura || 'alloggio'; });
+  if (su === 'Spese')      return find(all.Spese, function (x) { return x.descrizione || 'spesa'; });
+  if (su === 'Pagamenti')  return find(all.Pagamenti, function (x) { return x.riferimento || 'movimento'; });
+  if (su === 'CoseDaFare') return find(all.CoseDaFare, function (x) { return x.attivita || 'attivita'; });
+  if (su === 'Voli') { var g = dgGroups(all.Voli || [])[id]; return g ? 'volo ' + dgRoute(g) : 'volo'; }
+  return su === 'Viaggi' ? 'bacheca' : '';
 }
 
 // ---- porting dei conti (deve dare gli stessi numeri del frontend) ----

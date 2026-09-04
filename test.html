@@ -308,6 +308,36 @@ describe('link non fidati', ()=>{
   ok('il testo viene comunque protetto', W.linkCell('<img onerror=x>').indexOf('<img') < 0);
 });
 
+describe('commenti', ()=>{
+  const d = viaggio({
+    Partecipanti:[{id:'p1',nome:'Anna',soprannome:'Anni'},{id:'p2',nome:'Bruno'},{id:'p3',nome:'Carla'}],
+    Commenti:[
+      {id:'q1',su:'Alloggi',su_id:'a1',autore_id:'p1',autore:'Anni',testo:'secondo',data:'2099-06-02T10:00:00.000Z'},
+      {id:'q2',su:'Alloggi',su_id:'a1',autore_id:'p2',autore:'Bruno',testo:'primo', data:'2099-06-01T10:00:00.000Z'},
+      {id:'q3',su:'Alloggi',su_id:'a2',autore_id:'p1',autore:'Anni',testo:'altro',  data:'2099-06-03T10:00:00.000Z'},
+      {id:'q4',su:'Voli',   su_id:'g1',autore_id:'p9',autore:'Fantasma',testo:'ex', data:'2099-06-04T10:00:00.000Z'}
+    ]
+  });
+  stato(d.Viaggi[0], d);
+
+  eq('filtra per voce',        W.commentiDi('Alloggi','a1').map(c=>c.id), ['q2','q1']);
+  eq('in ordine di tempo',     W.commentiDi('Alloggi','a1').map(c=>c.testo), ['primo','secondo']);
+  eq('non mescola le voci',    W.nCommenti('Alloggi','a2'), 1);
+  eq('voce senza commenti',    W.nCommenti('Alloggi','mai'), 0);
+  eq('i voli si commentano a gruppo', W.nCommenti('Voli','g1'), 1);
+
+  eq('soprannome se c\'è',     W.nickOf({nome:'Anna',soprannome:'Anni'}), 'Anni');
+  eq('altrimenti il nome',     W.nickOf({nome:'Bruno'}), 'Bruno');
+  eq('soprannome vuoto ignorato', W.nickOf({nome:'Carla',soprannome:'   '}), 'Carla');
+
+  ok('il pulsante mostra il conteggio', W.cmtBtn('Alloggi','a1','x').indexOf('>2<') >= 0,
+     W.cmtBtn('Alloggi','a1','x'));
+  ok('senza commenti niente numero', W.cmtBtn('Alloggi','mai','x').indexOf('cmt-n') < 0);
+
+  eq('data di oggi',  W.cmtQuando(W.todayISO()+'T08:30:00.000Z').slice(0,4), 'oggi');
+  eq('data invalida', W.cmtQuando('boh'), '');
+});
+
 describe('modalità demo', ()=>{
   const db = leggi('DEMO_DB');
   ok('è attiva con ?demo', leggi('DEMO') === true);
