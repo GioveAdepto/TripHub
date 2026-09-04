@@ -375,6 +375,40 @@ label.form-label{font-size:.78rem;font-weight:600;color:var(--ink-soft);margin-b
 .pd-cols{column-count:2;column-gap:16px}
 
 /* --- STAMPA: il piano di viaggio su carta --- */
+/* ==========================================================
+   VISITA GUIDATA
+   Riprende il linguaggio del passaporto: l'avanzamento sono
+   timbri che si riempiono, non pallini generici.
+   ========================================================== */
+.tour-dialog{max-width:520px}
+.tour-content{background:var(--card);border:1px solid var(--line);
+  border-radius:var(--radius);box-shadow:0 18px 50px -24px rgba(23,50,77,.6)}
+.tour-body{padding:1.6rem 1.5rem 1.2rem}
+.tour-art{display:flex;align-items:center;justify-content:center;
+  height:88px;margin-bottom:1rem;font-size:2.6rem;line-height:1}
+.tour-title{font-family:'Fraunces',serif;font-weight:600;font-size:1.35rem;
+  line-height:1.2;margin:0 0 .5rem}
+.tour-text{font-size:.94rem;line-height:1.55;color:var(--ink-soft);margin:0}
+.tour-text strong{color:var(--ink)}
+.tour-text ul{margin:.6rem 0 0;padding-left:1.1rem}
+.tour-text li{margin-bottom:.3rem}
+.tour-foot{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;
+  padding:.9rem 1.5rem 1.2rem;border-top:1px solid var(--line)}
+.tour-dots{display:flex;gap:.35rem;flex:1;align-items:center}
+.tour-dot{width:9px;height:9px;border-radius:2px;background:var(--paper-2);
+  border:1px solid var(--line);transform:rotate(12deg);padding:0;cursor:pointer;
+  transition:background .15s,border-color .15s}
+.tour-dot.on{background:var(--stamp);border-color:var(--stamp)}
+.tour-dot.done{background:var(--line);border-color:var(--line)}
+.tour-skip{background:none;border:none;color:var(--muted);font-size:.8rem;
+  text-decoration:underline;cursor:pointer;padding:.2rem}
+.tour-skip:hover{color:var(--ink)}
+@media(max-width:640px){
+  .tour-body{padding:1.3rem 1.1rem 1rem}
+  .tour-foot{padding:.8rem 1.1rem 1rem}
+  .tour-art{height:70px;font-size:2.2rem}
+}
+
 @media print{
   @page{margin:12mm}
   body{background:#fff !important;background-image:none !important;color:#000}

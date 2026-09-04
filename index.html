@@ -730,6 +730,8 @@ function buildTopMenu(){
     <li><button class="dropdown-item" onclick="doExport()">⬇︎ Esporta backup (JSON)</button></li>
     <li><button class="dropdown-item" onclick="document.getElementById('importFile').click()">⬆︎ Importa backup…</button></li>
     <li><hr class="dropdown-divider"></li>`:''}
+    <li><button class="dropdown-item" onclick="startTour()">🧭 Visita guidata</button></li>
+    <li><hr class="dropdown-divider"></li>
     <li><button class="dropdown-item text-danger" onclick="logout()">Esci</button></li>`;
 }
 
@@ -910,6 +912,7 @@ function paintHome(trips){
          <button class="btn btn-stamp mt-3" onclick="editTrip()">+ Nuovo viaggio</button>`
          :`<div>Il codice che hai usato non è collegato a nessun viaggio attivo.</div>`}</div>`}
   `;
+  maybeTour();
 }
 
 function filterTrips(q){
@@ -1180,6 +1183,7 @@ function renderTripShell(section){
     <div class="nav-sheet" id="navsheet">${navSheetHtml(section)}</div>
   `;
   renderSection(section);
+  maybeTour();
 }
 
 // Testo pronto da mandare su WhatsApp con link + codice del viaggio
@@ -6562,6 +6566,165 @@ function initNetwork(){
   window.addEventListener('online', ()=>{ paint(); toast('Connessione ripristinata','ok'); });
   window.addEventListener('offline', paint);
   paint();
+}
+
+/* ============================================================
+   VISITA GUIDATA
+   Compare una volta sola, al primo accesso, e chiede il permesso
+   prima di partire. I passi dipendono dal codice usato: mostrare
+   a un partecipante come si crea un viaggio sarebbe solo rumore,
+   visto che il server glielo impedirebbe comunque.
+   ============================================================ */
+const TOUR_VER = 'v1';
+let TOUR = null;          // { steps, i, modal, el }
+let TOUR_ASKED = false;   // una proposta per sessione, non una per schermata
+
+function tourKey(){ return 'triphub_tour_' + TOUR_VER + '_' + (isAdmin() ? 'admin' : 'trip'); }
+function tourSeen(){
+  // se localStorage è bloccato consideriamola già vista: meglio non
+  // riproporla a ogni caricamento a chi ha i cookie disabilitati
+  try{ return localStorage.getItem(tourKey()) === '1'; }catch(_){ return true; }
+}
+function tourMark(){ try{ localStorage.setItem(tourKey(), '1'); }catch(_){} }
+
+function tourStepsAdmin(){
+  const nTrips = (TRIPS_CACHE || []).length;
+  return [
+    { art:'🧭', title:'Benvenuto in TripHub',
+      text:`Qui organizzi un viaggio di gruppo dall'inizio alla fine: voli, alloggi,
+        spese, valigia e contatti in un posto solo. I dati stanno sul <strong>tuo</strong>
+        foglio Google, non su un servizio esterno.
+        <br><br>La visita dura un minuto. Puoi saltarla e riaprirla quando vuoi dal menu ⋯.` },
+    { art:'📋', title:'Tutto parte da un viaggio',
+      text:`Ogni viaggio è un contenitore con le sue sezioni. Crei il viaggio con
+        destinazione e date, poi riempi il resto man mano che le cose si decidono.
+        <br><br>Le date iniziali possono essere approssimative: quando scegli un volo,
+        TripHub si accorge della differenza e ti propone di allinearle.`,
+      action: nTrips ? null : { label:'Crea il primo viaggio', fn:()=>editTrip() } },
+    { art:'🔑', title:'Un codice per ogni viaggio',
+      text:`Ogni viaggio ha un codice di accesso. Lo dai ai compagni di viaggio e loro
+        entrano vedendo <strong>solo quel viaggio</strong>: non l'elenco degli altri,
+        non la rubrica, non i backup.
+        <br><br>Il tuo codice invece apre tutto. Tienilo per te.` },
+    { art:'✈️', title:'Prima le opzioni, poi la scelta',
+      text:`Voli e alloggi funzionano a opzioni: ne inserisci quante ne vuoi e le
+        confronti fianco a fianco. Quando decidete, premi <strong>Scegli</strong>.
+        <ul>
+          <li>Il budget conta solo le opzioni scelte</li>
+          <li>Scegliere un volo deseleziona le altre andate</li>
+          <li>Le quote per persona si ricalcolano da sole</li>
+        </ul>` },
+    { art:'🖨', title:'Da portarsi dietro',
+      text:`Il pulsante <strong>PDF</strong> genera un dossier con voli, indirizzi,
+        codici di prenotazione e numeri utili: funziona anche senza rete, in aeroporto.
+        <br><br>Dal menu ⋯ puoi scaricare un backup completo in JSON.` }
+  ];
+}
+
+function tourStepsTrip(){
+  const dest = (CURRENT_TRIP && (CURRENT_TRIP.destinazione || CURRENT_TRIP.nome)) || 'il viaggio';
+  return [
+    { art:'🧭', title:'Benvenuto a bordo',
+      text:`Questo è il piano di <strong>${esc(dest)}</strong>. Trovi voli, alloggio,
+        spese e tutto il resto già organizzato — e puoi modificarlo anche tu.
+        <br><br>Un minuto per orientarti, poi sei autonomo.` },
+    { art:'📱', title:'Le sezioni',
+      text:`Dal telefono le sezioni principali stanno nella barra in basso, il resto
+        sotto <strong>Altro</strong>. Da computer sono nella colonna a sinistra.
+        <br><br>Il pallino arancione su una sezione significa che manca ancora
+        una decisione: nessun volo scelto, nessun alloggio confermato.` },
+    { art:'🧳', title:'La tua valigia',
+      text:`In <strong>Valigia</strong> scegli il tuo nome in alto: vedrai le voci
+        che riguardano te. Tocca una riga per spuntarla.
+        <br><br>Per aggiungere in fretta: <code>2x telo mare @Marco !essenziale</code>
+        crea la voce già completa di quantità, destinatario e priorità.` },
+    { art:'🖨', title:'Portalo offline',
+      text:`Il pulsante <strong>PDF</strong> genera un documento con voli, indirizzi
+        e numeri utili. Salvalo sul telefono prima di partire: in aeroporto la rete
+        è l'ultima cosa su cui contare.` }
+  ];
+}
+
+function ensureTour(){
+  if(TOUR && TOUR.el) return;
+  const el = document.createElement('div');
+  el.className = 'modal fade';
+  el.id = 'tourModal';
+  el.tabIndex = -1;
+  el.setAttribute('aria-labelledby','tourTitle');
+  el.innerHTML = `<div class="modal-dialog modal-dialog-centered tour-dialog">
+    <div class="modal-content tour-content">
+      <div class="tour-body">
+        <div class="tour-art" id="tourArt" aria-hidden="true"></div>
+        <h2 class="tour-title" id="tourTitle"></h2>
+        <p class="tour-text" id="tourText"></p>
+      </div>
+      <div class="tour-foot">
+        <div class="tour-dots" id="tourDots" role="tablist" aria-label="Passi"></div>
+        <button type="button" class="tour-skip" id="tourSkip">Salta</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="tourPrev">Indietro</button>
+        <button type="button" class="btn btn-stamp btn-sm" id="tourNext">Avanti</button>
+      </div>
+    </div></div>`;
+  document.body.appendChild(el);
+
+  el.addEventListener('keydown', e=>{
+    if(e.key==='ArrowRight'){ e.preventDefault(); tourGo(TOUR.i+1); }
+    if(e.key==='ArrowLeft'){  e.preventDefault(); tourGo(TOUR.i-1); }
+  });
+  // chiusa in qualsiasi modo (X, Esc, click fuori) = non riproporla
+  el.addEventListener('hidden.bs.modal', tourMark);
+
+  TOUR = { steps:[], i:0, el, modal:new bootstrap.Modal(el) };
+  $('#tourSkip').onclick = ()=>TOUR.modal.hide();
+  $('#tourPrev').onclick = ()=>tourGo(TOUR.i-1);
+  $('#tourNext').onclick = ()=>tourGo(TOUR.i+1);
+}
+
+function tourGo(i){
+  if(!TOUR) return;
+  if(i >= TOUR.steps.length){ TOUR.modal.hide(); return; }
+  TOUR.i = Math.max(0, i);
+  const s = TOUR.steps[TOUR.i];
+  const last = TOUR.i === TOUR.steps.length-1;
+
+  $('#tourArt').textContent  = s.art || '';
+  $('#tourTitle').textContent = s.title;
+  $('#tourText').innerHTML    = s.text;
+
+  $('#tourDots').innerHTML = TOUR.steps.map((_,k)=>
+    `<button type="button" class="tour-dot ${k===TOUR.i?'on':(k<TOUR.i?'done':'')}"
+      onclick="tourGo(${k})" aria-label="Passo ${k+1} di ${TOUR.steps.length}"
+      ${k===TOUR.i?'aria-current="step"':''}></button>`).join('');
+
+  $('#tourPrev').style.display = TOUR.i===0 ? 'none' : '';
+  $('#tourSkip').style.display = last ? 'none' : '';
+
+  const next = $('#tourNext');
+  if(s.action){
+    next.textContent = s.action.label;
+    next.onclick = ()=>{ TOUR.modal.hide(); setTimeout(s.action.fn, 350); };
+  } else {
+    next.textContent = last ? 'Inizia' : (TOUR.i===0 ? 'Fammi vedere' : 'Avanti');
+    next.onclick = ()=>tourGo(TOUR.i+1);
+  }
+}
+
+function startTour(){
+  ensureTour();
+  TOUR.steps = isAdmin() ? tourStepsAdmin() : tourStepsTrip();
+  tourGo(0);
+  TOUR.modal.show();
+}
+
+/* Chiamata dopo il primo disegno della schermata: se è la prima volta
+   con questo codice, propone la visita. Non interrompe mai un modal
+   già aperto né una schermata ancora in caricamento. */
+function maybeTour(){
+  if(TOUR_ASKED || !ROLE || tourSeen()) return;
+  if(document.querySelector('.modal.show')) return;
+  TOUR_ASKED = true;
+  setTimeout(startTour, 600);   // il tempo di vedere cosa c'è sotto
 }
 
 /* ============================================================
