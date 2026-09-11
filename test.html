@@ -308,6 +308,26 @@ describe('link non fidati', ()=>{
   ok('il testo viene comunque protetto', W.linkCell('<img onerror=x>').indexOf('<img') < 0);
 });
 
+describe('totale che entra a cifre', ()=>{
+  W.eval('BUDGET_LAST = {}');
+  const spans = html => (html.match(/class="t-digit"/g) || []).length;
+
+  const primo = W.eurPop(1520, 'prova');
+  ok('la prima volta non anima', primo.indexOf('is-animating') < 0, primo.slice(0, 60));
+  eq('una cifra per carattere', spans(primo), leggi('eur(1520)').length);
+  ok('lo spazio non collassa',  primo.indexOf('&nbsp;') >= 0);
+  ok('penultimo carattere sfasato', primo.indexOf('data-stagger="1"') >= 0);
+  ok('ultimo carattere sfasato',    primo.indexOf('data-stagger="2"') >= 0);
+
+  ok('stesso numero, nessuna animazione',
+     W.eurPop(1520, 'prova').indexOf('is-animating') < 0);
+  ok('numero diverso, anima',
+     W.eurPop(1770, 'prova').indexOf('is-animating') >= 0);
+  ok('chiavi separate non si disturbano',
+     W.eurPop(1770, 'altra').indexOf('is-animating') < 0);
+  W.eval('BUDGET_LAST = {}');
+});
+
 describe('giornate troppo piene', ()=>{
   const att = (id, ora, durata) => ({id, data:'2099-06-11', ora, durata, attivita:'A'+id});
   const d = viaggio({

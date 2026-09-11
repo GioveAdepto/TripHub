@@ -57,7 +57,7 @@
 <!-- ============ APP ROOT ============ -->
 <main id="app" class="container py-4"></main>
 <div id="printDoc" aria-hidden="true"></div>
-<div class="toast-mini" id="toast" role="status" aria-live="polite"></div>
+<div class="toast-mini t-toast" id="toast" role="status" aria-live="polite"></div>
 <div class="netbar" id="netbar">Sei offline — le modifiche non vengono salvate finché non torna la rete</div>
 
 <script>
@@ -544,13 +544,13 @@ function toast(msg, type, action){
   if(action){
     const b = document.createElement('button');
     b.className = 'undo'; b.type='button'; b.textContent = action.label;
-    b.onclick = ()=>{ t.classList.remove('show'); clearTimeout(t._timer); action.fn(); };
+    b.onclick = ()=>{ t.classList.remove('is-open'); clearTimeout(t._timer); action.fn(); };
     t.appendChild(b);
     ms = 7000;                       // più tempo per accorgersi e annullare
   }
-  t.className = 'toast-mini show' + (type==='error'?' err':type==='ok'?' ok':'');
+  t.className = 'toast-mini t-toast is-open' + (type==='error'?' err':type==='ok'?' ok':'');
   clearTimeout(t._timer);
-  t._timer = setTimeout(()=>t.classList.remove('show'), ms);
+  t._timer = setTimeout(()=>t.classList.remove('is-open'), ms);
 }
 
 // copia negli appunti con conferma visiva (usata per PNR, codici, link)
@@ -1017,7 +1017,7 @@ function mountTrip(all, section){
   if(!CURRENT_TRIP || CURRENT_TRIP.id !== trip.id){
     VOLI_VIEW = 'schede'; ALG_VIEW = 'schede';
     CURRENT_TRIP = trip;
-    cpReset(); cdfReset();
+    cpReset(); cdfReset(); BUDGET_LAST = {};
   }
   CURRENT_TRIP = trip; CURRENT_DATA = all;
   LAST_SYNC = Date.now();
@@ -1261,6 +1261,7 @@ function renderSection(section, keepScroll){
     info:        ()=>secInfo(d, tid),
   };
   box.innerHTML = (map[section]||map.riepilogo)();
+  if(section==='cosedafare') cdfTabsSync();
   if(keepScroll) window.scrollTo(0, y);
 }
 
@@ -1383,6 +1384,22 @@ function payerCount(paganti, totalPeople, allNames){
    Il budget somma sempre i due addendi, così i totali restano
    corretti anche sui voli inseriti prima di questa versione
    (dove costo_bagaglio è semplicemente vuoto).                */
+/* Il totale del viaggio cambiava in silenzio: scegli un volo e la cifra
+   e' semplicemente un'altra. Ora le cifre rientrano una a una — ma solo
+   se il numero e' davvero cambiato, altrimenti riaprire il tab senza aver
+   toccato niente farebbe saltare tutto per niente. */
+let BUDGET_LAST = {};
+function eurPop(n, key){
+  const testo = eur(n);
+  const cambiato = BUDGET_LAST[key] !== undefined && BUDGET_LAST[key] !== testo;
+  BUDGET_LAST[key] = testo;
+  const ch = [...testo];
+  return `<span class="t-digit-group${cambiato?' is-animating':''}">${ch.map((c,i)=>{
+    const st = i===ch.length-2 ? ' data-stagger="1"' : i===ch.length-1 ? ' data-stagger="2"' : '';
+    return `<span class="t-digit"${st}>${c===' ' ? '&nbsp;' : esc(c)}</span>`;
+  }).join('')}</span>`;
+}
+
 function computeBudget(d){
   const alloggio = (d.Alloggi||[]).filter(a=>truthy(a.scelto)).reduce((s,a)=>s+num(a.totale),0);
   const voliRows = (d.Voli||[]).filter(v=>truthy(v.scelto));
@@ -1739,7 +1756,7 @@ function secRiepilogo(d){
           <p class="eyebrow mb-1">Budget stimato · opzioni scelte</p>
           <button class="btn btn-ghost btn-sm" onclick="printDossier()">🖨 PDF del viaggio</button>
         </div>
-        <div class="budget-total mb-1">${eur(b.tot)}</div>
+        <div class="budget-total mb-1">${eurPop(b.tot, 'riepilogo')}</div>
         <div class="per-person mb-3">${eur(b.perPersona)} a testa · ${b.pers} persone</div>
         <div class="budget-line"><span>Alloggio</span><span class="mono">${eur(b.alloggio)}</span></div>
         <div class="budget-line"><span>Voli${b.voliBagagli?`<span class="sub"> · biglietti ${eur(b.voliBiglietti)} + bagagli ${eur(b.voliBagagli)}</span>`:''}</span><span class="mono">${eur(b.voli)}</span></div>
@@ -2234,7 +2251,7 @@ function secSpese(d, tid){
     <div class="row g-3 mb-3">
       <div class="col-12 col-md-4"><div class="sheet p-3 h-100">
         <p class="eyebrow mb-1">Il viaggio costa</p>
-        <div class="budget-total">${eur(b.tot)}</div>
+        <div class="budget-total">${eurPop(b.tot, 'budget')}</div>
         <div class="per-person mb-2">${eur(b.perPersona)} a testa</div>
         <div class="budget-line"><span>già usciti</span><span class="mono">${eur(c.uscito)}</span></div>
         <div class="budget-line"><span>ancora da pagare</span><span class="mono">${eur(c.daPagare)}</span></div>
@@ -2915,7 +2932,7 @@ function tipoIcon(t){ return TIPO_ICON[String(t||'').toLowerCase()] || '📍'; }
 
 function cdfPrefKey(){ return 'triphub_cdf_' + (CURRENT_TRIP ? CURRENT_TRIP.id : ''); }
 function cdfReset(){
-  CDF_MONTH = null; CDF_PICK = null; CDF_TIPO = ''; CDF_VIEW = '';
+  CDF_MONTH = null; CDF_PICK = null; CDF_TIPO = ''; CDF_VIEW = ''; CDF_VIEW_PREV = '';
   try{
     const v = localStorage.getItem(cdfPrefKey());
     if(v==='idee' || v==='lista' || v==='calendario') CDF_VIEW = v;
@@ -2926,6 +2943,52 @@ function cdfEnsureView(rows){
   if(CDF_VIEW) return;
   CDF_VIEW = (rows||[]).some(r=>toISODate(r.data)) ? 'lista' : 'idee';
 }
+/* La pillola del selettore. La sezione si ridisegna tutta a ogni cambio
+   vista, quindi la pillola nascerebbe gia' arrivata: la rimetto dov'era
+   prima e la lascio scivolare. */
+let CDF_VIEW_PREV = '';
+let CDF_TABS_WIRED = false;
+function cdfTabsSync(){
+  const bar = $('.t-tabs');
+  if(!bar){ CDF_VIEW_PREV = CDF_VIEW; return; }
+  const pill = bar.querySelector('.t-tabs-pill');
+  const tabs = [...bar.querySelectorAll('.t-tab')];
+  if(!pill || !tabs.length) return;
+
+  const posa = (tab, anima)=>{
+    if(!anima){
+      const prev = pill.style.transition;
+      pill.style.transition = 'none';
+      pill.style.transform = `translateX(${tab.offsetLeft}px)`;
+      pill.style.width = `${tab.offsetWidth}px`;
+      void pill.offsetWidth;                       // forza il reflow
+      pill.style.transition = prev;
+    } else {
+      pill.style.transform = `translateX(${tab.offsetLeft}px)`;
+      pill.style.width = `${tab.offsetWidth}px`;
+    }
+  };
+
+  const attivo = tabs.find(t=>t.getAttribute('aria-selected')==='true') || tabs[0];
+  const prima  = tabs.find(t=>t.dataset.view === CDF_VIEW_PREV);
+  if(prima && prima !== attivo){
+    // posa() senza animazione fa già il reflow, quindi la posizione vecchia
+    // è committata: scrivere subito quella nuova basta a far partire la
+    // transizione, senza dipendere da un requestAnimationFrame che in una
+    // scheda in secondo piano non scatterebbe mai
+    posa(prima, false);
+    posa(attivo, true);
+  } else {
+    posa(attivo, false);
+  }
+  CDF_VIEW_PREV = CDF_VIEW;
+
+  if(!CDF_TABS_WIRED){
+    CDF_TABS_WIRED = true;
+    window.addEventListener('resize', ()=>cdfTabsSync());
+  }
+}
+
 function setCdfView(v){
   CDF_VIEW = v; CDF_PICK = null;
   try{ localStorage.setItem(cdfPrefKey(), v); }catch(_){}
@@ -3255,10 +3318,12 @@ function secCoseDaFare(rows, tid){
   ensureCdfMonth();
   const nIdee = cdfIdeas(rows).length, nProg = cdfDated(rows).length;
   const tab = (v, label, n) =>
-    `<button class="btn ${CDF_VIEW===v?'btn-ink':'btn-ghost'}" onclick="setCdfView('${v}')">${label}${n?` <span class="cdf-n">${n}</span>`:''}</button>`;
+    `<button class="t-tab" role="tab" data-view="${v}" aria-selected="${CDF_VIEW===v?'true':'false'}"
+      onclick="setCdfView('${v}')">${label}${n?` <span class="cdf-n">${n}</span>`:''}</button>`;
   const header = `
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-      <div class="btn-group btn-group-sm cdf-tabs" role="group">
+      <div class="t-tabs cdf-tabs" role="tablist">
+        <span class="t-tabs-pill" aria-hidden="true"></span>
         ${tab('idee','💡 Idee', nIdee)}${tab('lista','📋 Programma', nProg)}${tab('calendario','🗓 Calendario', 0)}
       </div>
       <button class="btn ${CDF_VIEW==='idee'?'btn-ghost':'btn-stamp'} btn-sm" onclick="editRow('CoseDaFare', null, '${jsArg(tid)}')">${CDF_VIEW==='idee'?'scheda completa':'+ Aggiungi'}</button>
@@ -3822,7 +3887,7 @@ function cpToggleCat(i){
   CP_CLOSED[c] = !CP_CLOSED[c];
   cpSavePrefs();
   const el = $('#cp_cat_'+i);
-  if(el) el.classList.toggle('closed', !!CP_CLOSED[c]);
+  if(el) el.setAttribute('data-open', CP_CLOSED[c] ? 'false' : 'true');
   const h = $('#cp_head_'+i);
   if(h) h.setAttribute('aria-expanded', CP_CLOSED[c] ? 'false' : 'true');
 }
@@ -3842,8 +3907,8 @@ function cpSearch(q){
     });
     box.style.display = (CP_Q && !vis) ? 'none' : '';
     if(vis) anyGlobal++;
-    if(CP_Q) box.classList.remove('closed');
-    else box.classList.toggle('closed', !!CP_CLOSED[cat]);
+    if(CP_Q) box.setAttribute('data-open', 'true');
+    else box.setAttribute('data-open', CP_CLOSED[cat] ? 'false' : 'true');
   });
   const none = $('#cp_nores');
   if(none) none.style.display = (CP_Q && !anyGlobal) ? 'block' : 'none';
@@ -3984,14 +4049,16 @@ function secCosaPortare(rows, tid){
       || cpPriRank(a)-cpPriRank(b)
       || String(a.cosa||'').localeCompare(String(b.cosa||''),'it'));
     const closed = !!CP_CLOSED[cat];
-    return `<div class="sheet p-2 p-md-3 cp-cat${closed?' closed':''}" id="cp_cat_${i}">
+    return `<div class="sheet p-2 p-md-3 cp-cat t-acc" id="cp_cat_${i}" data-open="${closed?'false':'true'}">
       <div class="cp-cat-head">
         <button class="cp-cat-toggle" id="cp_head_${i}" onclick="cpToggleCat(${i})"
           aria-expanded="${closed?'false':'true'}" aria-controls="cp_body_${i}">
           <span class="cp-cat-ico">${cpIcon(cat)}</span>
           <span class="cp-cat-name">${esc(cat)}</span>
           <span class="cp-cat-n" id="cp_catn_${i}">${dn}/${all.length}</span>
-          <span class="cp-caret">▾</span>
+          <span class="cp-caret t-acc-chevron">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5L8 10.5L12 6.5"/></svg>
+          </span>
         </button>
         <div class="cp-cat-acts">
           <button class="icon-btn" title="Spunta tutta la categoria" onclick="cpBulk(${i},true)">✓</button>
@@ -3999,14 +4066,16 @@ function secCosaPortare(rows, tid){
         </div>
       </div>
       <div class="cp-bar${pct===100?' full':''}" id="cp_bar_${i}"><i style="width:${pct}%"></i></div>
-      <div class="cp-body" id="cp_body_${i}">
-        ${items.map(r=>cpRow(r)).join('')}
-        <div class="cp-add">
-          <input type="text" id="cp_add_${i}" placeholder="+ aggiungi a ${esc(cat.toLowerCase())}…"
-            aria-label="Aggiungi voce a ${esc(cat)}"
-            onkeydown="if(event.key==='Enter'){event.preventDefault();cpQuickAdd(${i},'${jsArg(tid)}')}">
+      <div class="t-acc-panel"><div class="t-acc-panel-inner">
+        <div class="cp-body" id="cp_body_${i}">
+          ${items.map(r=>cpRow(r)).join('')}
+          <div class="cp-add">
+            <input type="text" id="cp_add_${i}" placeholder="+ aggiungi a ${esc(cat.toLowerCase())}…"
+              aria-label="Aggiungi voce a ${esc(cat)}"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();cpQuickAdd(${i},'${jsArg(tid)}')}">
+          </div>
         </div>
-      </div>
+      </div></div>
     </div>`;
   }).join('');
 

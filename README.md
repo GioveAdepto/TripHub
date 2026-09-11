@@ -103,7 +103,9 @@ flowchart LR
 
 Tre file, nessuna dipendenza da installare, nessun passo di build: **il deploy è
 copiare dei file**. Bootstrap e i font arrivano da CDN, tutto il resto è scritto a
-mano.
+mano. Quattro transizioni CSS vengono dal catalogo [transitions.dev](https://transitions.dev)
+e sono incollate verbatim in `style.css`: solo i colori sono riportati sui token di
+TripHub, la taratura del movimento è quella originale.
 
 | File | | |
 |---|---:|---|
@@ -213,7 +215,7 @@ python -m http.server 8000
 I test non hanno framework né dipendenze: la pagina carica `index.html?demo` in un
 iframe e verifica le funzioni pure contro il suo `window`. Coprono conversioni di
 date e durate, il conguaglio dei debiti, il suggeritore di orari, la generazione
-ICS, i commenti, le giornate sovraccariche e la validazione dei link. Sono **108** e
+ICS, i commenti, le giornate sovraccariche e la validazione dei link. Sono **116** e
 sono stati verificati con
 quattro mutazioni deliberate del codice, per assicurarsi che sappiano fallire.
 
