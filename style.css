@@ -476,7 +476,29 @@ a{color:var(--stamp)}
 .cal-ev{font-size:.64rem;background:var(--ink);color:var(--paper);border-radius:4px;padding:1px 4px;margin-bottom:2px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 .cal-ev:hover{background:var(--stamp)}
-.cal-more{font-size:.62rem;color:var(--stamp);font-weight:600}
+.cal-more{font-size:.62rem;color:var(--stamp);font-weight:600;border:none;background:none;
+  padding:0;cursor:pointer;text-align:left;width:100%}
+.cal-more:hover{text-decoration:underline}
+.cal-num{display:flex;align-items:center;justify-content:space-between;gap:.2rem}
+.cal-day{border:none;background:none;padding:0;font:inherit;color:inherit;cursor:pointer;border-radius:4px}
+.cal-day:hover{color:var(--stamp)}
+.cal-warn{border:none;background:none;padding:0;font-size:.7rem;line-height:1;cursor:pointer;color:var(--danger)}
+.cal-cell.carico{border-color:var(--danger)}
+/* avvisi su una giornata */
+.cdf-avviso{font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--danger);line-height:1.45}
+/* dettaglio di un giorno */
+.gio-row{display:flex;align-items:flex-start;gap:.6rem;padding:.45rem 0;border-bottom:1px solid var(--line)}
+.gio-row:last-child{border-bottom:none}
+.gio-row.ko{background:#fdf0ec;border-radius:6px;padding-left:.4rem;padding-right:.4rem}
+.gio-ora{flex:none;width:3.1rem;font-size:.82rem;color:var(--stamp);font-weight:600;padding-top:.1rem}
+.gio-main{flex:1;min-width:0;display:flex;flex-direction:column}
+.gio-tit{font-weight:600;font-size:.9rem}
+.gio-sub{font-size:.76rem;color:var(--muted)}
+.gio-act{flex:none;display:flex;align-items:center;gap:.1rem;white-space:nowrap}
+@media (max-width:520px){
+  .gio-row{flex-wrap:wrap}
+  .gio-act{flex:1 0 100%;justify-content:flex-end}
+}
 .cal-cell.droppable{border-style:dashed}
 .cal-cell.over{border-color:var(--stamp);border-style:solid;background:#fff0dd;box-shadow:inset 0 0 0 1px var(--stamp)}
 /* idee ancora senza data */

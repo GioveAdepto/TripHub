@@ -204,6 +204,18 @@ function demoSeed(){
         posizione:'Paseo del Prado', durata:'3h', quando:'Mattina', prenotazione_req:'Sì', confermata:'Sì' },
       { id:'c3', viaggio_id:'v-demo', data:isoAddDays(via,1), ora:'19:30', tipo:'Locale', attivita:'Aperitivo a Malasaña',
         posizione:'Malasaña', durata:'2h', quando:'Aperitivo' },
+      // una giornata volutamente troppo piena: nel calendario non ci stanno
+      // tutte ("+2 altre") e le prime due si accavallano
+      { id:'c10', viaggio_id:'v-demo', data:isoAddDays(via,2), ora:'09:30', tipo:'Mercato', attivita:'Mercato di San Fernando',
+        posizione:'Lavapiés', durata:'1h30', quando:'Mattina' },
+      { id:'c11', viaggio_id:'v-demo', data:isoAddDays(via,2), ora:'10:30', tipo:'Monumento', attivita:'Palazzo Reale',
+        posizione:'Ópera', durata:'2h', quando:'Mattina', prenotazione_req:'Sì', confermata:'Sì', costo:14 },
+      { id:'c12', viaggio_id:'v-demo', data:isoAddDays(via,2), ora:'13:30', tipo:'Ristorante', attivita:'Pranzo a Lavapiés',
+        durata:'1h', quando:'Pranzo' },
+      { id:'c13', viaggio_id:'v-demo', data:isoAddDays(via,2), ora:'15:30', tipo:'Museo', attivita:'Museo Sorolla',
+        posizione:'Chamberí', durata:'2h', quando:'Pomeriggio' },
+      { id:'c14', viaggio_id:'v-demo', data:isoAddDays(via,2), ora:'20:30', tipo:'Serata', attivita:'Cena a Chueca',
+        durata:'2h', quando:'Sera' },
       // idee ancora senza data: è il caso che il tab "Cose da fare" gestisce
       { id:'c4', viaggio_id:'v-demo', data:'', ora:'', tipo:'Escursione', attivita:'Toledo in giornata',
         posizione:'Toledo', durata:'Giornata intera', quando:'Tutto il giorno', prenotazione_req:'Sì', costo:35 },
@@ -1597,6 +1609,16 @@ function checklistBox(d){
   const senzaDoc = persone.filter(p=>!toISODate(p.scadenza_doc));
   if(senzaDoc.length && persone.length)
     add(false, '📄', `${senzaDoc.length} partecipant${senzaDoc.length===1?'e senza la scadenza del documento':'i senza la scadenza del documento'}`, 'partecipanti', 'completa');
+
+  // giornate con attività sovrapposte o più ore di quante ne stiano
+  const perGiorno = {};
+  (d.CoseDaFare||[]).forEach(r=>{ const k = toISODate(r.data); if(k) (perGiorno[k] = perGiorno[k] || []).push(r); });
+  Object.keys(perGiorno).sort()
+    .map(k=>({ iso:k, avvisi: cdfAvvisiGiorno(cdfCarico(k, perGiorno[k])) }))
+    .filter(x=>x.avvisi.length)
+    .slice(0, 3)
+    .forEach(x=>add(x.avvisi.some(a=>/sovrappongono/.test(a)), '⚠️',
+      `${toITDateLong(x.iso)}: ${x.avvisi[0]}`, 'cosedafare', 'sistema'));
 
   // idee ancora senza data
   const idee = (d.CoseDaFare||[]).filter(r=>!toISODate(r.data));
@@ -3040,6 +3062,111 @@ function cdfGaps(ws, we, busy){
   return out.filter(g=>g[1] > g[0]);
 }
 
+/* ---------- quando una giornata è troppo piena ----------
+   Il suggeritore queste cose le evita da sé, ma una data messa a mano,
+   un trascinamento o dei dati vecchi possono crearle lo stesso. */
+
+// Coppie di attività con l'orario che si accavallano. Guardo solo quelle
+// con un'ora: senza orario non c'è modo di sapere se si pestano i piedi.
+function cdfSovrapposte(items){
+  const t = (items||[])
+    .map(r=>{ const s = hmToMin(toHM(r.ora)); return s==null ? null : { r, s, e: s + cdfNeed(r) }; })
+    .filter(Boolean)
+    .sort((a,b)=>a.s-b.s || a.e-b.e);
+  const out = [];
+  for(let i=1;i<t.length;i++) if(t[i].s < t[i-1].e) out.push([t[i-1].r, t[i].r]);
+  return out;
+}
+
+/* "Troppe attività" non è un numero fisso: dipende da quanto dura la
+   giornata, che il giorno dell'atterraggio è mezza e quello del rientro
+   quasi niente. Confronto le ore da fare con le ore che ci sono. */
+function cdfCarico(iso, items, tb){
+  items = items || cdfDayItems(iso);
+  const w = cdfDayWindow(iso, tb);
+  const minuti  = items.reduce((s,r)=>s + cdfNeed(r), 0);
+  const respiro = Math.max(0, items.length - 1) * CDF_GAP;
+  const finestra = Math.max(0, w.we - w.ws);
+  return {
+    n: items.length, minuti, finestra,
+    // niente guardia su finestra>0: una giornata che il volo azzera del tutto
+    // è il caso PIÙ sovraccarico, non uno da ignorare
+    pieno: (minuti + respiro) > finestra,
+    sovrapposte: cdfSovrapposte(items),
+    window: w
+  };
+}
+
+function cdfAvvisiGiorno(c){
+  if(!c) return [];
+  const out = [];
+  c.sovrapposte.forEach(([a,b])=>{
+    out.push(`${a.attivita || 'un\'attività'} e ${b.attivita || 'un\'altra'} si sovrappongono`);
+  });
+  if(c.pieno){
+    out.push(c.window.partenza
+      ? `giornata di rientro: ci sono solo ${fmtDur(c.finestra)} prima del volo, ma ${fmtDur(c.minuti)} di attività`
+      : c.window.arrivo
+        ? `si atterra a metà giornata: restano ${fmtDur(c.finestra)}, ma ci sono ${fmtDur(c.minuti)} di attività`
+        : `${fmtDur(c.minuti)} di attività in una giornata da ${fmtDur(c.finestra)}: qualcosa salterà`);
+  }
+  return out;
+}
+
+/* ---------- il dettaglio di un giorno ----------
+   Nel calendario ci stanno tre voci per cella: il "+2" serviva a dire che
+   ce n'erano altre, ma non c'era modo di vederle. Adesso le apre. */
+function cdfGiornoModal(iso, tid){
+  ensureModal();
+  const items = cdfDayItems(iso).slice()
+    .sort((a,b)=>(toHM(a.ora)||'99:99').localeCompare(toHM(b.ora)||'99:99'));
+  const c = cdfCarico(iso, items);
+  const avvisi = cdfAvvisiGiorno(c);
+  const inSovr = new Set();
+  c.sovrapposte.forEach(([a,b])=>{ inSovr.add(String(a.id)); inSovr.add(String(b.id)); });
+
+  const riga = r=>{
+    const ora = toHM(r.ora), dur = cdfNeed(r);
+    const sub = [
+      ora ? 'fino alle ' + minToHM(hmToMin(ora) + dur) : fmtDur(dur),
+      r.posizione || '',
+      truthy(r.prenotazione_req) && !truthy(r.confermata) ? 'da prenotare' : ''
+    ].filter(Boolean).join(' · ');
+    return `<div class="gio-row${inSovr.has(String(r.id))?' ko':''}">
+      <span class="gio-ora mono">${ora ? esc(ora) : '—'}</span>
+      <span class="gio-main">
+        <span class="gio-tit">${tipoIcon(r.tipo)} ${esc(r.attivita||'')}</span>
+        ${sub?`<span class="gio-sub">${sub}</span>`:''}
+      </span>
+      <span class="gio-act">
+        ${cmtBtn('CoseDaFare', r.id, r.attivita || 'Attività')}
+        <button class="icon-btn" title="Sposta" onclick="cdfScheduleModal('${jsArg(r.id)}')">📅</button>
+        <button class="icon-btn" title="Modifica" onclick="editRowById('CoseDaFare','${jsArg(r.id)}')">✎</button>
+        <button class="icon-btn" title="Elimina" onclick="cdfGiornoDel('${jsArg(r.id)}','${iso}','${jsArg(tid)}')">🗑</button>
+      </span>
+    </div>`;
+  };
+
+  $('#mTitle').textContent = cdfCapFirst(toITDateLong(iso));
+  $('#mBody').innerHTML = `
+    <p class="mono mb-2" style="font-size:.74rem;color:var(--muted)">
+      ${c.n} ${c.n===1?'attività':'attività'} · ${fmtDur(c.minuti)} su ${fmtDur(c.finestra)} disponibili
+    </p>
+    ${avvisi.length?`<div class="cdf-avviso mb-2">${avvisi.map(a=>`<div>⚠️ ${esc(a)}</div>`).join('')}</div>`:''}
+    ${items.length ? items.map(riga).join('')
+      : `<p class="mono mb-0" style="font-size:.8rem;color:var(--muted)">Giornata ancora libera.</p>`}`;
+  $('#mSave').textContent = '+ Aggiungi qui';
+  $('#mSave').onclick = ()=>{ MODAL.hide(); setTimeout(()=>cdfQuickAdd(iso, tid), 350); };
+  MODAL.show();
+}
+
+// Eliminare da qui: chiudo, chiedo conferma, e riapro il giorno se resta qualcosa.
+async function cdfGiornoDel(id, iso, tid){
+  MODAL.hide();
+  await delRow('CoseDaFare', id);
+  setTimeout(()=>{ if(cdfDayItems(iso).length) cdfGiornoModal(iso, tid); }, 400);
+}
+
 // Miglior orario per QUESTA attività in QUEL giorno (null se non ci sta).
 function cdfSlotFor(row, iso, tb, extra){
   const w = cdfDayWindow(iso, tb);
@@ -3228,9 +3355,11 @@ function cdfList(rows, tid){
   withDate.forEach(r=>{ const k=toISODate(r.data); (groups[k] = groups[k] || []).push(r); });
   const dayBlocks = Object.keys(groups).sort().map(k=>{
     const min = groups[k].reduce((s,r)=>s + cdfNeed(r), 0);
+    const avvisi = cdfAvvisiGiorno(cdfCarico(k, groups[k]));
     return `<div class="mb-3">
       <p class="eyebrow mb-2">${toITDateLong(k)}
         <span class="mono" style="text-transform:none;letter-spacing:0;color:var(--muted)">· ${groups[k].length} · ${fmtDur(min)}</span></p>
+      ${avvisi.length?`<div class="cdf-avviso mb-2">${avvisi.map(a=>`<div>⚠️ ${esc(a)}</div>`).join('')}</div>`:''}
       ${groups[k].map(r=>cdfItem(r, false)).join('')}
     </div>`;
   }).join('');
@@ -3291,6 +3420,7 @@ function cdfCalendar(rows, tid){
   cdfDated(rows).forEach(r=>{ const k=toISODate(r.data); (byDay[k] = byDay[k] || []).push(r); });
 
   const vStart = toISODate(CURRENT_TRIP && CURRENT_TRIP.data_inizio), vEnd = toISODate(CURRENT_TRIP && CURRENT_TRIP.data_fine);
+  const tb = cdfTravelBounds();          // una volta sola, non per ogni cella
   const dow = ['lun','mar','mer','gio','ven','sab','dom'].map(d=>`<div class="cal-dow">${d}</div>`).join('');
 
   let cells = '';
@@ -3301,13 +3431,26 @@ function cdfCalendar(rows, tid){
     const inTrip = vStart && vEnd && iso>=vStart && iso<=vEnd;
     const chips = items.slice(0,3).map(r=>
       `<div class="cal-ev" title="${esc(r.attivita)}" onclick="event.stopPropagation();editRowById('CoseDaFare','${jsArg(r.id)}')">${tipoIcon(r.tipo)} ${esc((r.attivita||'').slice(0,14))}</div>`).join('');
-    const more = items.length>3 ? `<div class="cal-more">+${items.length-3}</div>` : '';
-    cells += `<div class="cal-cell${inTrip?' in-trip':''}${CDF_PICK?' droppable':''}"
+    // il "+N" diceva quante ce n'erano ma non le mostrava: ora apre il giorno
+    const more = items.length>3
+      ? `<button class="cal-more" title="Vedi tutte le ${items.length} attività"
+           onclick="event.stopPropagation();cdfGiornoModal('${iso}','${jsArg(tid)}')">+${items.length-3} altre</button>`
+      : '';
+    const c = items.length ? cdfCarico(iso, items, tb) : null;
+    const avvisi = cdfAvvisiGiorno(c);
+    const warn = avvisi.length
+      ? `<button class="cal-warn" title="${esc(avvisi.join(' · '))}"
+           onclick="event.stopPropagation();cdfGiornoModal('${iso}','${jsArg(tid)}')">⚠</button>`
+      : '';
+    cells += `<div class="cal-cell${inTrip?' in-trip':''}${CDF_PICK?' droppable':''}${avvisi.length?' carico':''}"
       ondblclick="cdfQuickAdd('${iso}','${jsArg(tid)}')"
       onclick="cdfDayClick('${iso}')"
       ondragover="cdfDragOver(event)" ondragleave="this.classList.remove('over')"
       ondrop="cdfDrop(event,'${iso}')">
-      <div class="cal-num">${d}</div>${chips}${more}
+      <div class="cal-num">
+        <button class="cal-day" title="Vedi il giorno"
+          onclick="event.stopPropagation();cdfGiornoModal('${iso}','${jsArg(tid)}')">${d}</button>${warn}
+      </div>${chips}${more}
     </div>`;
   }
 
@@ -3321,7 +3464,7 @@ function cdfCalendar(rows, tid){
       <div class="cal-grid cal-head">${dow}</div>
       <div class="cal-grid">${cells}</div>
       <p class="mono mt-2 mb-0" style="font-size:.68rem;color:var(--muted)">
-        doppio click su un giorno per aggiungere · giorni evidenziati = durata vacanza
+        clicca il numero del giorno per vederlo tutto · doppio click per aggiungere · giorni evidenziati = durata vacanza
       </p>
     </div>
     ${cdfRail(rows, tid)}`;

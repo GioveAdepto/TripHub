@@ -26,7 +26,7 @@ interamente nel browser con dati inventati, non serve nessun codice.
 | ✈️ **Voli** | Più opzioni a confronto, scali, durata reale calcolata sui fusi orari degli aeroporti |
 | 🏠 **Alloggi** | Opzioni con voto, prezzi derivati (a notte, a testa, a testa/notte), avviso sulle notti scoperte |
 | 💶 **Budget** | Preventivo, chi ha anticipato cosa, saldi e **conguaglio semplificato** |
-| 📅 **Cose da fare** | Prima le idee senza data, poi il calendario — con un **suggeritore** di quando farle |
+| 📅 **Cose da fare** | Prima le idee senza data, poi il calendario — con un **suggeritore** di quando farle e l'avviso quando una giornata è troppo piena |
 | 🧳 **Valigia** | Liste con modelli pronti, aggiunta rapida, spunta per persona |
 | ☎️ **Contatti e info** | Numeri utili, informazioni sulla destinazione |
 | 🖨 **Esportazioni** | Dossier PDF del viaggio, file `.ics` per il calendario del telefono |
@@ -213,7 +213,8 @@ python -m http.server 8000
 I test non hanno framework né dipendenze: la pagina carica `index.html?demo` in un
 iframe e verifica le funzioni pure contro il suo `window`. Coprono conversioni di
 date e durate, il conguaglio dei debiti, il suggeritore di orari, la generazione
-ICS, i commenti e la validazione dei link. Sono **96** e sono stati verificati con
+ICS, i commenti, le giornate sovraccariche e la validazione dei link. Sono **108** e
+sono stati verificati con
 quattro mutazioni deliberate del codice, per assicurarsi che sappiano fallire.
 
 ---

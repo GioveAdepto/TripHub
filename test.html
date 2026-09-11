@@ -308,6 +308,51 @@ describe('link non fidati', ()=>{
   ok('il testo viene comunque protetto', W.linkCell('<img onerror=x>').indexOf('<img') < 0);
 });
 
+describe('giornate troppo piene', ()=>{
+  const att = (id, ora, durata) => ({id, data:'2099-06-11', ora, durata, attivita:'A'+id});
+  const d = viaggio({
+    Voli:[
+      {id:'v1',scelto:'Sì',gruppo_id:'g1',direzione:'Andata', tratta:1,data_part:'2099-06-10',ora_part:'12:00',data_arr:'2099-06-10',ora_arr:'16:30'},
+      {id:'v2',scelto:'Sì',gruppo_id:'g1',direzione:'Ritorno',tratta:1,data_part:'2099-06-14',ora_part:'11:00'}
+    ],
+    CoseDaFare:[ att('1','10:00','3h'), att('2','12:00','2h'), att('3','16:00','1h') ]
+  });
+  stato(d.Viaggi[0], d);
+
+  const items = W.cdfDayItems('2099-06-11');
+  const sov = W.cdfSovrapposte(items);
+  eq('trova la coppia che si accavalla', sov.length, 1);
+  eq('e sono quelle giuste', [sov[0][0].id, sov[0][1].id], ['1','2']);
+  ok('chi non si tocca non viene segnalato', sov.every(p=>p.indexOf('3') < 0));
+
+  const c = W.cdfCarico('2099-06-11', items);
+  eq('conta le attività',  c.n, 3);
+  eq('somma le durate',    c.minuti, 180+120+60);
+  ok('la giornata piena ci sta', !c.pieno, `${c.minuti} su ${c.finestra}`);
+  ok('l\'avviso nomina le attività', W.cdfAvvisiGiorno(c)[0].indexOf('A1') >= 0,
+     W.cdfAvvisiGiorno(c)[0]);
+
+  // stesso carico, ma il giorno del rientro dura quasi niente
+  const d2 = viaggio({ Voli: d.Voli, CoseDaFare:[
+    {id:'x', data:'2099-06-14', ora:'08:00', durata:'3h', attivita:'Lunga'} ]});
+  stato(d2.Viaggi[0], d2);
+  const c2 = W.cdfCarico('2099-06-14', W.cdfDayItems('2099-06-14'));
+  ok('il giorno di partenza è subito pieno', c2.pieno, `finestra ${c2.finestra}`);
+  ok('e l\'avviso lo dice', W.cdfAvvisiGiorno(c2).some(a=>/rientro/.test(a)),
+     JSON.stringify(W.cdfAvvisiGiorno(c2)));
+
+  // senza orario non si può dire che due cose si pestino i piedi
+  const d3 = viaggio({ CoseDaFare:[
+    {id:'s1', data:'2099-06-11', ora:'', durata:'3h', attivita:'Senza ora'},
+    {id:'s2', data:'2099-06-11', ora:'', durata:'3h', attivita:'Nemmeno'} ]});
+  stato(d3.Viaggi[0], d3);
+  eq('senza ora niente sovrapposizioni', W.cdfSovrapposte(W.cdfDayItems('2099-06-11')).length, 0);
+  eq('ma le ore si contano lo stesso', W.cdfCarico('2099-06-11', W.cdfDayItems('2099-06-11')).minuti, 360);
+
+  stato(d.Viaggi[0], d);
+  eq('giorno vuoto, nessun avviso', W.cdfAvvisiGiorno(W.cdfCarico('2099-06-13', [])).length, 0);
+});
+
 describe('commenti', ()=>{
   const d = viaggio({
     Partecipanti:[{id:'p1',nome:'Anna',soprannome:'Anni'},{id:'p2',nome:'Bruno'},{id:'p3',nome:'Carla'}],
